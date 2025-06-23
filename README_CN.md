@@ -87,15 +87,7 @@ MSCI = 情绪指数×30% + 资金流向×25% + 波动率×25% + 多空比例×20
 
 ### 快速开始
 ```bash
-# 1. 安装依赖
-pip install -r requirements.txt
-
-# 2. 运行系统
-python main_gui.py
-
-# 3. 选择数据文件
-# 支持格式：Excel (.xlsx)
-# 包含：股票代码、股票名称、行业、历史评级数据
+gui
 ```
 
 ### 核心功能
