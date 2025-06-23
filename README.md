@@ -1,4 +1,4 @@
-# AI Stock Trend Analysis System
+# AI Stock Trend Analysis System [中文](https://github.com/hengruiyun/AI-Stock-Analysis/blob/main/README_CN.md)
 
 ## Development Statement
 
@@ -87,15 +87,7 @@ MSCI = Sentiment Index×30% + Capital Flow×25% + Volatility×25% + Long/Short R
 
 ### Quick Start
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Run system
-python main_gui.py
-
-# 3. Select data file
-# Supported format: Excel (.xlsx)
-# Contains: Stock code, stock name, industry, historical rating data
+gui
 ```
 
 ### Core Functions
