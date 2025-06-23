@@ -168,7 +168,7 @@ If you have any questions or suggestions about this system, please contact:
 
 <div align="center">
 
-© 2024 AI Stock Trend Analysis System | Developed through AI-Human Collaboration
+© 2025 AI Stock Trend Analysis System | Developed through AI- 267278466@qq.com Collaboration
 
 *Let AI Empower Your Investment Decisions*
 
