@@ -5,6 +5,7 @@
 本项目展示了人工智能与人类创意的完美结合，通过深度协作开发出这一智能投资分析系统。
 
 ---
+![ais1](https://github.com/user-attachments/assets/bf7467e2-1ac2-446d-a379-649043a422fa)
 
 ## 系统概述
 
@@ -20,6 +21,8 @@
 ## 核心算法简介
 
 ### 1. RTSI - 个股趋势强度指数
+
+![ais3](https://github.com/user-attachments/assets/8e745112-9522-405f-9d61-c224620d3f93)
 
 > **这是测试数据**
 
@@ -41,6 +44,8 @@ RTSI = (趋势斜率 × 50 + 数据一致性 × 30 + 置信度 × 20) × 100
 
 ### 2. IRSI - 行业相对强度指数
 
+![ais5](https://github.com/user-attachments/assets/18fe92c2-ea7a-488e-a99d-23b878d39c70)
+
 > **这是测试数据**
 
 **简单理解：** 比较不同行业的表现，找出当前最热门的板块。
@@ -61,6 +66,8 @@ IRSI = (行业平均收益 - 市场平均收益) × 时间权重 × 100
 **应用场景：** 板块轮动、行业配置、长期投资策略
 
 ### 3. MSCI - 市场情绪综合指数
+
+![ais6](https://github.com/user-attachments/assets/73639f5a-e565-45c9-bea7-d01cd6b418ed)
 
 > **这是测试数据**
 
@@ -89,6 +96,7 @@ MSCI = 情绪指数×30% + 资金流向×25% + 波动率×25% + 多空比例×20
 ```bash
 gui
 ```
+![ais7](https://github.com/user-attachments/assets/65c1edeb-237c-4a56-b67b-7f81a2d78b3c)
 
 ### 核心功能
 
