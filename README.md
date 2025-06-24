@@ -6,6 +6,7 @@ This project demonstrates the perfect combination of artificial intelligence and
 
 ---
 
+![ais1](https://github.com/user-attachments/assets/bf7467e2-1ac2-446d-a379-649043a422fa)
 
 ## System Overview
 
@@ -21,6 +22,10 @@ This system is an AI-based stock trend analysis platform that integrates three c
 ## Core Algorithm Introduction
 
 ### 1. RTSI - Individual Stock Trend Strength Index
+
+
+![ais3](https://github.com/user-attachments/assets/8e745112-9522-405f-9d61-c224620d3f93)
+
 
 
 > **This is test data**
@@ -42,6 +47,8 @@ RTSI = (Trend Slope × 50 + Data Consistency × 30 + Confidence × 20) × 100
 **Application Scenarios:** Short-term trading, trend judgment, buy/sell timing
 
 ### 2. IRSI - Industry Relative Strength Index
+
+![ais5](https://github.com/user-attachments/assets/18fe92c2-ea7a-488e-a99d-23b878d39c70)
 
 
 > **This is test data**
@@ -65,6 +72,7 @@ IRSI = (Industry Average Return - Market Average Return) × Time Weight × 100
 
 ### 3. MSCI - Market Sentiment Composite Index
 
+![ais6](https://github.com/user-attachments/assets/73639f5a-e565-45c9-bea7-d01cd6b418ed)
 
 > **This is test data**
 
@@ -91,9 +99,10 @@ MSCI = Sentiment Index×30% + Capital Flow×25% + Volatility×25% + Long/Short R
 
 ### Quick Start
 ```bash
-gui
+AI-Stock-Analysis-267278466
 ```
 
+![ais7](https://github.com/user-attachments/assets/65c1edeb-237c-4a56-b67b-7f81a2d78b3c)
 
 ### Core Functions
 
