@@ -94,7 +94,7 @@ MSCI = 情绪指数×30% + 资金流向×25% + 波动率×25% + 多空比例×20
 
 ### 快速开始
 ```bash
-gui
+AI-Stock-Analysis-267278466
 ```
 ![ais7](https://github.com/user-attachments/assets/65c1edeb-237c-4a56-b67b-7f81a2d78b3c)
 
