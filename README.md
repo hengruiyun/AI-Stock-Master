@@ -23,7 +23,8 @@ This system is an AI-based stock trend analysis platform that integrates three c
 
 ### 1. RTSI - Individual Stock Trend Strength Index
 
-![ais4](https://github.com/user-attachments/assets/6b750a39-ffd7-4f19-8ae9-dd4bfbe68200)
+
+
 
 > **This is test data**
 
@@ -45,7 +46,8 @@ RTSI = (Trend Slope × 50 + Data Consistency × 30 + Confidence × 20) × 100
 
 ### 2. IRSI - Industry Relative Strength Index
 
-![ais5](https://github.com/user-attachments/assets/41db62db-01b7-4c7f-9b52-3985fb2ccf0c)
+![ais5](https://github.com/user-attachments/assets/18fe92c2-ea7a-488e-a99d-23b878d39c70)
+
 
 > **This is test data**
 
