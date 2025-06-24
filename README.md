@@ -99,7 +99,7 @@ MSCI = Sentiment Index×30% + Capital Flow×25% + Volatility×25% + Long/Short R
 
 ### Quick Start
 ```bash
-gui
+AI-Stock-Analysis-267278466
 ```
 
 ![ais7](https://github.com/user-attachments/assets/65c1edeb-237c-4a56-b67b-7f81a2d78b3c)
