@@ -1,4 +1,4 @@
-# AI Stock Trend Analysis System v2.0
+# AI Stock Trend Analysis System v2.0 [中文](https://github.com/hengruiyun/AI-Stock-Analysis/blob/main/README_CN.md)
 
 ## Development Statement
 
@@ -15,6 +15,7 @@ This system is an artificial intelligence-based stock trend analysis platform th
 - **Full Market Support**: Supports Chinese A-shares, Hong Kong Stock Market, and US Stock Market
 - **Deep Analysis**: Three-tier analysis system covering individual stocks, industries, and markets
 - **AI Enhancement**: Integrated large language models for intelligent interpretation and recommendation generation
+- **LLM Integration**: Advanced natural language processing for market analysis and investment insights
 
 
 ---
@@ -30,15 +31,41 @@ This system is built on modern artificial intelligence theory, integrating machi
 - Applies time series analysis techniques to process historical stock price data
 - Implements anomaly detection and data quality assessment
 
-**2. Pattern Recognition Layer**
-- Deep neural network-based trend pattern recognition
-- Uses Convolutional Neural Networks (CNN) to analyze price chart patterns
-- Applies Recurrent Neural Networks (RNN/LSTM) to capture temporal dependencies
-
-**3. Intelligent Decision Layer**
+**2. Intelligent Decision Layer**
 - Integrates large language models for natural language understanding and generation
 - Uses reinforcement learning to optimize investment strategies
 - Implements multi-agent collaborative decision mechanisms
+
+### Large Language Model Integration
+
+**LLM-Powered Analysis Engine**
+
+The v2.0 system introduces advanced large language model capabilities for enhanced financial analysis:
+
+**1. Intelligent Market Commentary**
+- Automated generation of professional market analysis reports
+- Real-time interpretation of technical indicators and market signals
+- Contextual analysis combining quantitative data with market sentiment
+
+**2. Risk Assessment and Recommendations**
+- AI-powered risk evaluation with natural language explanations
+- Personalized investment recommendations based on user profiles
+- Dynamic strategy adjustments with reasoning transparency
+
+**Technical Implementation**
+```
+LLM Analysis Pipeline:
+1. Data Preprocessing -> Technical indicators calculation
+2. Context Building -> Market data + news + sentiment
+3. LLM Processing -> Natural language analysis
+4. Output Generation -> Structured recommendations
+5. Reliability Scoring -> Confidence assessment
+```
+
+**Reliability and Validation**
+- Each LLM-generated analysis includes a reliability score (0-10)
+- Cross-validation with traditional quantitative models
+
 
 
 ## Core Algorithm Details
@@ -310,7 +337,7 @@ Analysis Time: February 2024
 
 Traditional RSI: 68.5 (Near Overbought)
 AI-Enhanced RSI: 72.3 (Adjusted value considering sentiment factors)
-
+```
 ---
 
 ## Risk Warnings and Disclaimers
@@ -392,6 +419,7 @@ AI-Enhanced RSI: 72.3 (Adjusted value considering sentiment factors)
 
 ### v2.0 Major Updates
 - **AI Technology Upgrade**: Integrated large language models, enhanced intelligent analysis capabilities
+- **Intelligent Commentary**: Automated generation of professional market analysis reports with reliability scoring
 - **Algorithm Optimization**: Improved three core algorithms, increased prediction accuracy
 - **User Experience**: Added natural language queries and conversational analysis
 - **Risk Management**: Enhanced risk assessment models, providing more precise risk control
@@ -406,7 +434,7 @@ AI-Enhanced RSI: 72.3 (Adjusted value considering sentiment factors)
 
 <div align="center">
 
-© 2024 AI Stock Trend Analysis System v2.1 | Developed through AI-Human Collaboration
+© 2025 AI Stock Analysis System v2.0 | Developed through AI- 267278466@qq.com Collaboration
 
 Let AI Empower Your Investment Decisions
 
