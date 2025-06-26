@@ -412,19 +412,10 @@ Ensemble Model   | 0.85     | 0.83      | 0.88   | 0.85
 
 ## Version Update Log
 
-### v2.1 Optimization Updates
-- **Code Simplification**: Removed multi-perspective analysis code, focusing on traditional AI analysis
-- **Performance Optimization**: Streamlined codebase for better performance and maintainability
-- **Stability Enhancement**: Improved system stability by removing complex multi-agent components
-- **User Experience**: Simplified analysis workflow, more intuitive operation
-- **Documentation Update**: Updated README files to reflect current system capabilities
-
 ### v2.0 Major Updates
 - **AI Technology Upgrade**: Integrated large language models, enhanced intelligent analysis capabilities
 - **Algorithm Optimization**: Improved three core algorithms, increased prediction accuracy
 - **User Experience**: Added natural language queries and conversational analysis
-- **Multimodal Support**: Supports text, numerical, image, and other data types
-- **Real-time Processing**: Optimized data processing speed, supports real-time analysis
 - **Risk Management**: Enhanced risk assessment models, providing more precise risk control
 
 ### v1.0 Basic Functions
