@@ -406,7 +406,7 @@ AI-Enhanced RSI: 72.3 (Adjusted value considering sentiment factors)
 
 <div align="center">
 
-© 2024 AI Stock Trend Analysis System v2.1 | Developed through AI-Human Collaboration
+© 2025 AI Stock Analysis System v2.0 | Developed through AI- 267278466@qq.com Collaboration
 
 Let AI Empower Your Investment Decisions
 
