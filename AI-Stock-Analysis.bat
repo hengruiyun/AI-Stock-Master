@@ -7,6 +7,12 @@ echo AI Stock Analysis GUI Setup
 echo ========================================
 echo.
 
+:git_pull
+echo [0/5] Update...
+if exist ".git\config" (
+    git pull
+)
+
 rem Check if Python 3.10+ is available
 echo [1/5] Checking Python version...
 python --version >nul 2>&1
