@@ -1,4 +1,4 @@
-# AI Stock Trend Analysis System v2.0
+# AI Stock Trend Analysis System v2.0 [中文](https://github.com/hengruiyun/AI-Stock-Analysis/blob/main/README_CN.md)
 
 ## Development Statement
 
