@@ -1591,34 +1591,32 @@ class StockAnalyzerMainWindow:
                 sys.path.insert(0, llm_api_path)
             
             # 使用传统AI分析方式
+            # 传统LLM调用
+            from client import LLMClient
+            
+            # 创建LLM客户端
+            client = LLMClient()
+            
+            # 构建分析提示
+            prompt = self._build_analysis_prompt(analysis_data)
+            
+            # 使用智能体接口调用AI分析
             try:
-                
-                # 传统LLM调用
-                from client import LLMClient
-                
-                # 创建LLM客户端
-                client = LLMClient()
-                
-                # 构建分析提示
-                prompt = self._build_analysis_prompt(analysis_data)
-                
-                # 使用智能体接口调用AI分析
+                response = client.chat(
+                    message=prompt,
+                    agent_id="金融分析师"
+                )
+            except Exception as agent_error:
+                print(f"使用智能体失败，尝试直接调用: {agent_error}")
+                # 如果智能体不可用，回退到直接调用
                 try:
                     response = client.chat(
                         message=prompt,
-                        agent_id="金融分析师"
+                        system_message="你是一位专业的股票分析师，请基于提供的技术分析数据，给出专业的投资建议和市场观点。"
                     )
-                except Exception as agent_error:
-                    print(f"使用智能体失败，尝试直接调用: {agent_error}")
-                    # 如果智能体不可用，回退到直接调用
-                    try:
-                        response = client.chat(
-                            message=prompt,
-                            system_message="你是一位专业的股票分析师，请基于提供的技术分析数据，给出专业的投资建议和市场观点。"
-                        )
-                    except Exception as direct_error:
-                        print(f"直接调用也失败: {direct_error}")
-                        return None
+                except Exception as direct_error:
+                    print(f"直接调用也失败: {direct_error}")
+                    return None
             
             # 评估AI分析结果的可靠性
             reliability_score = self._evaluate_ai_reliability(response, analysis_data)
