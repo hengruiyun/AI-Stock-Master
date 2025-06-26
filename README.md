@@ -301,7 +301,6 @@ AI-Enhanced RSI:
 1. Dynamic Period Adjustment: Automatically adjusts calculation period based on market volatility
 2. Multi-timeframe Fusion: Combines daily, weekly, monthly RSI
 3. Sentiment Weighting: Adds market sentiment factor corrections
-4. Machine Learning Optimization: Uses historical data to optimize parameters
 ```
 
 **Real Application Case**
@@ -311,26 +310,6 @@ Analysis Time: February 2024
 
 Traditional RSI: 68.5 (Near Overbought)
 AI-Enhanced RSI: 72.3 (Adjusted value considering sentiment factors)
-
-LLM Analysis Recommendation:
-"Current Tencent stock price is in technically overbought territory, but considering:
-1. Strong expectations for gaming business recovery
-2. AI business layout gaining market recognition
-3. Continuous inflow of Stock Connect funds
-Recommendation: Can moderately reduce position but no need to clear all, set stop-loss at HK$420"
-```
-
-### Machine Learning Model Performance
-
-**Model Evaluation Metrics**
-```
-Model Type        | Accuracy | Precision | Recall | F1 Score
------------------|----------|-----------|--------|----------
-Random Forest    | 0.78     | 0.75      | 0.82   | 0.78
-Support Vector   | 0.74     | 0.71      | 0.79   | 0.75
-LSTM Neural Net  | 0.82     | 0.80      | 0.85   | 0.82
-Ensemble Model   | 0.85     | 0.83      | 0.88   | 0.85
-```
 
 ---
 
@@ -361,7 +340,6 @@ Ensemble Model   | 0.85     | 0.83      | 0.88   | 0.85
 
 **Project Team**
 - **Project Creator**: 267278466@qq.com
-- **AI Developer**: Cursor AI
 - **Technical Architecture**: AI-Human Collaborative Development
 
 **Technical Support**
