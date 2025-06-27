@@ -5,6 +5,7 @@
 本项目展示了人工智能与人类创意的完美结合，通过深度协作开发出这一智能投资分析系统。
 
 ---
+![ais1](https://github.com/user-attachments/assets/824df195-9675-4290-8099-d720ac37bfe9)
 
 ## 系统概述
 
@@ -35,6 +36,8 @@
 - 实现多智能体协作决策机制
 
 ### 大语言模型集成
+
+![ais7](https://github.com/user-attachments/assets/c0f1e1f6-6b9c-464c-b2a0-770d19751b93)
 
 **LLM驱动的分析引擎**
 
@@ -122,6 +125,8 @@ RTSI = 0.34 + 0.234 + 0.184 + 0.135 = 0.893
 - 组合构建：筛选强势个股
 
 ### 2. IRSI - 行业相对强度指数
+
+![ais4](https://github.com/user-attachments/assets/e07a72f3-1419-4845-af55-f21b96649e19)
 
 **算法理论基础**
 
