@@ -6,6 +6,8 @@ This project demonstrates the perfect combination of artificial intelligence and
 
 ---
 
+![ais1](https://github.com/user-attachments/assets/824df195-9675-4290-8099-d720ac37bfe9)
+
 ## System Overview
 
 This system is an artificial intelligence-based stock trend analysis platform that provides comprehensive investment decision support through the integration of three core algorithms: **RTSI Individual Stock Trend Strength Index**, **IRSI Industry Relative Strength Index**, and **MSCI Market Sentiment Composite Index**.
@@ -37,6 +39,8 @@ This system is built on modern artificial intelligence theory, integrating machi
 - Implements multi-agent collaborative decision mechanisms
 
 ### Large Language Model Integration
+
+![ais7](https://github.com/user-attachments/assets/c0f1e1f6-6b9c-464c-b2a0-770d19751b93)
 
 **LLM-Powered Analysis Engine**
 
@@ -124,6 +128,8 @@ Recommendation: Suitable for buying, suggested stop-loss at 8%
 - Portfolio construction: Screening strong stocks
 
 ### 2. IRSI - Industry Relative Strength Index
+
+![ais4](https://github.com/user-attachments/assets/e07a72f3-1419-4845-af55-f21b96649e19)
 
 **Algorithm Theoretical Foundation**
 
