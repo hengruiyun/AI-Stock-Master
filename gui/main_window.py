@@ -48,13 +48,15 @@ except ImportError as e:
 
 # 导入语言管理器
 try:
-    from localization.improved_language_manager import _
+    from localization.improved_language_manager import _, is_english
     print(f"语言管理器加载成功")
 except ImportError as e:
     print(f"Warning: 语言管理器导入失败: {e}")
     # 如果导入失败，使用简单的回退函数
     def _(key, default=None):
         return default or key
+    def is_english():
+        return False
 
 # 设置matplotlib中文字体支持
 try:
