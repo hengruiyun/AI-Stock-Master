@@ -339,16 +339,30 @@ def ensure_ollama_and_model(model_name: str) -> bool:
     try:
         manager = get_ollama_manager()
         
-        # 检查Ollama是否安装
-        if not manager.is_installed():
-            print(f"{Fore.YELLOW}Ollama未安装，请先安装Ollama{Style.RESET_ALL}")
-            return False
+        # 检查是否为远程Ollama服务
+        is_remote_service = (
+            manager.base_url != "http://localhost:11434" and 
+            not manager.base_url.startswith("http://127.0.0.1") and
+            not manager.base_url.startswith("http://localhost")
+        )
+        
+        # 对于远程服务，跳过本地安装检查
+        if not is_remote_service:
+            # 检查Ollama是否安装（仅限本地服务）
+            if not manager.is_installed():
+                print(f"{Fore.YELLOW}Ollama未安装，请先安装Ollama{Style.RESET_ALL}")
+                return False
         
         # 检查服务器是否运行
         if not manager.is_server_running():
-            print(f"{Fore.YELLOW}Ollama服务器未运行，尝试启动...{Style.RESET_ALL}")
-            if not manager.start_server():
+            if is_remote_service:
+                print(f"{Fore.RED}无法连接到远程Ollama服务: {manager.base_url}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}请确保远程Ollama服务正在运行{Style.RESET_ALL}")
                 return False
+            else:
+                print(f"{Fore.YELLOW}Ollama服务器未运行，尝试启动...{Style.RESET_ALL}")
+                if not manager.start_server():
+                    return False
         
         # 检查模型是否可用
         local_models = manager.get_locally_available_models()
