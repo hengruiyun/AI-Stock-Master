@@ -222,6 +222,12 @@ class ImprovedLanguageManager:
                 'result_market_sentiment': '市场情绪分析',
                 'result_no_data': '暂无数据',
                 
+                # AI分析相关
+                'ai_intelligent_analysis': 'AI智能分析',
+                'ai_analyst_opinion': 'AI分析师观点',
+                'ai_analysis_disclaimer': 'AI分析基于当前市场数据和算法模型，仅供参考。',
+                'ai_intelligent_analysis_in_progress': 'AI智能分析进行中...',
+                
                 # 设置对话框
                 'settings_title': '系统设置',
                 'settings_analysis': '分析设置',
@@ -526,6 +532,12 @@ class ImprovedLanguageManager:
                 'result_top_industries': 'Top 5 Strong Industries (by IRSI)',
                 'result_market_sentiment': 'Market Sentiment Analysis',
                 'result_no_data': 'No data available',
+                
+                # AI Analysis Related
+                'ai_intelligent_analysis': 'AI Intelligent Analysis',
+                'ai_analyst_opinion': 'AI Analyst Opinion',
+                'ai_analysis_disclaimer': 'AI analysis is based on current market data and algorithmic models, for reference only.',
+                'ai_intelligent_analysis_in_progress': 'AI intelligent analysis in progress...',
                 
                 # Settings Dialog
                 'settings_title': 'System Settings',

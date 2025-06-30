@@ -1636,7 +1636,14 @@ class StockAnalyzerMainWindow:
     
     def _build_analysis_prompt(self, data: dict) -> str:
         """构建AI分析提示"""
-        prompt = f"""作为专业金融分析师，请基于以下多维度技术分析数据，提供深度投资策略建议：
+        # 根据当前语言构建提示
+        if is_english():
+            prompt = f"""As a professional financial analyst, please provide in-depth investment strategy recommendations based on the following multi-dimensional technical analysis data:
+
+## 📊 Market Sentiment Composite Index (MSCI)
+"""
+        else:
+            prompt = f"""作为专业金融分析师，请基于以下多维度技术分析数据，提供深度投资策略建议：
 
 ## 📊 市场情绪综合指数 (MSCI)
 """
@@ -1650,43 +1657,75 @@ class StockAnalyzerMainWindow:
             volume_ratio = market.get('volume_ratio', 0)
             
             # 添加市场状态判断
-            market_state = "极度乐观" if msci > 80 else "健康乐观" if msci > 65 else "谨慎乐观" if msci > 55 else "情绪中性" if msci > 45 else "轻度悲观" if msci > 35 else "显著悲观" if msci > 25 else "恐慌抛售"
-            trend_desc = "强势上涨" if trend > 10 else "温和上涨" if trend > 3 else "震荡整理" if abs(trend) <= 3 else "温和下跌" if trend > -10 else "快速下跌"
-            vol_desc = "极高波动" if volatility > 30 else "高波动" if volatility > 20 else "中等波动" if volatility > 10 else "低波动" if volatility > 5 else "极低波动"
-            
-            prompt += f"- 市场情绪指数: {msci:.2f} ({market_state})\n"
-            prompt += f"- 5日动量趋势: {trend:+.2f} ({trend_desc})\n"
-            prompt += f"- 市场波动率: {volatility:.2f} ({vol_desc})\n"
-            prompt += f"- 成交量放大倍数: {volume_ratio:.2f}x\n"
-            prompt += f"- 投资者情绪: {market.get('market_sentiment', '中性')}\n"
-            prompt += f"- 风险等级: {market.get('risk_level', '中等')}\n\n"
+            if is_english():
+                market_state = "Extremely Optimistic" if msci > 80 else "Healthy Optimistic" if msci > 65 else "Cautiously Optimistic" if msci > 55 else "Neutral" if msci > 45 else "Mildly Pessimistic" if msci > 35 else "Significantly Pessimistic" if msci > 25 else "Panic Selling"
+                trend_desc = "Strong Uptrend" if trend > 10 else "Moderate Uptrend" if trend > 3 else "Sideways" if abs(trend) <= 3 else "Moderate Downtrend" if trend > -10 else "Sharp Decline"
+                vol_desc = "Extremely High Volatility" if volatility > 30 else "High Volatility" if volatility > 20 else "Medium Volatility" if volatility > 10 else "Low Volatility" if volatility > 5 else "Very Low Volatility"
+                
+                prompt += f"- Market Sentiment Index: {msci:.2f} ({market_state})\n"
+                prompt += f"- 5-Day Momentum Trend: {trend:+.2f} ({trend_desc})\n"
+                prompt += f"- Market Volatility: {volatility:.2f} ({vol_desc})\n"
+                prompt += f"- Volume Amplification: {volume_ratio:.2f}x\n"
+                prompt += f"- Investor Sentiment: {market.get('market_sentiment', 'Neutral')}\n"
+                prompt += f"- Risk Level: {market.get('risk_level', 'Medium')}\n\n"
+            else:
+                market_state = "极度乐观" if msci > 80 else "健康乐观" if msci > 65 else "谨慎乐观" if msci > 55 else "情绪中性" if msci > 45 else "轻度悲观" if msci > 35 else "显著悲观" if msci > 25 else "恐慌抛售"
+                trend_desc = "强势上涨" if trend > 10 else "温和上涨" if trend > 3 else "震荡整理" if abs(trend) <= 3 else "温和下跌" if trend > -10 else "快速下跌"
+                vol_desc = "极高波动" if volatility > 30 else "高波动" if volatility > 20 else "中等波动" if volatility > 10 else "低波动" if volatility > 5 else "极低波动"
+                
+                prompt += f"- 市场情绪指数: {msci:.2f} ({market_state})\n"
+                prompt += f"- 5日动量趋势: {trend:+.2f} ({trend_desc})\n"
+                prompt += f"- 市场波动率: {volatility:.2f} ({vol_desc})\n"
+                prompt += f"- 成交量放大倍数: {volume_ratio:.2f}x\n"
+                prompt += f"- 投资者情绪: {market.get('market_sentiment', '中性')}\n"
+                prompt += f"- 风险等级: {market.get('risk_level', '中等')}\n\n"
         
         # 宏观经济环境
         if data.get("macro_indicators"):
             macro = data["macro_indicators"]
-            prompt += "## 🌍 宏观经济环境\n"
-            prompt += f"- 基准利率: {macro.get('interest_rate', 0):.1f}% (货币政策导向)\n"
-            prompt += f"- 通胀水平: {macro.get('inflation_rate', 0):.1f}% (物价稳定性)\n"
-            prompt += f"- GDP增速: {macro.get('gdp_growth', 0):.1f}% (经济增长动力)\n"
-            prompt += f"- 货币强度: {macro.get('currency_strength', 0):.1f}/100 (汇率稳定性)\n"
-            prompt += f"- 市场流动性: {macro.get('market_liquidity', 0):.1f}/100 (资金充裕度)\n\n"
+            if is_english():
+                prompt += "## 🌍 Macroeconomic Environment\n"
+                prompt += f"- Benchmark Interest Rate: {macro.get('interest_rate', 0):.1f}% (Monetary Policy Direction)\n"
+                prompt += f"- Inflation Level: {macro.get('inflation_rate', 0):.1f}% (Price Stability)\n"
+                prompt += f"- GDP Growth: {macro.get('gdp_growth', 0):.1f}% (Economic Growth Momentum)\n"
+                prompt += f"- Currency Strength: {macro.get('currency_strength', 0):.1f}/100 (Exchange Rate Stability)\n"
+                prompt += f"- Market Liquidity: {macro.get('market_liquidity', 0):.1f}/100 (Capital Adequacy)\n\n"
+            else:
+                prompt += "## 🌍 宏观经济环境\n"
+                prompt += f"- 基准利率: {macro.get('interest_rate', 0):.1f}% (货币政策导向)\n"
+                prompt += f"- 通胀水平: {macro.get('inflation_rate', 0):.1f}% (物价稳定性)\n"
+                prompt += f"- GDP增速: {macro.get('gdp_growth', 0):.1f}% (经济增长动力)\n"
+                prompt += f"- 货币强度: {macro.get('currency_strength', 0):.1f}/100 (汇率稳定性)\n"
+                prompt += f"- 市场流动性: {macro.get('market_liquidity', 0):.1f}/100 (资金充裕度)\n\n"
         
         # 新闻情感分析
         if data.get("news_sentiment"):
             news = data["news_sentiment"]
             sentiment_score = news.get('overall_sentiment', 0)
-            sentiment_desc = "积极乐观" if sentiment_score > 0.3 else "中性平衡" if sentiment_score > -0.3 else "消极悲观"
             
-            prompt += "## 📰 市场情感指数\n"
-            prompt += f"- 整体情感倾向: {sentiment_score:+.2f} ({sentiment_desc})\n"
-            prompt += f"- 正面消息占比: {news.get('positive_ratio', 0):.1%}\n"
-            prompt += f"- 负面消息占比: {news.get('negative_ratio', 0):.1%}\n"
-            prompt += f"- 中性消息占比: {news.get('neutral_ratio', 0):.1%}\n"
-            prompt += f"- 新闻活跃度: {news.get('news_volume', 0)}条/日\n\n"
+            if is_english():
+                sentiment_desc = "Positive Optimistic" if sentiment_score > 0.3 else "Neutral Balanced" if sentiment_score > -0.3 else "Negative Pessimistic"
+                prompt += "## 📰 Market Sentiment Index\n"
+                prompt += f"- Overall Sentiment Tendency: {sentiment_score:+.2f} ({sentiment_desc})\n"
+                prompt += f"- Positive News Ratio: {news.get('positive_ratio', 0):.1%}\n"
+                prompt += f"- Negative News Ratio: {news.get('negative_ratio', 0):.1%}\n"
+                prompt += f"- Neutral News Ratio: {news.get('neutral_ratio', 0):.1%}\n"
+                prompt += f"- News Activity: {news.get('news_volume', 0)} articles/day\n\n"
+            else:
+                sentiment_desc = "积极乐观" if sentiment_score > 0.3 else "中性平衡" if sentiment_score > -0.3 else "消极悲观"
+                prompt += "## 📰 市场情感指数\n"
+                prompt += f"- 整体情感倾向: {sentiment_score:+.2f} ({sentiment_desc})\n"
+                prompt += f"- 正面消息占比: {news.get('positive_ratio', 0):.1%}\n"
+                prompt += f"- 负面消息占比: {news.get('negative_ratio', 0):.1%}\n"
+                prompt += f"- 中性消息占比: {news.get('neutral_ratio', 0):.1%}\n"
+                prompt += f"- 新闻活跃度: {news.get('news_volume', 0)}条/日\n\n"
         
         # 行业数据 - 增强分析
         if data.get("industry_data"):
-            prompt += "## 🏭 行业相对强度指数 (IRSI)\n"
+            if is_english():
+                prompt += "## 🏭 Industry Relative Strength Index (IRSI)\n"
+            else:
+                prompt += "## 🏭 行业相对强度指数 (IRSI)\n"
             sorted_industries = sorted(data["industry_data"].items(), key=lambda x: x[1].get('irsi_value', 0), reverse=True)
             for i, (industry, info) in enumerate(sorted_industries[:5]):
                 irsi = info.get('irsi_value', 0)
@@ -1694,28 +1733,43 @@ class StockAnalyzerMainWindow:
                 avg_volume = info.get('avg_volume', 0)
                 
                 # 行业强度评级
-                strength = "极强" if irsi > 70 else "强势" if irsi > 60 else "中性" if irsi > 40 else "弱势" if irsi > 30 else "极弱"
+                if is_english():
+                    strength = "Very Strong" if irsi > 70 else "Strong" if irsi > 60 else "Neutral" if irsi > 40 else "Weak" if irsi > 30 else "Very Weak"
+                else:
+                    strength = "极强" if irsi > 70 else "强势" if irsi > 60 else "中性" if irsi > 40 else "弱势" if irsi > 30 else "极弱"
                 rank_emoji = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "📈" if i == 3 else "📊"
                 
-                prompt += f"{rank_emoji} {industry}: IRSI={irsi:.2f}({strength}), 成分股{stock_count}只, 日均成交量{avg_volume/10000:.1f}万\n"
+                if is_english():
+                    prompt += f"{rank_emoji} {industry}: IRSI={irsi:.2f}({strength}), {stock_count} stocks, avg daily volume {avg_volume/10000:.1f}M\n"
+                else:
+                    prompt += f"{rank_emoji} {industry}: IRSI={irsi:.2f}({strength}), 成分股{stock_count}只, 日均成交量{avg_volume/10000:.1f}万\n"
             prompt += "\n"
         
         # 股票数据 - 增强展示
         if data.get("stock_data"):
-            prompt += "## 📈 个股评级趋势强度指数 (RTSI)\n"
+            if is_english():
+                prompt += "## 📈 Real-time Trend Strength Index (RTSI)\n"
+            else:
+                prompt += "## 📈 个股评级趋势强度指数 (RTSI)\n"
             sorted_stocks = sorted(data["stock_data"].items(), key=lambda x: x[1].get('rtsi_value', 0), reverse=True)
             for i, (stock_code, info) in enumerate(sorted_stocks[:8]):
                 rtsi = info.get('rtsi_value', 0)
                 name = info.get('name', stock_code)
-                industry = info.get('industry', '未知')
+                industry = info.get('industry', '未知' if not is_english() else 'Unknown')
                 price = info.get('price', 0)
                 volume = info.get('volume', 0)
                 
                 # RTSI强度评级
-                rating = "强烈推荐" if rtsi > 80 else "推荐" if rtsi > 65 else "中性" if rtsi > 50 else "观望" if rtsi > 35 else "回避"
+                if is_english():
+                    rating = "Strong Buy" if rtsi > 80 else "Buy" if rtsi > 65 else "Hold" if rtsi > 50 else "Watch" if rtsi > 35 else "Avoid"
+                else:
+                    rating = "强烈推荐" if rtsi > 80 else "推荐" if rtsi > 65 else "中性" if rtsi > 50 else "观望" if rtsi > 35 else "回避"
                 trend_emoji = "🚀" if rtsi > 80 else "📈" if rtsi > 65 else "➡️" if rtsi > 50 else "📉" if rtsi > 35 else "⚠️"
                 
-                prompt += f"{trend_emoji} {name}({stock_code}): RTSI={rtsi:.2f}({rating}), {industry}板块, ¥{price:.2f}, 成交量{volume/10000:.1f}万\n"
+                if is_english():
+                    prompt += f"{trend_emoji} {name}({stock_code}): RTSI={rtsi:.2f}({rating}), {industry} sector, ${price:.2f}, volume {volume/10000:.1f}M\n"
+                else:
+                    prompt += f"{trend_emoji} {name}({stock_code}): RTSI={rtsi:.2f}({rating}), {industry}板块, ¥{price:.2f}, 成交量{volume/10000:.1f}万\n"
             prompt += "\n"
         
         # 历史数据 - 30天深度分析
@@ -1724,9 +1778,14 @@ class StockAnalyzerMainWindow:
             dates = historical['dates']
             data_days = len(dates)
             
-            prompt += f"## 📊 {data_days}天历史趋势深度分析\n"
-            prompt += f"📅 分析周期: {dates[0]} ~ {dates[-1]} ({data_days}个交易日)\n"
-            prompt += f"🔍 数据来源: {historical.get('data_quality', 'unknown')}\n\n"
+            if is_english():
+                prompt += f"## 📊 {data_days}-Day Historical Trend Analysis\n"
+                prompt += f"📅 Analysis Period: {dates[0]} ~ {dates[-1]} ({data_days} trading days)\n"
+                prompt += f"🔍 Data Source: {historical.get('data_quality', 'unknown')}\n\n"
+            else:
+                prompt += f"## 📊 {data_days}天历史趋势深度分析\n"
+                prompt += f"📅 分析周期: {dates[0]} ~ {dates[-1]} ({data_days}个交易日)\n"
+                prompt += f"🔍 数据来源: {historical.get('data_quality', 'unknown')}\n\n"
             
             # 市场MSCI历史趋势分析
             if historical.get("market_msci"):
@@ -1741,28 +1800,71 @@ class StockAnalyzerMainWindow:
                 max_msci = max(msci_trend)
                 min_msci = min(msci_trend)
                 
-                trend_direction = "📈 上升趋势" if change > 5 else "📉 下降趋势" if change < -5 else "➡️ 横盘整理"
-                volatility_level = "高波动" if msci_volatility > 10 else "中波动" if msci_volatility > 5 else "低波动"
-                
-                prompt += f"🎯 市场情绪演变: {start_msci:.1f} → {end_msci:.1f} ({change:+.1f}点, {change_pct:+.1f}%)\n"
-                prompt += f"📈 趋势特征: {trend_direction}, {volatility_level}(σ={msci_volatility:.1f})\n"
-                prompt += f"📊 区间波动: {min_msci:.1f} ~ {max_msci:.1f} (振幅{max_msci-min_msci:.1f}点)\n\n"
+                if is_english():
+                    trend_direction = "📈 Uptrend" if change > 5 else "📉 Downtrend" if change < -5 else "➡️ Sideways"
+                    volatility_level = "High Volatility" if msci_volatility > 10 else "Medium Volatility" if msci_volatility > 5 else "Low Volatility"
+                    
+                    prompt += f"🎯 Market Sentiment Evolution: {start_msci:.1f} → {end_msci:.1f} ({change:+.1f}pts, {change_pct:+.1f}%)\n"
+                    prompt += f"📈 Trend Characteristics: {trend_direction}, {volatility_level}(σ={msci_volatility:.1f})\n"
+                    prompt += f"📊 Range Fluctuation: {min_msci:.1f} ~ {max_msci:.1f} (amplitude {max_msci-min_msci:.1f}pts)\n\n"
+                else:
+                    trend_direction = "📈 上升趋势" if change > 5 else "📉 下降趋势" if change < -5 else "➡️ 横盘整理"
+                    volatility_level = "高波动" if msci_volatility > 10 else "中波动" if msci_volatility > 5 else "低波动"
+                    
+                    prompt += f"🎯 市场情绪演变: {start_msci:.1f} → {end_msci:.1f} ({change:+.1f}点, {change_pct:+.1f}%)\n"
+                    prompt += f"📈 趋势特征: {trend_direction}, {volatility_level}(σ={msci_volatility:.1f})\n"
+                    prompt += f"📊 区间波动: {min_msci:.1f} ~ {max_msci:.1f} (振幅{max_msci-min_msci:.1f}点)\n\n"
             
             # 重点股票历史表现
             if historical.get("top_stocks_rtsi"):
-                prompt += "🏆 龙头股票历史表现追踪:\n"
+                if is_english():
+                    prompt += "🏆 Leading Stocks Historical Performance Tracking:\n"
+                else:
+                    prompt += "🏆 龙头股票历史表现追踪:\n"
                 for stock_code, stock_info in list(historical["top_stocks_rtsi"].items())[:3]:
                     ratings = stock_info.get('historical_ratings', [])
                     valid_ratings = [r for r in ratings if r is not None]
                     if valid_ratings and len(valid_ratings) >= 2:
                         start_rating = valid_ratings[0]
                         end_rating = valid_ratings[-1]
-                        rating_trend = "⬆️ 评级上升" if end_rating > start_rating else "⬇️ 评级下降" if end_rating < start_rating else "➡️ 评级稳定"
+                        if is_english():
+                            rating_trend = "⬆️ Rating Up" if end_rating > start_rating else "⬇️ Rating Down" if end_rating < start_rating else "➡️ Rating Stable"
+                        else:
+                            rating_trend = "⬆️ 评级上升" if end_rating > start_rating else "⬇️ 评级下降" if end_rating < start_rating else "➡️ 评级稳定"
                         prompt += f"• {stock_info.get('name', stock_code)}: {start_rating:.1f} → {end_rating:.1f} ({rating_trend})\n"
             
             prompt += "\n"
         
-        prompt += """## 🎯 专业分析要求
+        if is_english():
+            prompt += """## 🎯 Professional Analysis Requirements
+
+As a senior quantitative analyst, please conduct in-depth analysis from the following dimensions, combining current technical indicators and 30-day historical data:
+
+### 📈 Market Trend Analysis
+1. **Macro Sentiment Analysis**: Based on MSCI index changes, determine the current market cycle stage
+2. **Momentum Identification**: Combine 5-day trends and volatility to analyze market momentum strength
+3. **Liquidity Assessment**: Judge capital participation through volume amplification multiples
+
+### 🏭 Sector Rotation Strategy
+4. **Strong Sector Discovery**: Based on IRSI rankings, identify leading sectors with sustainability
+5. **Sector Allocation Advice**: Provide sector allocation weight recommendations based on historical performance
+
+### 🎯 Individual Stock Selection Strategy
+6. **Leading Stock Screening**: Based on RTSI ratings, screen leading stocks in each sector
+7. **Entry Timing**: Judge optimal entry points based on historical rating changes
+8. **Position Management**: Provide position adjustment strategies based on individual stock strength changes
+
+### ⚠️ Risk Management System
+9. **Systematic Risk Warning**: Identify potential risk points based on historical volatility patterns
+10. **Profit/Loss Strategy**: Develop scientific risk control plans based on technical indicators
+
+### 🔮 Forward-looking Outlook
+11. **Short-term Trading Strategy**: Trading opportunities and considerations within 1-2 weeks
+12. **Medium-term Investment Layout**: Allocation directions and key focus areas for 1-3 months
+
+**Output Requirements**: Please use professional terminology combined with plain explanations, emphasizing data-driven investment logic, with content controlled at 800-1000 words, ensuring depth and practicality of analysis."""
+        else:
+            prompt += """## 🎯 专业分析要求
 
 请作为资深量化分析师，结合当前技术指标和30天历史数据，从以下维度进行深度分析：
 
@@ -1801,13 +1903,22 @@ class StockAnalyzerMainWindow:
             # 1. 检查响应长度和完整性
             if len(ai_response) < 100:
                 score -= 2.0
-                explanations.append("响应过短，可能信息不完整")
+                if is_english():
+                    explanations.append("Response too short, information may be incomplete")
+                else:
+                    explanations.append("响应过短，可能信息不完整")
             elif len(ai_response) > 2000:
                 score -= 1.0
-                explanations.append("响应过长，可能包含冗余信息")
+                if is_english():
+                    explanations.append("Response too long, may contain redundant information")
+                else:
+                    explanations.append("响应过长，可能包含冗余信息")
             
             # 2. 检查是否包含关键分析要素
-            key_elements = ['市场', '行业', '股票', '风险', '建议']
+            if is_english():
+                key_elements = ['market', 'industry', 'stock', 'risk', 'recommendation']
+            else:
+                key_elements = ['市场', '行业', '股票', '风险', '建议']
             missing_elements = []
             for element in key_elements:
                 if element not in ai_response:
@@ -1815,7 +1926,10 @@ class StockAnalyzerMainWindow:
             
             if missing_elements:
                 score -= len(missing_elements) * 0.5
-                explanations.append(f"缺少关键分析要素: {', '.join(missing_elements)}")
+                if is_english():
+                    explanations.append(f"Missing key analysis elements: {', '.join(missing_elements)}")
+                else:
+                    explanations.append(f"缺少关键分析要素: {', '.join(missing_elements)}")
             
             # 3. 检查数据引用的准确性
             market_data = analysis_data.get('market_data', {})
@@ -1824,21 +1938,33 @@ class StockAnalyzerMainWindow:
             # 检查MSCI数值是否在合理范围内
             if msci_value < 0 or msci_value > 100:
                 score -= 1.5
-                explanations.append("MSCI指数超出正常范围，可能影响分析准确性")
+                if is_english():
+                    explanations.append("MSCI index out of normal range, may affect analysis accuracy")
+                else:
+                    explanations.append("MSCI指数超出正常范围，可能影响分析准确性")
             
             # 4. 检查是否包含具体数值
             import re
             numbers_in_response = re.findall(r'\d+\.?\d*', ai_response)
             if len(numbers_in_response) < 3:
                 score -= 1.0
-                explanations.append("缺少具体数值支撑，分析可能过于抽象")
+                if is_english():
+                    explanations.append("Lack of specific numerical support, analysis may be too abstract")
+                else:
+                    explanations.append("缺少具体数值支撑，分析可能过于抽象")
             
             # 5. 检查是否包含免责声明或风险提示
-            risk_keywords = ['风险', '谨慎', '仅供参考', '不构成', '建议']
+            if is_english():
+                risk_keywords = ['risk', 'caution', 'reference only', 'not constitute', 'advice']
+            else:
+                risk_keywords = ['风险', '谨慎', '仅供参考', '不构成', '建议']
             risk_mentions = sum(1 for keyword in risk_keywords if keyword in ai_response)
             if risk_mentions < 2:
                 score -= 0.5
-                explanations.append("风险提示不足")
+                if is_english():
+                    explanations.append("Insufficient risk warnings")
+                else:
+                    explanations.append("风险提示不足")
             
             # 6. 数据样本大小评估
             stock_count = len(analysis_data.get('stock_data', {}))
@@ -1846,17 +1972,29 @@ class StockAnalyzerMainWindow:
             
             if stock_count < 20:
                 score -= 2.0
-                explanations.append(f"股票样本数量不足（当前{stock_count}个，建议≥20个），可能影响分析代表性")
+                if is_english():
+                    explanations.append(f"Insufficient stock samples (current {stock_count}, recommend ≥20), may affect analysis representativeness")
+                else:
+                    explanations.append(f"股票样本数量不足（当前{stock_count}个，建议≥20个），可能影响分析代表性")
             elif stock_count < 10:
                 score -= 1.0
-                explanations.append(f"股票样本数量偏少（当前{stock_count}个），建议增加样本")
+                if is_english():
+                    explanations.append(f"Few stock samples (current {stock_count}), recommend increasing samples")
+                else:
+                    explanations.append(f"股票样本数量偏少（当前{stock_count}个），建议增加样本")
             
             if industry_count < 10:
                 score -= 1.5
-                explanations.append(f"行业样本数量不足（当前{industry_count}个，建议≥10个），可能影响行业分析全面性")
+                if is_english():
+                    explanations.append(f"Insufficient industry samples (current {industry_count}, recommend ≥10), may affect industry analysis comprehensiveness")
+                else:
+                    explanations.append(f"行业样本数量不足（当前{industry_count}个，建议≥10个），可能影响行业分析全面性")
             elif industry_count < 5:
                 score -= 0.8
-                explanations.append(f"行业样本数量偏少（当前{industry_count}个），建议增加行业覆盖")
+                if is_english():
+                    explanations.append(f"Few industry samples (current {industry_count}), recommend increasing industry coverage")
+                else:
+                    explanations.append(f"行业样本数量偏少（当前{industry_count}个），建议增加行业覆盖")
             
             # 7. 多维度数据完整性评估
             data_dimensions = 0
@@ -1865,26 +2003,44 @@ class StockAnalyzerMainWindow:
             if analysis_data.get('macro_indicators'):
                 data_dimensions += 1
                 score += 0.5  # 宏观数据加分
-                explanations.append("包含宏观经济数据，增强分析深度")
+                if is_english():
+                    explanations.append("Contains macroeconomic data, enhances analysis depth")
+                else:
+                    explanations.append("包含宏观经济数据，增强分析深度")
             if analysis_data.get('news_sentiment'):
                 data_dimensions += 1
                 score += 0.5  # 情感数据加分
-                explanations.append("包含市场情感数据，提升分析全面性")
+                if is_english():
+                    explanations.append("Contains market sentiment data, improves analysis comprehensiveness")
+                else:
+                    explanations.append("包含市场情感数据，提升分析全面性")
             if analysis_data.get('historical_data'):
                 data_dimensions += 1
                 historical_days = len(analysis_data['historical_data'].get('dates', []))
                 if historical_days >= 30:
                     score += 0.5  # 充足历史数据加分
-                    explanations.append(f"历史数据充足（{historical_days}天），支持趋势分析")
+                    if is_english():
+                        explanations.append(f"Sufficient historical data ({historical_days} days), supports trend analysis")
+                    else:
+                        explanations.append(f"历史数据充足（{historical_days}天），支持趋势分析")
                 elif historical_days >= 10:
-                    explanations.append(f"历史数据基本满足要求（{historical_days}天）")
+                    if is_english():
+                        explanations.append(f"Historical data basically meets requirements ({historical_days} days)")
+                    else:
+                        explanations.append(f"历史数据基本满足要求（{historical_days}天）")
                 else:
                     score -= 0.5
-                    explanations.append(f"历史数据不足（{historical_days}天），可能影响趋势判断")
+                    if is_english():
+                        explanations.append(f"Insufficient historical data ({historical_days} days), may affect trend judgment")
+                    else:
+                        explanations.append(f"历史数据不足（{historical_days}天），可能影响趋势判断")
             
             if data_dimensions < 3:
                 score -= 1.0
-                explanations.append(f"数据维度不足（当前{data_dimensions}个），建议增加数据源")
+                if is_english():
+                    explanations.append(f"Insufficient data dimensions (current {data_dimensions}), recommend adding data sources")
+                else:
+                    explanations.append(f"数据维度不足（当前{data_dimensions}个），建议增加数据源")
             
             # 8. 新增数据质量检查
             if analysis_data.get('macro_indicators'):
@@ -1893,31 +2049,51 @@ class StockAnalyzerMainWindow:
                 interest_rate = macro.get('interest_rate', 0)
                 if interest_rate < 0 or interest_rate > 20:
                     score -= 0.5
-                    explanations.append("宏观利率数据异常，可能影响分析准确性")
+                    if is_english():
+                        explanations.append("Abnormal macro interest rate data, may affect analysis accuracy")
+                    else:
+                        explanations.append("宏观利率数据异常，可能影响分析准确性")
             
             if analysis_data.get('news_sentiment'):
                 news = analysis_data['news_sentiment']
                 sentiment_score = news.get('overall_sentiment', 0)
                 if abs(sentiment_score) > 1:
                     score -= 0.5
-                    explanations.append("新闻情感指数超出正常范围")
+                    if is_english():
+                        explanations.append("News sentiment index out of normal range")
+                    else:
+                        explanations.append("新闻情感指数超出正常范围")
             
             # 确保分数在合理范围内
             score = max(0.0, min(10.0, score))
             
             # 生成总体评估说明
-            if score >= 8.5:
-                overall = "分析质量优秀，数据完整，建议可信度高"
-            elif score >= 7.0:
-                overall = "分析质量良好，建议具有一定参考价值"
-            elif score >= 5.5:
-                overall = "分析质量一般，建议需谨慎参考"
+            if is_english():
+                if score >= 8.5:
+                    overall = "Excellent analysis quality, complete data, high reliability"
+                elif score >= 7.0:
+                    overall = "Good analysis quality, recommendations have reference value"
+                elif score >= 5.5:
+                    overall = "Average analysis quality, recommendations need cautious reference"
+                else:
+                    overall = "Low analysis quality, for reference only, need to combine with other information"
+                
+                explanation = overall
+                if explanations:
+                    explanation += f". Main issues: {'; '.join(explanations)}"
             else:
-                overall = "分析质量较低，建议仅作参考，需结合其他信息"
-            
-            explanation = overall
-            if explanations:
-                explanation += f"。主要问题: {'; '.join(explanations)}"
+                if score >= 8.5:
+                    overall = "分析质量优秀，数据完整，建议可信度高"
+                elif score >= 7.0:
+                    overall = "分析质量良好，建议具有一定参考价值"
+                elif score >= 5.5:
+                    overall = "分析质量一般，建议需谨慎参考"
+                else:
+                    overall = "分析质量较低，建议仅作参考，需结合其他信息"
+                
+                explanation = overall
+                if explanations:
+                    explanation += f"。主要问题: {'; '.join(explanations)}"
             
             return {
                 'score': score,
@@ -1926,9 +2102,13 @@ class StockAnalyzerMainWindow:
             }
             
         except Exception as e:
+            if is_english():
+                explanation = f"Error in reliability assessment process: {str(e)}"
+            else:
+                explanation = f"可靠性评估过程出错: {str(e)}"
             return {
                 'score': 5.0,
-                'explanation': f"可靠性评估过程出错: {str(e)}",
+                'explanation': explanation,
                 'details': []
             }
     
@@ -1936,7 +2116,10 @@ class StockAnalyzerMainWindow:
         """显示AI分析结果"""
         try:
             # 在文本区域添加AI分析结果
-            ai_section = f"\n\n{'='*50}\n🤖 AI智能分析\n{'='*50}\n\n{ai_response}\n"
+            if is_english():
+                ai_section = f"\n\n{'='*50}\n🤖 AI Intelligent Analysis\n{'='*50}\n\n{ai_response}\n"
+            else:
+                ai_section = f"\n\n{'='*50}\n🤖 AI智能分析\n{'='*50}\n\n{ai_response}\n"
             
             # 获取当前文本内容
             current_text = self.text_area.get(1.0, tk.END)
