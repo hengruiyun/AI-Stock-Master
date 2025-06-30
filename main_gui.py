@@ -22,13 +22,23 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+# 导入国际化模块
+try:
+    from localization.improved_language_manager import _
+    print("语言管理器加载成功")
+except ImportError as e:
+    print(f"Warning: 语言管理器导入失败: {e}")
+    # 如果导入失败，使用简单的回退函数
+    def _(key, default=None):
+        return default or key
+
 # 导入GUI模块
 try:
     from gui.main_window import StockAnalyzerMainWindowExtended
-    print("成功 GUI模块导入成功")
+    print(_('gui_import_success', '成功 GUI模块导入成功'))
 except ImportError as e:
-    print(f"错误 GUI模块导入失败: {e}")
-    print("请确保gui目录下的所有文件都已正确创建")
+    print(f"{_('gui_import_failed', '错误 GUI模块导入失败')}: {e}")
+    print(_('gui_check_files', '请确保gui目录下的所有文件都已正确创建'))
     sys.exit(1)
 
 # 导入核心模块 (可选，用于验证)
@@ -36,26 +46,26 @@ try:
     from config import get_config
     from data.stock_dataset import StockDataSet
     from algorithms.realtime_engine import RealtimeAnalysisEngine
-    print("成功 核心模块可用")
+    print(_('core_modules_available', '成功 核心模块可用'))
     CORE_MODULES_AVAILABLE = True
 except ImportError as e:
-    print(f"警告 核心模块部分不可用: {e}")
-    print("GUI界面可以启动，但分析功能可能受限")
+    print(f"{_('core_modules_warning', '警告 核心模块部分不可用')}: {e}")
+    print(_('gui_limited_functionality', 'GUI界面可以启动，但分析功能可能受限'))
     CORE_MODULES_AVAILABLE = False
 
 
 def check_environment():
     """检查运行环境"""
-    print("检查 检查运行环境...")
+    print(_('checking_environment', '检查 检查运行环境...'))
     
     # Python版本检查
     python_version = sys.version_info
     if python_version < (3, 8):
-        print(f"错误 Python版本过低: {python_version.major}.{python_version.minor}")
-        print("建议使用Python 3.10+")
+        print(f"{_('python_version_low', '错误 Python版本过低')}: {python_version.major}.{python_version.minor}")
+        print(_('python_version_recommend', '建议使用Python 3.10+'))
         return False
     else:
-        print(f"成功 Python版本: {python_version.major}.{python_version.minor}.{python_version.micro}")
+        print(f"{_('python_version_ok', '成功 Python版本')}: {python_version.major}.{python_version.minor}.{python_version.micro}")
     
     # 必需模块检查
     required_modules = ['tkinter', 'pandas', 'numpy', 'matplotlib']
@@ -64,14 +74,14 @@ def check_environment():
     for module in required_modules:
         try:
             __import__(module)
-            print(f"成功 {module} 可用")
+            print(f"{_('module_available', '成功')} {module} {_('available', '可用')}")
         except ImportError:
             missing_modules.append(module)
-            print(f"错误 {module} 缺失")
+            print(f"{_('module_missing', '错误')} {module} {_('missing', '缺失')}")
     
     if missing_modules:
-        print(f"\n缺失的模块: {', '.join(missing_modules)}")
-        print("请运行: pip install pandas numpy matplotlib")
+        print(f"\n{_('missing_modules', '缺失的模块')}: {', '.join(missing_modules)}")
+        print(_('install_command', '请运行: pip install pandas numpy matplotlib'))
         return False
     
     # 可选模块检查
@@ -79,38 +89,38 @@ def check_environment():
     for module in optional_modules:
         try:
             __import__(module)
-            print(f"成功 {module} (可选)")
+            print(f"{_('module_available', '成功')} {module} ({_('optional', '可选')})")
         except ImportError:
-            print(f"警告 {module} (可选) 不可用")
+            print(f"{_('module_warning', '警告')} {module} ({_('optional', '可选')}) {_('not_available', '不可用')}")
     
-    print("成功 环境检查完成\n")
+    print(f"{_('environment_check_complete', '成功 环境检查完成')}\n")
     return True
 
 
 def show_startup_info():
     """显示启动信息"""
     print("="*60)
-    print("快速 AI股票趋势分析系统")
+    print(_('startup_title', '快速 AI股票趋势分析系统'))
     print("="*60)
     print()
-    print("数据 功能特点:")
-    print("• RTSI - 个股评级趋势强度指数")
-    print("• IRSI - 行业相对强度指数")  
-    print("• MSCI - 市场情绪综合指数")
-    print("• Windows经典风格界面")
-    print("• 实时数据分析引擎")
-    print("• 高级可视化报告")
+    print(_('startup_features', '数据 功能特点:'))
+    print(f"• RTSI - {_('rtsi_desc', '个股评级趋势强度指数')}")
+    print(f"• IRSI - {_('irsi_desc', '行业相对强度指数')}")  
+    print(f"• MSCI - {_('msci_desc', '市场情绪综合指数')}")
+    print(f"• {_('windows_classic_ui', 'Windows经典风格界面')}")
+    print(f"• {_('realtime_analysis_engine', '实时数据分析引擎')}")
+    print(f"• {_('advanced_visualization', '高级可视化报告')}")
     print()
-    print("核心 支持数据:")
-    print("• Excel格式: *.xlsx, *.xls")
-    print("• 股票数量: 5,000+ 只")
-    print("• 行业分类: 85 个")
-    print("• 评级系统: 8级 (大多→大空)")
+    print(_('startup_data_support', '核心 支持数据:'))
+    print(f"• {_('excel_format', 'Excel格式')}: *.xlsx, *.xls")
+    print(f"• {_('stock_count', '股票数量')}: 5,000+ {_('stocks', '只')}")
+    print(f"• {_('industry_classification', '行业分类')}: 85 {_('categories', '个')}")
+    print(f"• {_('rating_system', '评级系统')}: 8{_('levels', '级')} ({_('rating_range', '大多→大空')})")
     print()
-    print("快速 快捷操作:")
-    print("• Ctrl+O: 打开文件")
-    print("• F5: 开始分析")
-    print("• Ctrl+S: 导出报告")
+    print(_('startup_shortcuts', '快速 快捷操作:'))
+    print(f"• Ctrl+O: {_('open_file', '打开文件')}")
+    print(f"• F5: {_('start_analysis', '开始分析')}")
+    print(f"• Ctrl+S: {_('export_report', '导出报告')}")
     print()
 
 
