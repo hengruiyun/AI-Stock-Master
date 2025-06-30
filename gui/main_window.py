@@ -48,7 +48,7 @@ except ImportError as e:
 
 # 导入语言管理器
 try:
-    from localization.language_manager import _
+    from localization.improved_language_manager import _
     print(f"语言管理器加载成功")
 except ImportError as e:
     print(f"Warning: 语言管理器导入失败: {e}")
@@ -120,9 +120,9 @@ class StockAnalyzerMainWindow:
         try:
             from config import load_user_config
             self.user_config = load_user_config()
-            print("用户配置文件加载成功")
+            print(_('config_load_success', '用户配置文件加载成功'))
         except Exception as e:
-            print(f"加载用户配置失败，使用默认配置: {e}")
+            print(f"{_('config_load_failed', '加载用户配置失败，使用默认配置')}: {e}")
             self.user_config = {
                 'window': {'theme': 'professional', 'font_size': 11},
                 'data': {'auto_load_last_file': False},
@@ -142,7 +142,7 @@ class StockAnalyzerMainWindow:
     
     def setup_window(self):
         """设置主窗口属性 - Windows经典风格"""
-        self.root.title(_("app_title", "AI股票趋势分析系统") + " v2.0.0 (267278466@qq.com)")
+        self.root.title(_("app_title", "AI股票趋势分析系统") + " " + _("app_version", "v2.1") + " (267278466@qq.com)")
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)
         
@@ -413,25 +413,25 @@ class StockAnalyzerMainWindow:
         """加载数据文件"""
         try:
             # 更新状态
-            self.status_var.set(f"正在加载: {Path(file_path).name}")
+            self.status_var.set(f"{_('status_loading', '加载中...')}: {Path(file_path).name}")
             self.root.update()
             
             # 显示文件信息
             file_info = self.get_file_info(file_path)
             
-            success_text = f"""成功 文件加载成功!
+            success_text = f"""{_('loading_success', '成功')} {_('error_file_load_failed', '文件加载成功')}!
 
-文档 文件信息:
-• 文件名: {file_info['name']}
-• 文件大小: {file_info['size']} MB
-• 修改时间: {file_info['modified']}
+{_('filetype_data', '文档')} {_('result_data_overview', '文件信息')}:
+• {_('col_stock_name', '文件名')}: {file_info['name']}
+• {_('data_scale', '文件大小')}: {file_info['size']} MB
+• {_('result_data_date', '修改时间')}: {file_info['modified']}
 
- 数据预检:
-• 正在分析Excel结构...
-• 检测评级系统格式...
-• 验证行业分类数据...
+{_('data_analysis_in_progress', '数据预检')}:
+• {_('stage_detail_loading', '正在分析Excel结构...')}
+• {_('stage_detail_validation', '检测评级系统格式...')}
+• {_('stage_detail_validation', '验证行业分类数据...')}
 
- 下一步: 点击"分析"按钮开始数据分析
+{_('welcome_getting_started', '下一步')}: {_('btn_start_analysis', '点击"分析"按钮开始数据分析')}
 """
             
             self.update_text_area(success_text, text_color='#008000')
@@ -443,26 +443,26 @@ class StockAnalyzerMainWindow:
             self.analyze_btn.config(state=tk.NORMAL)
             
             # 更新状态
-            self.status_var.set(f"已加载: {file_info['name']} | 点击分析按钮继续")
+            self.status_var.set(f"{_('status_ready', '已加载')}: {file_info['name']} | {_('btn_start_analysis', '点击分析按钮继续')}")
             
         except Exception as e:
-            error_text = f"""X 文件加载失败!
+            error_text = f"""{_('error_file_load_failed', 'X 文件加载失败!')}!
 
-错误信息: {str(e)}
+{_('analysis_error', '错误信息')}: {str(e)}
 
-提示 解决建议:
-• 确认文件格式为Excel (.xlsx/.xls)
-• 检查文件是否正在被其他程序使用
-• 验证文件内容是否包含股票数据
-• 尝试重新下载数据文件
+{_('tip_possible_reasons', '提示 解决建议')}:
+• {_('data_format_error', '确认文件格式为Excel (.xlsx/.xls)')}
+• {_('data_format_error', '检查文件是否正在被其他程序使用')}
+• {_('data_format_error', '验证文件内容是否包含股票数据')}
+• {_('data_format_error', '尝试重新下载数据文件')}
 
-📞 如需帮助，请查看帮助菜单中的使用说明
+📞 {_('menu_help', '如需帮助，请查看帮助菜单中的使用说明')}
 """
             
             self.update_text_area(error_text, text_color='#cc0000')
-            self.status_var.set(f"加载失败: {str(e)}")
+            self.status_var.set(f"{_('status_error', '加载失败')}: {str(e)}")
             
-            messagebox.showerror("文件加载错误", f"无法加载文件:\n{str(e)}")
+            messagebox.showerror(_("error_file_load_failed", "文件加载错误"), f"{_('error_file_load_failed', '无法加载文件')}:\n{str(e)}")
     
     def get_file_info(self, file_path):
         """获取文件信息"""
@@ -478,7 +478,7 @@ class StockAnalyzerMainWindow:
     def start_analysis(self):
         """开始数据分析"""
         if not self.current_dataset:
-            messagebox.showwarning("提示", "请先加载数据文件")
+            messagebox.showwarning(_("confirm_title", "提示"), _("status_select_file", "请先加载数据文件"))
             return
         
         # 在新线程中执行分析，避免界面冻结
@@ -500,23 +500,23 @@ class StockAnalyzerMainWindow:
             
             # 设置UI状态 - 仅在主循环运行时更新
             if main_loop_running:
-                self.root.after(0, lambda: self.status_var.set("正在分析数据，请稍候..."))
+                self.root.after(0, lambda: self.status_var.set(_("data_analysis_in_progress", "正在分析数据，请稍候...")))
                 self.root.after(0, lambda: self.analyze_btn.config(state=tk.DISABLED))
                 
                 # 显示分析进度
-                progress_text = """ 数据分析进行中...
+                progress_text = f"""{_("data_analysis_ongoing", "数据分析进行中...")}...
 
-刷新 分析阶段:
-• [■■■░░░░░░░] 数据加载和验证 (30%)
-• [░░░░░░░░░░] RTSI个股趋势分析 (0%)
-• [░░░░░░░░░░] IRSI行业强度分析 (0%)
-• [░░░░░░░░░░] MSCI市场情绪分析 (0%)
+{_("analysis_progress_title", "分析阶段")}:
+• [■■■░░░░░░░] {_("data_loading_validation", "数据加载和验证")} (30%)
+• [░░░░░░░░░░] {_("rtsi_individual_trend_analysis", "RTSI个股趋势分析")} (0%)
+• [░░░░░░░░░░] {_("analysis_calculating_irsi", "IRSI行业强度分析")} (0%)
+• [░░░░░░░░░░] {_("analysis_calculating_msci", "MSCI市场情绪分析")} (0%)
 
-⏱️ 预计处理时间: 10-15秒
-💻 处理器使用率: 正在监控...
-保存 内存使用情况: 正在监控...
+⏱️ {_("result_calculation_time", "预计处理时间")}: 10-15{_("trading_days", "秒")}
+💻 {_("menu_performance_monitor", "处理器使用率")}: {_("data_analysis_in_progress", "正在监控...")}  
+{_("data_preparing", "内存使用情况")}: {_("data_analysis_in_progress", "正在监控...")}
 
-请耐心等待分析完成...
+{_("data_analysis_in_progress", "请耐心等待分析完成...")}  
 """
                 self.root.after(0, lambda: self.update_text_area(progress_text, '#ff8c00'))
             
@@ -565,7 +565,7 @@ class StockAnalyzerMainWindow:
                 stock_count = len(self.current_dataset) if self.current_dataset else 0
                 industry_count = len(self.current_dataset.get_all_industries()) if self.current_dataset else 0
             
-            self.status_var.set(f"分析完成 | 发现 {stock_count} 只股票，{industry_count} 个行业分类")
+            self.status_var.set(f"{_('analysis_complete', '分析完成')} | {_('found_stocks_industries', '发现')} {stock_count} {_('units_stocks', '只股票')}，{industry_count} {_('units_industries', '个行业分类')}")
             
             # 执行AI智能分析
             self._start_ai_analysis()
@@ -575,33 +575,33 @@ class StockAnalyzerMainWindow:
     
     def _analysis_failed(self, error_msg):
         """分析失败处理"""
-        error_text = f"""X 数据分析失败!
+        error_text = f"""{_('error_analysis_failed', 'X 数据分析失败!')}!
 
-错误信息: {error_msg}
+{_('analysis_error', '错误信息')}: {error_msg}
 
-提示 可能的原因:
-• 数据格式不符合预期
-• 内存不足，数据量过大
-• 系统算法执行异常
-• 依赖模块版本不兼容
+{_('tip_possible_reasons', '提示 可能的原因')}:
+• {_('data_format_error', '数据格式不符合预期')}
+• {_('error_insufficient_data', '内存不足，数据量过大')}
+• {_('error_calculation_error', '系统算法执行异常')}
+• {_('data_format_error', '依赖模块版本不兼容')}
 
-工具 解决建议:
-• 检查数据文件格式和内容
-• 重启程序后重试
-• 查看帮助文档了解数据要求
-• 联系技术支持获取帮助
+{_('solution_suggestions', '工具 解决建议')}:
+• {_('data_format_error', '检查数据文件格式和内容')}
+• {_('btn_refresh', '重启程序后重试')}
+• {_('menu_user_guide', '查看帮助文档了解数据要求')}
+• {_('menu_help', '联系技术支持获取帮助')}
 """
         
         self.update_text_area(error_text, text_color='#cc0000')
-        self.status_var.set(f"分析失败: {error_msg}")
+        self.status_var.set(f"{_('analysis_failed', '分析失败')}: {error_msg}")
         self.analyze_btn.config(state=tk.NORMAL)
         
-        messagebox.showerror("分析错误", error_msg)
+        messagebox.showerror(_("analysis_failed_title", "分析错误"), error_msg)
     
     def _generate_analysis_summary(self):
         """生成分析结果摘要"""
         if not self.analysis_results:
-            return "分析结果为空"
+            return _("analysis_empty")
         
         try:
             # 处理AnalysisResults对象
@@ -620,7 +620,7 @@ class StockAnalyzerMainWindow:
                 
                 # 从数据源获取日期范围
                 date_range = self.current_dataset.get_date_range() if self.current_dataset else (None, None)
-                date_range_str = f"{date_range[0]} ~ {date_range[1]}" if date_range[0] else "未知"
+                date_range_str = f"{date_range[0]} ~ {date_range[1]}" if date_range[0] else _("unknown")
                 
             else:
                 # 如果是字典格式（兼容性处理）
@@ -631,18 +631,18 @@ class StockAnalyzerMainWindow:
                 top_stocks = self.analysis_results.get('top_stocks', [])
                 top_industries = self.analysis_results.get('top_industries', [])
                 market_data = self.analysis_results.get('market_sentiment', {})
-                date_range_str = summary.get('date_range', '未知')
+                date_range_str = summary.get('date_range', _("unknown"))
         
             # 生成摘要文本
-            summary_text = f"""成功 分析结果
+            summary_text = f"""{_("success")} {_("analysis_results")}
 
- 数据概览:
-• 总股票数: {total_stocks} 只
-• 行业分类: {total_industries} 个
-• 计算耗时: {calculation_time:.2f} 秒
-• 数据日期: {date_range_str}
+{_("data_overview")}:
+• {_("total_stocks")}: {total_stocks} {_("units_stocks")}
+• {_("industry_classification")}: {total_industries} {_("units_industries")}
+• {_("calculation_time")}: {calculation_time:.2f} {_("seconds")}
+• {_("data_date")}: {date_range_str}
 
-优秀 优质个股 TOP5 (按RTSI排序):"""
+{_("excellent")} {_("quality_stocks_top5")} ({_("sorted_by_rtsi")}):"""
             
             # 处理top股票显示
             if top_stocks:
@@ -675,11 +675,11 @@ class StockAnalyzerMainWindow:
                         formatted_code = self.format_stock_code(code)
                         summary_text += f"\n{i}. {name} ({formatted_code}) - RTSI: {rtsi_value:.1f}"
                     else:
-                        summary_text += f"\n{i}. 数据格式错误: {type(stock_data)}"
+                        summary_text += f"\n{i}. {_("data_format_error")}: {type(stock_data)}"
             else:
-                summary_text += "\n暂无数据"
+                summary_text += f"\n{_("no_data")}"
             
-            summary_text += f"\n\n行业 强势行业 TOP5 (按IRSI排序):"
+            summary_text += f"\n\n{_("industry")} {_("strong_industries_top5")} ({_("sorted_by_irsi")}):"
             
             # 处理top行业显示
             if top_industries:
@@ -697,12 +697,12 @@ class StockAnalyzerMainWindow:
                             irsi_value = 0.0
                         summary_text += f"\n{i}. {industry} - IRSI: {irsi_value:.1f}"
                     else:
-                        summary_text += f"\n{i}. 数据格式错误: {type(industry_data)}"
+                        summary_text += f"\n{i}. {_("data_format_error")}: {type(industry_data)}"
             else:
-                summary_text += "\n暂无数据"
+                summary_text += f"\n{_("no_data")}"
             
             # 处理市场情绪数据
-            summary_text += "\n\n上涨 市场情绪分析:"
+            summary_text += f"\n\n{_("rising")} {_("market_sentiment_analysis")}:"
             
             # 安全地提取和格式化市场数据
             try:
@@ -714,17 +714,17 @@ class StockAnalyzerMainWindow:
                 else:
                     msci_str = str(current_msci)
                 
-                market_state = market_data.get('market_state', '未知')
+                market_state = market_data.get('market_state', _("unknown"))
                 if isinstance(market_state, (dict, list)):
                     market_state = str(market_state)
                 elif market_state is None:
-                    market_state = '未知'
+                    market_state = _("unknown")
                 
-                risk_level = market_data.get('risk_level', '未知')
+                risk_level = market_data.get('risk_level', _("unknown"))
                 if isinstance(risk_level, (dict, list)):
                     risk_level = str(risk_level)
                 elif risk_level is None:
-                    risk_level = '未知'
+                    risk_level = _("unknown")
                 
                 trend_5d = market_data.get('trend_5d', 0)
                 if isinstance(trend_5d, (int, float, np.number)):
@@ -732,33 +732,33 @@ class StockAnalyzerMainWindow:
                 else:
                     trend_str = str(trend_5d)
                 
-                summary_text += f"\n• 当前MSCI指数: {msci_str}"
-                summary_text += f"\n• 市场状态: {market_state}"
-                summary_text += f"\n• 风险等级: {risk_level}"
-                summary_text += f"\n• 5日趋势: {trend_str}"
+                summary_text += f"\n• {_("current_msci_index")}: {msci_str}"
+                summary_text += f"\n• {_("market_state")}: {market_state}"
+                summary_text += f"\n• {_("risk_level")}: {risk_level}"
+                summary_text += f"\n• {_("five_day_trend")}: {trend_str}"
             
             except Exception as e:
-                summary_text += f"\n• 市场数据解析错误: {str(e)}"
+                summary_text += f"\n• {_("market_data_parse_error")}: {str(e)}"
 
-            summary_text += "\n\n提示 详细分析报告请点击右上角\"报告\"按钮查看HTML版本\n"
+            summary_text += f"\n\n{_("tip")} {_("detailed_report_instruction")}\n"
             
             return summary_text
             
         except Exception as e:
-            return f"生成摘要失败: {str(e)}\n\n请检查分析结果数据格式。"
+            return f"{_("summary_generation_failed")}: {str(e)}\n\n{_("check_analysis_data_format")}"
     
     # 菜单功能实现
     def export_report(self):
         """导出Excel报告"""
         if not self.analysis_results:
-            messagebox.showwarning("提示", "请先完成数据分析")
+            messagebox.showwarning(_("tip"), _("complete_analysis_first"))
             return
         
         try:
             filename = filedialog.asksaveasfilename(
-                title="保存分析报告",
+                title=_("save_analysis_report"),
                 defaultextension=".xlsx",
-                filetypes=[("Excel文件", "*.xlsx"), ("所有文件", "*.*")]
+                filetypes=[(_("excel_files"), "*.xlsx"), (_("all_files"), "*.*")]
             )
             
             if filename:
@@ -782,17 +782,17 @@ class StockAnalyzerMainWindow:
                         import shutil
                         shutil.move(report_path, filename)
                     
-                    self.status_var.set(f"已导出Excel报告: {Path(filename).name}")
-                    messagebox.showinfo("成功", f"报告已保存至:\n{filename}")
+                    self.status_var.set(f"{_("exported_excel_report")}: {Path(filename).name}")
+                    messagebox.showinfo(_("success"), f"{_("report_saved_to")}:\n{filename}")
                     
                 except ImportError:
                     # 备用方案：使用基础的Excel导出
                     self._basic_excel_export(filename)
-                    self.status_var.set(f"已导出Excel报告: {Path(filename).name}")
-                    messagebox.showinfo("成功", f"报告已保存至:\n{filename}")
+                    self.status_var.set(f"{_("exported_excel_report")}: {Path(filename).name}")
+                    messagebox.showinfo(_("success"), f"{_("report_saved_to")}:\n{filename}")
                 
         except Exception as e:
-            messagebox.showerror("导出错误", f"导出Excel报告失败:\n{str(e)}")
+            messagebox.showerror(_("export_error"), f"{_("excel_export_failed")}:\n{str(e)}")
     
     def _convert_analysis_results_for_report(self) -> dict:
         """将分析结果转换为报告生成器所需的格式"""
@@ -805,7 +805,7 @@ class StockAnalyzerMainWindow:
                         'data_date': datetime.now().date(),
                         'total_stocks': self.analysis_results.metadata.get('total_stocks', 0),
                         'total_industries': self.analysis_results.metadata.get('total_industries', 0),
-                        'analysis_period': '38个交易日',
+                        'analysis_period': _("trading_days_38"),
                         'system_version': '1.0.0'
                     },
                     'stocks': self.analysis_results.stocks,
@@ -832,7 +832,7 @@ class StockAnalyzerMainWindow:
                         'data_date': datetime.now().date(),
                         'total_stocks': len(self.analysis_results.get('stocks', {})),
                         'total_industries': len(self.analysis_results.get('industries', {})),
-                        'analysis_period': '38个交易日',
+                        'analysis_period': _("trading_days_38"),
                         'system_version': '1.0.0'
                     },
                     'stocks': self.analysis_results.get('stocks', {}),
@@ -859,7 +859,7 @@ class StockAnalyzerMainWindow:
                     'data_date': datetime.now().date(),
                     'total_stocks': 100,  # 默认值
                     'total_industries': 20,  # 默认值
-                    'analysis_period': '38个交易日',
+                    'analysis_period': _("trading_days_38"),
                     'system_version': '1.0.0'
                 },
                 'stocks': {},
@@ -888,49 +888,49 @@ class StockAnalyzerMainWindow:
             with pd.ExcelWriter(filename, engine='openpyxl') as writer:
                 # 汇总数据
                 summary_data = {
-                    '分析时间': [datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
-                    '总股票数': [len(self.analysis_results.get('stocks', {}))],
-                    '分析状态': ['已完成'],
-                    '数据文件': [self.current_dataset.file_path if self.current_dataset else '未知']
+                    _("analysis_time"): [datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
+                    _("total_stocks"): [len(self.analysis_results.get('stocks', {}))],
+                    _("analysis_status"): [_("completed")],
+                    _("data_file"): [self.current_dataset.file_path if self.current_dataset else _("unknown")]
                 }
                 summary_df = pd.DataFrame(summary_data)
-                summary_df.to_excel(writer, sheet_name='分析摘要', index=False)
+                summary_df.to_excel(writer, sheet_name=_("analysis_summary"), index=False)
                 
                 # 股票数据（如果有）
                 if 'stocks' in self.analysis_results:
                     stock_data = []
                     for code, info in self.analysis_results['stocks'].items():
                         stock_data.append({
-                            '股票代码': code,
-                            '股票名称': info.get('name', ''),
-                            '所属行业': info.get('industry', ''),
-                            '分析结果': str(info)
+                            _("stock_code"): code,
+                            _("stock_name"): info.get('name', ''),
+                            _("industry"): info.get('industry', ''),
+                            _("analysis_result"): str(info)
                         })
                     
                     if stock_data:
                         stock_df = pd.DataFrame(stock_data)
-                        stock_df.to_excel(writer, sheet_name='股票分析', index=False)
+                        stock_df.to_excel(writer, sheet_name=_("stock_analysis"), index=False)
                 
                 # 行业数据（如果有）
                 if 'industries' in self.analysis_results:
                     industry_data = []
                     for industry, info in self.analysis_results['industries'].items():
                         industry_data.append({
-                            '行业名称': industry,
-                            '分析结果': str(info)
+                            _("industry_name"): industry,
+                            _("analysis_result"): str(info)
                         })
                     
                     if industry_data:
                         industry_df = pd.DataFrame(industry_data)
-                        industry_df.to_excel(writer, sheet_name='行业分析', index=False)
+                        industry_df.to_excel(writer, sheet_name=_("industry_analysis"), index=False)
         
         except Exception as e:
-            raise Exception(f"基础Excel导出失败: {str(e)}")
+            raise Exception(f"{_("basic_excel_export_failed")}: {str(e)}")
     
     def export_html_report(self):
         """导出HTML报告"""
         if not self.analysis_results:
-            messagebox.showwarning("提示", "请先完成数据分析")
+            messagebox.showwarning(_("tip"), _("complete_analysis_first"))
             return
         
         try:
@@ -938,7 +938,7 @@ class StockAnalyzerMainWindow:
             self._generate_simple_html_report()
             
         except Exception as e:
-            messagebox.showerror("导出错误", f"生成HTML报告失败:\n{str(e)}")
+            messagebox.showerror(_("export_error"), f"{_("html_report_generation_failed")}:\n{str(e)}")
     
     def _generate_simple_html_report(self):
         """生成简单版HTML报告"""
@@ -967,8 +967,8 @@ class StockAnalyzerMainWindow:
                 msci_raw = market_data.get('current_msci', 0)
                 msci_value = float(msci_raw) if isinstance(msci_raw, (int, float, np.number)) else 0.0
                 
-                market_state = market_data.get('market_state', '未知')
-                risk_level = market_data.get('risk_level', '未知')
+                market_state = market_data.get('market_state', _("unknown"))
+                risk_level = market_data.get('risk_level', _("unknown"))
                 
                 trend_raw = market_data.get('trend_5d', 0)
                 trend_5d = float(trend_raw) if isinstance(trend_raw, (int, float, np.number)) else 0.0
@@ -982,14 +982,14 @@ class StockAnalyzerMainWindow:
                 if self.analysis_results and 'market_sentiment' in self.analysis_results:
                     market_data = self.analysis_results['market_sentiment']
                     msci_value = market_data.get('current_msci', 42.5)
-                    market_state = market_data.get('market_state', '中性偏悲观')
-                    risk_level = market_data.get('risk_level', '中等')
+                    market_state = market_data.get('market_state', _("neutral_bearish"))
+                    risk_level = market_data.get('risk_level', _("medium"))
                     trend_5d = market_data.get('trend_5d', 0)
                 else:
                     # 默认市场情绪数据
                     msci_value = 42.5
-                    market_state = '中性偏悲观'
-                    risk_level = '中等'
+                    market_state = _("neutral_bearish")
+                    risk_level = _("medium")
                     trend_5d = 2.3
             
             # 生成个股推荐表格HTML
@@ -1001,7 +1001,7 @@ class StockAnalyzerMainWindow:
                         # 安全处理numpy类型
                         import numpy as np
                         rtsi_value = float(rtsi) if isinstance(rtsi, (int, float, np.number)) else 0.0
-                        recommendation = "强烈推荐" if rtsi_value > 70 else "适度关注" if rtsi_value > 50 else "谨慎观望"
+                        recommendation = _("strongly_recommend") if rtsi_value > 70 else _("moderate_attention") if rtsi_value > 50 else _("cautious_watch")
                         stock_recommendations_html += f"""
             <tr>
                 <td>{i}</td>
@@ -1015,18 +1015,18 @@ class StockAnalyzerMainWindow:
             <tr>
                 <td>{i}</td>
                 <td>--</td>
-                <td>数据处理中</td>
+                <td>{_("data_processing")}</td>
                 <td>--</td>
-                <td>等待分析</td>
+                <td>{_("waiting_analysis")}</td>
             </tr>"""
             else:
                 stock_recommendations_html = """
             <tr>
                 <td>1</td>
                 <td>--</td>
-                <td>暂无数据</td>
+                <td>{_("no_data")}</td>
                 <td>--</td>
-                <td>请先完成数据分析</td>
+                <td>{_("complete_analysis_first")}</td>
             </tr>"""
             
             # 生成行业分析HTML
@@ -1036,30 +1036,30 @@ class StockAnalyzerMainWindow:
                 top_industries = self.analysis_results.get_top_industries('irsi', 10)
                 
                 if top_industries:
-                    industry_analysis_html = "<p><strong>强势行业排行榜 (按IRSI指数排序):</strong></p><table>"
-                    industry_analysis_html += "<tr><th>排名</th><th>行业名称</th><th>IRSI指数</th><th>强度等级</th><th>投资建议</th></tr>"
+                    industry_analysis_html = f"<p><strong>{_("strong_industries_ranking")} ({_("sorted_by_irsi_index")}):</strong></p><table>"
+                    industry_analysis_html += f"<tr><th>{_("ranking")}</th><th>{_("industry_name")}</th><th>{_("irsi_index")}</th><th>{_("strength_level")}</th><th>{_("investment_advice")}</th></tr>"
                     
                     for i, (industry_name, irsi_value) in enumerate(top_industries[:5], 1):
                         # 判断强度等级
                         if irsi_value > 20:
-                            strength = "强势"
-                            advice = "积极配置"
+                            strength = _("strong")
+                            advice = _("active_allocation")
                             color = "green"
                         elif irsi_value > 5:
-                            strength = "中性偏强"
-                            advice = "适度关注"
+                            strength = _("neutral_strong")
+                            advice = _("moderate_attention")
                             color = "blue"
                         elif irsi_value > -5:
-                            strength = "中性"
-                            advice = "观望"
+                            strength = _("neutral")
+                            advice = _("wait_and_see")
                             color = "gray"
                         elif irsi_value > -20:
-                            strength = "中性偏弱"
-                            advice = "谨慎"
+                            strength = _("neutral_weak")
+                            advice = _("cautious")
                             color = "orange"
                         else:
-                            strength = "弱势"
-                            advice = "回避"
+                            strength = _("weak")
+                            advice = _("avoid")
                             color = "red"
                         
                         industry_analysis_html += f"""
@@ -1076,24 +1076,24 @@ class StockAnalyzerMainWindow:
                     # 添加说明
                     strongest_industry = top_industries[0][0]
                     strongest_irsi = top_industries[0][1]
-                    industry_analysis_html += f"<p><strong>当前最强势行业:</strong> {strongest_industry} (IRSI: {strongest_irsi:.2f})</p>"
-                    industry_analysis_html += "<p><small>IRSI指数反映行业相对于大盘的表现强度，正值表示跑赢大盘，负值表示跑输大盘。</small></p>"
+                    industry_analysis_html += f"<p><strong>{_("current_strongest_industry")}:</strong> {strongest_industry} (IRSI: {strongest_irsi:.2f})</p>"
+                    industry_analysis_html += f"<p><small>{_("irsi_index_explanation")}</small></p>"
                 else:
-                    industry_analysis_html = "<p>暂无行业分析数据，请先完成数据分析。</p>"
+                    industry_analysis_html = f"<p>{_("no_industry_analysis_data")}</p>"
             else:
-                industry_analysis_html = "<p>暂无行业分析数据，请先完成数据分析。</p>"
+                industry_analysis_html = f"<p>{_("no_industry_analysis_data")}</p>"
             
             # 生成AI分析版块HTML
             ai_analysis_section = ""
             if hasattr(self, 'ai_analysis_result') and self.ai_analysis_result:
                 ai_analysis_section = f"""
     <div class="section">
-        <h2>AI智能分析</h2>
+        <h2>{_("ai_intelligent_analysis")}</h2>
         <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
-            <h3>AI分析师观点</h3>
+            <h3>{_("ai_analyst_opinion")}</h3>
             <div style="white-space: pre-wrap; line-height: 1.6; color: #333;">{self.ai_analysis_result}</div>
         </div>
-        <p><small>AI分析基于当前市场数据和算法模型，仅供参考。</small></p>
+        <p><small>{_("ai_analysis_disclaimer")}</small></p>
     </div>"""
             else:
                 ai_analysis_section = ""
@@ -1109,7 +1109,7 @@ class StockAnalyzerMainWindow:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI股票趋势分析报告</title>
+    <title>{_("ai_stock_trend_analysis_report")}</title>
     <style>
         body {{ font-family: 'Microsoft YaHei', Arial, sans-serif; margin: 20px; line-height: 1.6; }}
         .header {{ background: #f4f4f4; padding: 20px; border-radius: 8px; margin-bottom: 20px; position: relative; }}
@@ -1131,69 +1131,69 @@ class StockAnalyzerMainWindow:
 </head>
 <body>
     <div class="header">
-        <h1>AI股票趋势分析报告</h1>
-        <p>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        <div class="author">作者：267278466@qq.com</div>
+        <h1>{_("ai_stock_trend_analysis_report")}</h1>
+        <p>{_("generation_time")}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <div class="author">{_("author")}: 267278466@qq.com</div>
     </div>
     
     <div class="section">
-        <h2>分析概览</h2>
-        <div class="metric">总股票数: <span class="highlight">{total_stocks:,}</span></div>
-        <div class="metric">行业分类: <span class="highlight">{total_industries}</span>个</div>
-        <div class="metric">分析算法: <span class="highlight">RTSI + IRSI + MSCI</span></div>
-        <div class="metric">数据质量: <span class="highlight">良好</span></div>
+        <h2>{_("analysis_overview")}</h2>
+        <div class="metric">{_("total_stocks")}: <span class="highlight">{total_stocks:,}</span></div>
+        <div class="metric">{_("industry_classification")}: <span class="highlight">{total_industries}</span>{_("units_industries")}</div>
+        <div class="metric">{_("analysis_algorithm")}: <span class="highlight">RTSI + IRSI + MSCI</span></div>
+        <div class="metric">{_("data_quality")}: <span class="highlight">{_("good")}</span></div>
     </div>
     
     <div class="section">
-        <h2>市场情绪指数</h2>
-        <p>基于MSCI算法的市场情绪综合分析</p>
+        <h2>{_("market_sentiment_index")}</h2>
+        <p>{_("msci_based_market_sentiment_analysis")}</p>
         <div class="sentiment-grid">
             <div class="sentiment-card">
-                <h3>核心指标</h3>
-                <p><strong>MSCI指数:</strong> <span style="color: {sentiment_risk_color}; font-weight: bold;">{msci_value:.1f}</span></p>
-                <p><strong>市场状态:</strong> {market_state}</p>
-                <p><strong>风险等级:</strong> <span class="risk-{risk_level.lower()}">{risk_level}</span></p>
-                <p><strong>5日趋势:</strong> <span class="trend-{'up' if trend_5d > 0 else 'down'}">{trend_5d:+.1f}</span></p>
+                <h3>{_("core_indicators")}</h3>
+                <p><strong>{_("msci_index")}:</strong> <span style="color: {sentiment_risk_color}; font-weight: bold;">{msci_value:.1f}</span></p>
+                <p><strong>{_("market_state")}:</strong> {market_state}</p>
+                <p><strong>{_("risk_level")}:</strong> <span class="risk-{risk_level.lower()}">{risk_level}</span></p>
+                <p><strong>{_("five_day_trend")}:</strong> <span class="trend-{'up' if trend_5d > 0 else 'down'}">{trend_5d:+.1f}</span></p>
             </div>
             <div class="sentiment-card">
-                <h3>市场判断</h3>
-                <p><strong>整体情绪:</strong> {"偏乐观" if msci_value > 60 else "偏悲观" if msci_value < 40 else "中性"}</p>
-                <p><strong>投资建议:</strong> {"谨慎减仓" if msci_value > 70 else "适度加仓" if msci_value < 30 else "均衡配置"}</p>
-                <p><strong>关注重点:</strong> {"防范泡沫风险" if msci_value > 70 else "寻找价值机会" if msci_value < 30 else "关注轮动机会"}</p>
+                <h3>{_("market_judgment")}</h3>
+                <p><strong>{_("overall_sentiment")}:</strong> {_("slightly_optimistic") if msci_value > 60 else _("slightly_pessimistic") if msci_value < 40 else _("neutral")}</p>
+                <p><strong>{_("investment_advice")}:</strong> {_("cautious_reduction") if msci_value > 70 else _("moderate_increase") if msci_value < 30 else _("balanced_allocation")}</p>
+                <p><strong>{_("focus_points")}:</strong> {_("prevent_bubble_risk") if msci_value > 70 else _("seek_value_opportunities") if msci_value < 30 else _("focus_rotation_opportunities")}</p>
             </div>
         </div>
     </div>
     
     <div class="section">
-        <h2>个股推荐</h2>
-        <p>基于RTSI算法的优质股票分析</p>
+        <h2>{_("stock_recommendations")}</h2>
+        <p>{_("rtsi_based_quality_stock_analysis")}</p>
         <table>
-            <tr><th>排名</th><th>股票代码</th><th>股票名称</th><th>RTSI指数</th><th>推荐理由</th></tr>
+            <tr><th>{_("ranking")}</th><th>{_("stock_code")}</th><th>{_("stock_name")}</th><th>{_("rtsi_index")}</th><th>{_("recommendation_reason")}</th></tr>
             {stock_recommendations_html}
         </table>
     </div>
     
     <div class="section">
-        <h2>行业轮动分析</h2>
-        <p>基于IRSI算法的行业强度分析</p>
+        <h2>{_("industry_rotation_analysis")}</h2>
+        <p>{_("irsi_based_industry_strength_analysis")}</p>
         {industry_analysis_html}
     </div>
     
     <div class="section">
-        <h2>投资建议</h2>
+        <h2>{_("investment_advice")}</h2>
         <ul>
-            <li>根据MSCI指数{msci_value:.1f}，当前市场情绪{market_state}</li>
-            <li>建议投资仓位：{"30-40%" if msci_value > 70 else "70-80%" if msci_value < 30 else "50-60%"}</li>
-            <li>关注RTSI指数高于60的优质个股</li>
-            <li>重点关注强势轮入行业的龙头股票</li>
-            <li>设置合理止损位，严格执行风险控制</li>
+            <li>{_("based_on_msci_index")}{msci_value:.1f}，{_("current_market_sentiment")}{market_state}</li>
+            <li>{_("suggested_position")}：{"30-40%" if msci_value > 70 else "70-80%" if msci_value < 30 else "50-60%"}</li>
+            <li>{_("focus_rtsi_above_60")}</li>
+            <li>{_("focus_strong_industry_leaders")}</li>
+            <li>{_("set_stop_loss_risk_control")}</li>
         </ul>
     </div>
     
     {ai_analysis_section}
     
     <div class="section">
-        <p><small>免责声明: 本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。请结合基本面分析和风险承受能力。</small></p>
+        <p><small>{_("disclaimer")}</small></p>
     </div>
 </body>
 </html>
@@ -1206,50 +1206,50 @@ class StockAnalyzerMainWindow:
             # 在浏览器中打开
             webbrowser.open(f"file://{html_file.absolute()}")
             
-            self.status_var.set(f"已生成并打开HTML报告: {html_file.name}")
+            self.status_var.set(f"{_("html_report_generated_and_opened")}: {html_file.name}")
             
             # 返回HTML内容用于测试
             return html_content
             
         except Exception as e:
-            messagebox.showerror("导出错误", f"生成HTML报告失败:\n{str(e)}")
+            messagebox.showerror(_("export_error"), f"{_("html_report_generation_failed")}:\n{str(e)}")
             return None
     
     def show_stock_analysis(self):
         """显示个股分析窗口"""
         if not self.analysis_results:
-            messagebox.showwarning("提示", "请先加载数据并完成分析")
+            messagebox.showwarning(_("tip"), _("load_data_and_complete_analysis_first"))
             return
         
         try:
             # 创建个股分析窗口，传递current_dataset
             StockAnalysisWindow(self.root, self.analysis_results, self.current_dataset)
         except Exception as e:
-            messagebox.showerror("错误", f"打开个股分析窗口失败:\n{str(e)}")
+            messagebox.showerror(_("error"), f"{_("open_stock_analysis_window_failed")}:\n{str(e)}")
     
     def show_industry_analysis(self):
         """显示行业分析窗口"""
         if not self.analysis_results:
-            messagebox.showwarning("提示", "请先加载数据并完成分析")
+            messagebox.showwarning(_("tip"), _("load_data_and_complete_analysis_first"))
             return
         
         try:
             # 创建行业分析窗口
             IndustryAnalysisWindow(self.root, self.analysis_results)
         except Exception as e:
-            messagebox.showerror("错误", f"打开行业分析窗口失败:\n{str(e)}")
+            messagebox.showerror(_("error"), f"{_("open_industry_analysis_window_failed")}:\n{str(e)}")
     
     def show_market_analysis(self):
         """显示市场分析窗口"""
         if not self.analysis_results:
-            messagebox.showwarning("提示", "请先加载数据并完成分析")
+            messagebox.showwarning(_("tip"), _("load_data_and_complete_analysis_first"))
             return
         
         try:
             # 创建市场情绪分析窗口
             MarketSentimentWindow(self.root, self.analysis_results)
         except Exception as e:
-            messagebox.showerror("错误", f"打开市场分析窗口失败:\n{str(e)}")
+            messagebox.showerror(_("error"), f"{_("open_market_analysis_window_failed")}:\n{str(e)}")
     
     def show_settings(self):
         """显示设置窗口"""
@@ -1257,9 +1257,9 @@ class StockAnalyzerMainWindow:
             from gui.analysis_dialogs import SettingsDialog
             SettingsDialog(self.root)
         except ImportError:
-            messagebox.showerror("功能不可用", "设置模块未找到，请检查系统配置")
+            messagebox.showerror(_("feature_unavailable"), _("settings_module_not_found"))
         except Exception as e:
-            messagebox.showerror("错误", f"打开设置窗口失败:\n{str(e)}")
+            messagebox.showerror(_("error"), f"{_("open_settings_window_failed")}:\n{str(e)}")
     
     def show_help(self):
         """显示帮助窗口"""
@@ -1268,7 +1268,7 @@ class StockAnalyzerMainWindow:
     
     def show_about(self):
         """显示关于窗口"""
-        messagebox.showinfo("关于", "AI股票趋势分析系统 v2.0.0\n\n专业级股票数据分析工具\n\n联系方式: 267278466@qq.com")
+        messagebox.showinfo(_("about"), f"{_("ai_stock_trend_analysis_system")} v2.0.0\n\n{_("professional_stock_analysis_tool")}\n\n{_("contact")}: 267278466@qq.com")
     
     def open_github_page(self, event):
         """打开GitHub页面"""
@@ -1292,7 +1292,7 @@ class StockAnalyzerMainWindow:
                 return
             
             # 更新AI状态显示
-            self.ai_status_var.set("AI分析中...")
+            self.ai_status_var.set(_("ai_analyzing"))
             
             # 在后台线程中执行AI分析
             ai_thread = threading.Thread(target=self._run_ai_analysis)
@@ -1300,8 +1300,8 @@ class StockAnalyzerMainWindow:
             ai_thread.start()
             
         except Exception as e:
-            print(f"AI分析启动失败: {str(e)}")
-            self.ai_status_var.set("AI分析启动失败")
+            print(f"{_("ai_analysis_startup_failed")}: {str(e)}")
+            self.ai_status_var.set(_("ai_analysis_startup_failed"))
     
     def _check_llm_config(self) -> bool:
         """检查LLM配置文件是否存在"""
@@ -1311,8 +1311,8 @@ class StockAnalyzerMainWindow:
             config_path = os.path.join(current_dir, "llm-api", "config", "user_settings.json")
             
             if not os.path.exists(config_path):
-                print("AI智能分析跳过: 未找到LLM配置文件")
-                self.ai_status_var.set("未配置AI")
+                print(_("ai_analysis_skipped_no_config"))
+                self.ai_status_var.set(_("ai_not_configured"))
                 return False
             
             # 读取配置文件验证格式
@@ -1320,22 +1320,22 @@ class StockAnalyzerMainWindow:
                 config = json.load(f)
                 
             if not config.get('default_provider') or not config.get('default_chat_model'):
-                print("AI智能分析跳过: LLM配置不完整")
-                self.ai_status_var.set("AI配置不完整")
+                print(_("ai_analysis_skipped_incomplete_config"))
+                self.ai_status_var.set(_("ai_config_incomplete"))
                 return False
                 
             return True
             
         except Exception as e:
-            print(f"AI配置检查失败: {str(e)}")
-            self.ai_status_var.set("AI配置错误")
+            print(f"{_("ai_config_check_failed")}: {str(e)}")
+            self.ai_status_var.set(_("ai_config_error"))
             return False
     
     def _run_ai_analysis(self):
         """执行AI智能分析"""
         try:
             # 更新状态
-            self.root.after(0, lambda: self.status_var.set("正在进行AI智能分析..."))
+            self.root.after(0, lambda: self.status_var.set(_("ai_intelligent_analysis_in_progress")))
             
             # 准备分析数据
             analysis_data = self._prepare_analysis_data()
@@ -1346,21 +1346,21 @@ class StockAnalyzerMainWindow:
             if ai_response:
                 # 在主线程中更新UI
                 self.root.after(0, lambda: self._display_ai_analysis(ai_response))
-                self.root.after(0, lambda: self.ai_status_var.set("AI分析完成"))
+                self.root.after(0, lambda: self.ai_status_var.set(_("ai_analysis_completed")))
             else:
-                self.root.after(0, lambda: self.status_var.set("AI分析失败，继续使用传统分析结果"))
-                self.root.after(0, lambda: self.ai_status_var.set("AI分析失败"))
+                self.root.after(0, lambda: self.status_var.set(_("ai_analysis_failed_continue_traditional")))
+                self.root.after(0, lambda: self.ai_status_var.set(_("ai_analysis_failed")))
                 
         except Exception as e:
-            print(f"AI分析执行失败: {str(e)}")
-            self.root.after(0, lambda: self.status_var.set("AI分析出错，继续使用传统分析结果"))
-            self.root.after(0, lambda: self.ai_status_var.set("AI分析出错"))
+            print(f"{_("ai_analysis_execution_failed")}: {str(e)}")
+            self.root.after(0, lambda: self.status_var.set(_("ai_analysis_error_continue_traditional")))
+            self.root.after(0, lambda: self.ai_status_var.set(_("ai_analysis_error")))
     
     def _prepare_analysis_data(self) -> dict:
         """准备发送给AI的分析数据"""
         try:
             data = {
-                "analysis_type": "股票市场综合分析",
+                "analysis_type": _("stock_market_comprehensive_analysis"),
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "market_data": {},
                 "industry_data": {},
@@ -1378,15 +1378,15 @@ class StockAnalyzerMainWindow:
                 
                 # 计算市场情绪状态
                 if msci_value >= 70:
-                    market_sentiment = "极度乐观"
+                    market_sentiment = _("extremely_optimistic")
                 elif msci_value >= 60:
-                    market_sentiment = "乐观"
+                    market_sentiment = _("optimistic")
                 elif msci_value >= 40:
-                    market_sentiment = "中性"
+                    market_sentiment = _("neutral")
                 elif msci_value >= 30:
-                    market_sentiment = "悲观"
+                    market_sentiment = _("pessimistic")
                 else:
-                    market_sentiment = "极度悲观"
+                    market_sentiment = _("extremely_pessimistic")
                 
                 data["market_data"] = {
                     "msci_value": msci_value,
@@ -1394,7 +1394,7 @@ class StockAnalyzerMainWindow:
                     "volatility": volatility,
                     "volume_ratio": volume_ratio,
                     "market_sentiment": market_sentiment,
-                    "risk_level": market.get('risk_level', '中等')
+                    "risk_level": market.get('risk_level', _("medium"))
                 }
                 
                 # 添加宏观指标数据（模拟数据，实际应用中应从真实数据源获取）
@@ -1436,7 +1436,7 @@ class StockAnalyzerMainWindow:
                         stock_info = self.analysis_results.stocks[stock_code]
                         data["stock_data"][stock_code] = {
                             "name": stock_info.get('name', stock_code),
-                            "industry": stock_info.get('industry', '未知'),
+                            "industry": stock_info.get('industry', _("unknown")),
                             "rtsi_value": stock_info.get('rtsi', {}).get('rtsi', 0),
                             "price": stock_info.get('price', 0),
                             "volume": stock_info.get('volume', 0),
@@ -1458,7 +1458,7 @@ class StockAnalyzerMainWindow:
             return data
             
         except Exception as e:
-            print(f"数据准备失败: {str(e)}")
+            print(f"{_("data_preparation_failed")}: {str(e)}")
             return {}
     
     def _extract_historical_data(self):
