@@ -1,4 +1,4 @@
-# AI Stock Analysis System v2.0 [中文](https://github.com/hengruiyun/AI-Stock-Analysis/blob/main/README_CN.md)
+# AI Stock Analysis System v2.1 [中文](https://github.com/hengruiyun/AI-Stock-Analysis/blob/main/README_CN.md)
 
 ## Development Statement
 
@@ -6,7 +6,8 @@ This project demonstrates the perfect combination of artificial intelligence and
 
 ---
 
-![ais1](https://github.com/user-attachments/assets/824df195-9675-4290-8099-d720ac37bfe9)
+![ais1e](https://github.com/user-attachments/assets/24e9f7f2-4149-4c46-8a35-722e56d83b5a)
+
 
 ## System Overview
 
@@ -40,7 +41,9 @@ This system is built on modern artificial intelligence theory, integrating machi
 
 ### Large Language Model Integration
 
-![ais7](https://github.com/user-attachments/assets/c0f1e1f6-6b9c-464c-b2a0-770d19751b93)
+
+![ais7e](https://github.com/user-attachments/assets/11f692dd-113a-4628-8a1d-667305c58d94)
+
 
 **LLM-Powered Analysis Engine**
 
@@ -129,7 +132,7 @@ Recommendation: Suitable for buying, suggested stop-loss at 8%
 
 ### 2. IRSI - Industry Relative Strength Index
 
-![ais4](https://github.com/user-attachments/assets/e07a72f3-1419-4845-af55-f21b96649e19)
+![ais3e](https://github.com/user-attachments/assets/4ada541f-8eb8-4d1e-a79d-32348a5e946a)
 
 **Algorithm Theoretical Foundation**
 
