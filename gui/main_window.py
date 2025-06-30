@@ -675,11 +675,11 @@ class StockAnalyzerMainWindow:
                         formatted_code = self.format_stock_code(code)
                         summary_text += f"\n{i}. {name} ({formatted_code}) - RTSI: {rtsi_value:.1f}"
                     else:
-                        summary_text += f"\n{i}. {_("data_format_error")}: {type(stock_data)}"
+                        summary_text += f"\n{i}. {_('data_format_error')}: {type(stock_data)}"
             else:
-                summary_text += f"\n{_("no_data")}"
+                summary_text += f"\n{_('no_data')}"
             
-            summary_text += f"\n\n{_("industry")} {_("strong_industries_top5")} ({_("sorted_by_irsi")}):"
+            summary_text += f"\n\n{_('industry')} {_('strong_industries_top5')} ({_('sorted_by_irsi')}):"
             
             # 处理top行业显示
             if top_industries:
@@ -697,12 +697,12 @@ class StockAnalyzerMainWindow:
                             irsi_value = 0.0
                         summary_text += f"\n{i}. {industry} - IRSI: {irsi_value:.1f}"
                     else:
-                        summary_text += f"\n{i}. {_("data_format_error")}: {type(industry_data)}"
+                        summary_text += f"\n{i}. {_('data_format_error')}: {type(industry_data)}"
             else:
-                summary_text += f"\n{_("no_data")}"
+                summary_text += f"\n{_('no_data')}"
             
             # 处理市场情绪数据
-            summary_text += f"\n\n{_("rising")} {_("market_sentiment_analysis")}:"
+            summary_text += f"\n\n{_('rising')} {_('market_sentiment_analysis')}:"
             
             # 安全地提取和格式化市场数据
             try:
@@ -732,20 +732,20 @@ class StockAnalyzerMainWindow:
                 else:
                     trend_str = str(trend_5d)
                 
-                summary_text += f"\n• {_("current_msci_index")}: {msci_str}"
-                summary_text += f"\n• {_("market_state")}: {market_state}"
-                summary_text += f"\n• {_("risk_level")}: {risk_level}"
-                summary_text += f"\n• {_("five_day_trend")}: {trend_str}"
+                summary_text += f"\n• {_('current_msci_index')}: {msci_str}"
+                summary_text += f"\n• {_('market_state')}: {market_state}"
+                summary_text += f"\n• {_('risk_level')}: {risk_level}"
+                summary_text += f"\n• {_('five_day_trend')}: {trend_str}"
             
             except Exception as e:
-                summary_text += f"\n• {_("market_data_parse_error")}: {str(e)}"
+                summary_text += f"\n• {_('market_data_parse_error')}: {str(e)}"
 
-            summary_text += f"\n\n{_("tip")} {_("detailed_report_instruction")}\n"
+            summary_text += f"\n\n{_('tip')} {_('detailed_report_instruction')}\n"
             
             return summary_text
             
         except Exception as e:
-            return f"{_("summary_generation_failed")}: {str(e)}\n\n{_("check_analysis_data_format")}"
+            return f"{_('summary_generation_failed')}: {str(e)}\n\n{_('check_analysis_data_format')}"
     
     # 菜单功能实现
     def export_report(self):
@@ -782,17 +782,17 @@ class StockAnalyzerMainWindow:
                         import shutil
                         shutil.move(report_path, filename)
                     
-                    self.status_var.set(f"{_("exported_excel_report")}: {Path(filename).name}")
-                    messagebox.showinfo(_("success"), f"{_("report_saved_to")}:\n{filename}")
+                    self.status_var.set(f"{_('exported_excel_report')}: {Path(filename).name}")
+                    messagebox.showinfo(_('success'), f"{_('report_saved_to')}:\n{filename}")
                     
                 except ImportError:
                     # 备用方案：使用基础的Excel导出
                     self._basic_excel_export(filename)
-                    self.status_var.set(f"{_("exported_excel_report")}: {Path(filename).name}")
-                    messagebox.showinfo(_("success"), f"{_("report_saved_to")}:\n{filename}")
+                    self.status_var.set(f"{_('exported_excel_report')}: {Path(filename).name}")
+                    messagebox.showinfo(_('success'), f"{_('report_saved_to')}:\n{filename}")
                 
         except Exception as e:
-            messagebox.showerror(_("export_error"), f"{_("excel_export_failed")}:\n{str(e)}")
+            messagebox.showerror(_('export_error'), f"{_('excel_export_failed')}:\n{str(e)}")
     
     def _convert_analysis_results_for_report(self) -> dict:
         """将分析结果转换为报告生成器所需的格式"""
@@ -925,7 +925,7 @@ class StockAnalyzerMainWindow:
                         industry_df.to_excel(writer, sheet_name=_("industry_analysis"), index=False)
         
         except Exception as e:
-            raise Exception(f"{_("basic_excel_export_failed")}: {str(e)}")
+            raise Exception(f"{_('basic_excel_export_failed')}: {str(e)}")
     
     def export_html_report(self):
         """导出HTML报告"""
@@ -938,7 +938,7 @@ class StockAnalyzerMainWindow:
             self._generate_simple_html_report()
             
         except Exception as e:
-            messagebox.showerror(_("export_error"), f"{_("html_report_generation_failed")}:\n{str(e)}")
+            messagebox.showerror(_('export_error'), f"{_('html_report_generation_failed')}:\n{str(e)}")
     
     def _generate_simple_html_report(self):
         """生成简单版HTML报告"""
@@ -1036,8 +1036,8 @@ class StockAnalyzerMainWindow:
                 top_industries = self.analysis_results.get_top_industries('irsi', 10)
                 
                 if top_industries:
-                    industry_analysis_html = f"<p><strong>{_("strong_industries_ranking")} ({_("sorted_by_irsi_index")}):</strong></p><table>"
-                    industry_analysis_html += f"<tr><th>{_("ranking")}</th><th>{_("industry_name")}</th><th>{_("irsi_index")}</th><th>{_("strength_level")}</th><th>{_("investment_advice")}</th></tr>"
+                    industry_analysis_html = f"<p><strong>{_('strong_industries_ranking')} ({_('sorted_by_irsi_index')}):</strong></p><table>"
+                    industry_analysis_html += f"<tr><th>{_('ranking')}</th><th>{_('industry_name')}</th><th>{_('irsi_index')}</th><th>{_('strength_level')}</th><th>{_('investment_advice')}</th></tr>"
                     
                     for i, (industry_name, irsi_value) in enumerate(top_industries[:5], 1):
                         # 判断强度等级
@@ -1076,12 +1076,12 @@ class StockAnalyzerMainWindow:
                     # 添加说明
                     strongest_industry = top_industries[0][0]
                     strongest_irsi = top_industries[0][1]
-                    industry_analysis_html += f"<p><strong>{_("current_strongest_industry")}:</strong> {strongest_industry} (IRSI: {strongest_irsi:.2f})</p>"
-                    industry_analysis_html += f"<p><small>{_("irsi_index_explanation")}</small></p>"
+                    industry_analysis_html += f"<p><strong>{_('current_strongest_industry')}:</strong> {strongest_industry} (IRSI: {strongest_irsi:.2f})</p>"
+                    industry_analysis_html += f"<p><small>{_('irsi_index_explanation')}</small></p>"
                 else:
-                    industry_analysis_html = f"<p>{_("no_industry_analysis_data")}</p>"
+                    industry_analysis_html = f"<p>{_('no_industry_analysis_data')}</p>"
             else:
-                industry_analysis_html = f"<p>{_("no_industry_analysis_data")}</p>"
+                industry_analysis_html = f"<p>{_('no_industry_analysis_data')}</p>"
             
             # 生成AI分析版块HTML
             ai_analysis_section = ""
@@ -1206,13 +1206,13 @@ class StockAnalyzerMainWindow:
             # 在浏览器中打开
             webbrowser.open(f"file://{html_file.absolute()}")
             
-            self.status_var.set(f"{_("html_report_generated_and_opened")}: {html_file.name}")
+            self.status_var.set(f"{_('html_report_generated_and_opened')}: {html_file.name}")
             
             # 返回HTML内容用于测试
             return html_content
             
         except Exception as e:
-            messagebox.showerror(_("export_error"), f"{_("html_report_generation_failed")}:\n{str(e)}")
+            messagebox.showerror(_('export_error'), f"{_('html_report_generation_failed')}:\n{str(e)}")
             return None
     
     def show_stock_analysis(self):
@@ -1225,7 +1225,7 @@ class StockAnalyzerMainWindow:
             # 创建个股分析窗口，传递current_dataset
             StockAnalysisWindow(self.root, self.analysis_results, self.current_dataset)
         except Exception as e:
-            messagebox.showerror(_("error"), f"{_("open_stock_analysis_window_failed")}:\n{str(e)}")
+            messagebox.showerror(_('error'), f"{_('open_stock_analysis_window_failed')}:\n{str(e)}")
     
     def show_industry_analysis(self):
         """显示行业分析窗口"""
@@ -1237,7 +1237,7 @@ class StockAnalyzerMainWindow:
             # 创建行业分析窗口
             IndustryAnalysisWindow(self.root, self.analysis_results)
         except Exception as e:
-            messagebox.showerror(_("error"), f"{_("open_industry_analysis_window_failed")}:\n{str(e)}")
+            messagebox.showerror(_('error'), f"{_('open_industry_analysis_window_failed')}:\n{str(e)}")
     
     def show_market_analysis(self):
         """显示市场分析窗口"""
@@ -1249,7 +1249,7 @@ class StockAnalyzerMainWindow:
             # 创建市场情绪分析窗口
             MarketSentimentWindow(self.root, self.analysis_results)
         except Exception as e:
-            messagebox.showerror(_("error"), f"{_("open_market_analysis_window_failed")}:\n{str(e)}")
+            messagebox.showerror(_('error'), f"{_('open_market_analysis_window_failed')}:\n{str(e)}")
     
     def show_settings(self):
         """显示设置窗口"""
@@ -1259,7 +1259,7 @@ class StockAnalyzerMainWindow:
         except ImportError:
             messagebox.showerror(_("feature_unavailable"), _("settings_module_not_found"))
         except Exception as e:
-            messagebox.showerror(_("error"), f"{_("open_settings_window_failed")}:\n{str(e)}")
+            messagebox.showerror(_('error'), f"{_('open_settings_window_failed')}:\n{str(e)}")
     
     def show_help(self):
         """显示帮助窗口"""
@@ -1268,7 +1268,7 @@ class StockAnalyzerMainWindow:
     
     def show_about(self):
         """显示关于窗口"""
-        messagebox.showinfo(_("about"), f"{_("ai_stock_trend_analysis_system")} v2.0.0\n\n{_("professional_stock_analysis_tool")}\n\n{_("contact")}: 267278466@qq.com")
+        messagebox.showinfo(_('about'), f"{_('ai_stock_trend_analysis_system')} v2.0.0\n\n{_('professional_stock_analysis_tool')}\n\n{_('contact')}: 267278466@qq.com")
     
     def open_github_page(self, event):
         """打开GitHub页面"""
@@ -1300,7 +1300,7 @@ class StockAnalyzerMainWindow:
             ai_thread.start()
             
         except Exception as e:
-            print(f"{_("ai_analysis_startup_failed")}: {str(e)}")
+            print(f"{_('ai_analysis_startup_failed')}: {str(e)}")
             self.ai_status_var.set(_("ai_analysis_startup_failed"))
     
     def _check_llm_config(self) -> bool:
@@ -1327,7 +1327,7 @@ class StockAnalyzerMainWindow:
             return True
             
         except Exception as e:
-            print(f"{_("ai_config_check_failed")}: {str(e)}")
+            print(f"{_('ai_config_check_failed')}: {str(e)}")
             self.ai_status_var.set(_("ai_config_error"))
             return False
     
@@ -1352,7 +1352,7 @@ class StockAnalyzerMainWindow:
                 self.root.after(0, lambda: self.ai_status_var.set(_("ai_analysis_failed")))
                 
         except Exception as e:
-            print(f"{_("ai_analysis_execution_failed")}: {str(e)}")
+            print(f"{_('ai_analysis_execution_failed')}: {str(e)}")
             self.root.after(0, lambda: self.status_var.set(_("ai_analysis_error_continue_traditional")))
             self.root.after(0, lambda: self.ai_status_var.set(_("ai_analysis_error")))
     
@@ -1458,7 +1458,7 @@ class StockAnalyzerMainWindow:
             return data
             
         except Exception as e:
-            print(f"{_("data_preparation_failed")}: {str(e)}")
+            print(f"{_('data_preparation_failed')}: {str(e)}")
             return {}
     
     def _extract_historical_data(self):
