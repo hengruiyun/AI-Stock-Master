@@ -3572,45 +3572,51 @@ X 【数据状态】
     def suggest_entry_point(self, rtsi_value):
         """建议入场点"""
         if rtsi_value >= 60:
-            return "回调至支撑位时"
+            return _("回调至支撑位时")
         elif rtsi_value >= 40:
-            return "突破阻力位时"
+            return _("突破阻力位时")
         else:
-            return "等待止跌企稳信号"
+            return _("等待止跌企稳信号")
     
     def suggest_stop_loss(self, rtsi_value):
         """建议止损位"""
         if rtsi_value >= 50:
-            return "跌破近期支撑位"
+            return _("跌破近期支撑位")
         else:
-            return "设置8-10%止损位"
+            return _("设置8-10%止损位")
     
     def suggest_target_price(self, rtsi_value):
         """建议目标价"""
         if rtsi_value >= 60:
-            return "上看前高或新高"
+            return _("上看前高或新高")
         elif rtsi_value >= 40:
-            return "看至前期阻力位"
+            return _("看至前期阻力位")
         else:
-            return "暂不设定目标价"
+            return _("暂不设定目标价")
     
     def suggest_holding_period(self, rtsi_value):
         """建议持仓周期"""
         if rtsi_value >= 60:
-            return "中长线持有(1-3个月)"
+            return _("中长线持有(1-3个月)")
         elif rtsi_value >= 40:
-            return "短中线操作(2-4周)"
+            return _("短中线操作(2-4周)")
         else:
-            return "超短线或暂不持有"
+            return _("超短线或暂不持有")
     
     def generate_outlook(self, rtsi_value, industry):
         """生成后市展望"""
         if rtsi_value >= 60:
-            return f"技术面显示{industry}行业及该股仍有上涨空间，建议持续关注基本面变化。"
+            technical_shows = _("技术面显示")
+            upside_potential = _("行业及该股仍有上涨空间，建议持续关注基本面变化")
+            return f"{technical_shows}{industry}{upside_potential}"
         elif rtsi_value >= 40:
-            return f"股价处于震荡期，需要观察{industry}行业催化剂和量能变化。"
+            consolidation_period = _("股价处于震荡期，需要观察")
+            catalyst_volume = _("行业催化剂和量能变化")
+            return f"{consolidation_period}{industry}{catalyst_volume}"
         else:
-            return f"技术面偏弱，建议等待{industry}行业整体企稳后再考虑配置。"
+            weak_technical = _("技术面偏弱，建议等待")
+            stabilization = _("行业整体企稳后再考虑配置")
+            return f"{weak_technical}{industry}{stabilization}"
     
     def plot_no_data_chart(self, stock_code):
         """绘制无数据提示图表"""
@@ -3636,7 +3642,14 @@ X 【数据状态】
     def plot_error_chart(self):
         """绘制错误提示图表"""
         self.ax.clear()
-        self.ax.text(0.5, 0.5, '\n数据加载失败\n请检查数据源\n\n建议:\n1. 确认已加载数据文件\n2. 完成数据分析\n3. 选择有效股票', 
+        data_loading_failed = _("数据加载失败")
+        check_data_source = _("请检查数据源")
+        suggestions = _("建议")
+        confirm_data_file = _("确认已加载数据文件")
+        complete_analysis = _("完成数据分析")
+        select_valid_stocks = _("选择有效股票")
+        error_text = f'\n{data_loading_failed}\n{check_data_source}\n\n{suggestions}:\n1. {confirm_data_file}\n2. {complete_analysis}\n3. {select_valid_stocks}'
+        self.ax.text(0.5, 0.5, error_text, 
                     transform=self.ax.transAxes, 
                     horizontalalignment='center',
                     verticalalignment='center',
@@ -3650,7 +3663,7 @@ X 【数据状态】
     def export_analysis(self):
         """导出分析结果"""
         if not hasattr(self, 'current_stock') or not self.current_stock:
-            messagebox.showwarning("提示", "请先选择并分析股票")
+            messagebox.showwarning(_("提示"), _("请先选择并分析股票"))
             return
         
         try:
@@ -3662,7 +3675,7 @@ X 【数据状态】
             filename = filedialog.asksaveasfilename(
                 title=_("export_analysis_report", "导出个股分析报告"),
                 defaultextension=".txt",
-                filetypes=[("文本文件", "*.txt"), ("Excel文件", "*.xlsx"), ("所有文件", "*.*")],
+                filetypes=[(_("文本文件"), "*.txt"), (_("Excel文件"), "*.xlsx"), (_("所有文件"), "*.*")],
                 initialname=f"{stock_name}_{stock_code}_分析报告.txt"
             )
             
@@ -3673,22 +3686,26 @@ X 【数据状态】
                 with open(filename, 'w', encoding='utf-8') as f:
                     report_title = _("stock_analysis_report", "个股分析报告")
                     f.write(f"{report_title}\n")
-                    f.write(f"股票代码: {stock_code}\n")
-                    f.write(f"股票名称: {stock_name}\n")
-                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    stock_code_label = _("股票代码")
+                    stock_name_label = _("股票名称")
+                    generation_time_label = _("生成时间")
+                    f.write(f"{stock_code_label}: {stock_code}\n")
+                    f.write(f"{stock_name_label}: {stock_name}\n")
+                    f.write(f"{generation_time_label}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write("="*50 + "\n\n")
                     f.write(analysis_content)
                 
                 export_msg = _("report_export_success", "分析报告已导出到")
-                messagebox.showinfo("成功", f"{export_msg}:\n{filename}")
+                messagebox.showinfo(_("成功"), f"{export_msg}:\n{filename}")
         
         except Exception as e:
-            messagebox.showerror("错误", f"导出失败:\n{str(e)}")
+            export_failed = _("导出失败")
+            messagebox.showerror(_("错误"), f"{export_failed}:\n{str(e)}")
     
     def add_to_watchlist(self):
         """添加到关注列表"""
         if not hasattr(self, 'current_stock') or not self.current_stock:
-            messagebox.showwarning("提示", "请先选择股票")
+            messagebox.showwarning(_("提示"), _("请先选择股票"))
             return
         
         stock_code = self.current_stock['code']
@@ -3708,17 +3725,21 @@ X 【数据状态】
             
             stock_entry = f"{stock_code} {stock_name}"
             if stock_entry in existing_stocks:
-                messagebox.showinfo("提示", f"{stock_name} 已在关注列表中")
+                already_in_watchlist = _("已在关注列表中")
+                messagebox.showinfo(_("提示"), f"{stock_name} {already_in_watchlist}")
                 return
             
             # 添加到关注列表
             with open(watchlist_file, 'a', encoding='utf-8') as f:
                 f.write(f"{stock_entry}\n")
             
-            messagebox.showinfo("成功", f"已将 {stock_name} 添加到关注列表")
+            added_msg = _("已将")
+            to_watchlist = _("添加到关注列表")
+            messagebox.showinfo(_("成功"), f"{added_msg} {stock_name} {to_watchlist}")
         
         except Exception as e:
-            messagebox.showerror("错误", f"添加关注失败:\n{str(e)}")
+            add_watchlist_failed = _("添加关注失败")
+            messagebox.showerror(_("错误"), f"{add_watchlist_failed}:\n{str(e)}")
     
     def refresh_data(self):
         """刷新数据"""
@@ -3730,10 +3751,12 @@ X 【数据状态】
             if hasattr(self, 'current_stock') and self.current_stock:
                 self.analyze_selected_stock()
             
-            messagebox.showinfo("成功", "数据已刷新")
+            data_refreshed = _("数据已刷新")
+            messagebox.showinfo(_("成功"), data_refreshed)
         
         except Exception as e:
-            messagebox.showerror("错误", f"刷新数据失败:\n{str(e)}")
+            refresh_failed = _("刷新数据失败")
+            messagebox.showerror(_("错误"), f"{refresh_failed}:\n{str(e)}")
 
 
 class IndustryAnalysisWindow:
@@ -3960,7 +3983,8 @@ class IndustryAnalysisWindow:
             for item in self.industry_tree.get_children():
                 self.industry_tree.delete(item)
             
-            self.status_var.set("正在分析行业数据...")
+            analyzing_industry_data = _("正在分析行业数据")
+            self.status_var.set(f"{analyzing_industry_data}...")
             
             # 获取行业数据
             if hasattr(self.analysis_results, 'industries') and self.analysis_results.industries:
@@ -3983,19 +4007,19 @@ class IndustryAnalysisWindow:
                         
                         # 确定状态
                         if irsi_value > 20:
-                            status = "强势"
+                            status = _("强势")
                             tag = "strong"
                         elif irsi_value > 5:
-                            status = "中性偏强"
+                            status = _("中性偏强")
                             tag = "medium"
                         elif irsi_value > -5:
-                            status = "中性"
+                            status = _("中性")
                             tag = "neutral"
                         elif irsi_value > -20:
-                            status = "中性偏弱"
+                            status = _("中性偏弱")
                             tag = "weak"
                         else:
-                            status = "弱势"
+                            status = _("弱势")
                             tag = "very_weak"
                         
                         # 获取股票数量
@@ -4021,44 +4045,68 @@ class IndustryAnalysisWindow:
                 self.industry_tree.tag_configure('weak', foreground='#ff6600')
                 self.industry_tree.tag_configure('very_weak', foreground='#cc0000')
                 
-                self.status_var.set(f"已加载 {len(sorted_industries)} 个行业的IRSI数据")
+                loaded_msg = _("已加载")
+                industries_irsi_data = _("个行业的IRSI数据")
+                self.status_var.set(f"{loaded_msg} {len(sorted_industries)} {industries_irsi_data}")
                 
             else:
-                self.status_var.set("暂无行业分析数据")
+                no_industry_data = _("暂无行业分析数据")
+                self.status_var.set(no_industry_data)
                 
             # 显示默认详细信息
             self.show_default_detail()
             
         except Exception as e:
-            error_msg = f"行业数据加载失败: {str(e)}"
+            industry_data_load_failed = _("行业数据加载失败")
+            error_msg = f"{industry_data_load_failed}: {str(e)}"
             self.status_var.set(error_msg)
-            messagebox.showerror("错误", error_msg)
+            messagebox.showerror(_("错误"), error_msg)
     
     def show_default_detail(self):
         """显示默认详细信息"""
-        default_info = """
-行业 行业轮动分析说明
+        # 使用国际化字符串构建默认信息
+        industry_rotation_desc = "行业轮动分析说明"
+        irsi_desc = "IRSI指数 (Industry Relative Strength Index)"
+        measure_strength = "• 衡量行业相对于大盘的表现强度"
+        positive_outperform = "• 正值表示跑赢大盘，负值表示跑输大盘"
+        value_range = "• 数值范围：-100 到 +100"
+        strength_classification = "强度分类："
+        strong_desc = "• 强势：IRSI > 20，明显跑赢大盘"
+        neutral_strong_desc = "• 中性偏强：5 < IRSI ≤ 20，小幅跑赢"
+        neutral_desc = "• 中性：-5 ≤ IRSI ≤ 5，与大盘同步"
+        neutral_weak_desc = "• 中性偏弱：-20 ≤ IRSI < -5，小幅跑输"
+        weak_desc = "• 弱势：IRSI < -20，明显跑输大盘"
+        usage_suggestions = "使用建议："
+        suggestion1 = "1. 关注IRSI>15的强势行业，可能有轮动机会"
+        suggestion2 = "2. 避开IRSI<-15的弱势行业，风险较大"
+        suggestion3 = "3. 结合其他基本面因素综合判断"
+        suggestion4 = "4. 定期关注行业轮动变化"
+        data_update = "数据更新：基于最新评级数据实时计算"
+        risk_disclaimer = "投资有风险，仅供参考，不构成投资建议"
+        
+        default_info = f"""
+行业 {industry_rotation_desc}
 
-数据 IRSI指数 (Industry Relative Strength Index)
-• 衡量行业相对于大盘的表现强度
-• 正值表示跑赢大盘，负值表示跑输大盘
-• 数值范围：-100 到 +100
+数据 {irsi_desc}
+{measure_strength}
+{positive_outperform}
+{value_range}
 
-上涨 强度分类：
-• 强势：IRSI > 20，明显跑赢大盘
-• 中性偏强：5 < IRSI ≤ 20，小幅跑赢
-• 中性：-5 ≤ IRSI ≤ 5，与大盘同步
-• 中性偏弱：-20 ≤ IRSI < -5，小幅跑输
-• 弱势：IRSI < -20，明显跑输大盘
+上涨 {strength_classification}
+{strong_desc}
+{neutral_strong_desc}
+{neutral_desc}
+{neutral_weak_desc}
+{weak_desc}
 
-提示 使用建议：
-1. 关注IRSI>15的强势行业，可能有轮动机会
-2. 避开IRSI<-15的弱势行业，风险较大
-3. 结合其他基本面因素综合判断
-4. 定期关注行业轮动变化
+提示 {usage_suggestions}
+{suggestion1}
+{suggestion2}
+{suggestion3}
+{suggestion4}
 
-时间 数据更新：基于最新评级数据实时计算
-警告 投资有风险，仅供参考，不构成投资建议
+时间 {data_update}
+警告 {risk_disclaimer}
 """
         
         self.detail_text.delete(1.0, tk.END)
