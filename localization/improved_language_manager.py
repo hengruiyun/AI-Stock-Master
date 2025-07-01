@@ -137,6 +137,24 @@ class ImprovedLanguageManager:
                 'btn_close': '关闭',
                 'btn_cancel': '取消',
                 'btn_complete': '完成',
+                'btn_export_analysis': '导出分析',
+                'btn_add_watch': '添加关注',
+                'btn_refresh_data': '刷新数据',
+                
+                # 个股分析窗口
+                'stock_selector_label': '股票选择:',
+                'search_label': '搜索:',
+                'core_metrics_label': '核心指标',
+                
+                # 行业分析窗口
+                'industry_rotation_title': '行业轮动强度分析',
+                'industry_irsi_ranking': '行业IRSI排名',
+                'industry_detail_info': '行业详细信息',
+                
+                # 市场情绪分析窗口
+                'market_sentiment_title': '市场情绪综合分析',
+                'btn_msci_details': 'MSCI详情',
+                'btn_market_alerts': '市场预警',
                 
                 # 窗口标题
                 'stock_analysis_window_title': '个股趋势分析 - RTSI算法分析',
@@ -453,6 +471,24 @@ class ImprovedLanguageManager:
                 'btn_close': 'Close',
                 'btn_cancel': 'Cancel',
                 'btn_complete': 'Complete',
+                'btn_export_analysis': 'Export Analysis',
+                'btn_add_watch': 'Add to Watchlist',
+                'btn_refresh_data': 'Refresh Data',
+                
+                # Stock Analysis Window
+                'stock_selector_label': 'Stock Selection:',
+                'search_label': 'Search:',
+                'core_metrics_label': 'Core Metrics',
+                
+                # Industry Analysis Window
+                'industry_rotation_title': 'Industry Rotation Strength Analysis',
+                'industry_irsi_ranking': 'Industry IRSI Ranking',
+                'industry_detail_info': 'Industry Detail Information',
+                
+                # Market Sentiment Analysis Window
+                'market_sentiment_title': 'Market Sentiment Comprehensive Analysis',
+                'btn_msci_details': 'MSCI Details',
+                'btn_market_alerts': 'Market Alerts',
                 
                 # Window Titles
                 'stock_analysis_window_title': 'Stock Trend Analysis - RTSI Algorithm',

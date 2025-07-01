@@ -2451,7 +2451,7 @@ class StockAnalysisWindow:
         selector_frame.pack(fill=tk.X, padx=10, pady=5)
         selector_frame.pack_propagate(False)
         
-        tk.Label(selector_frame, text="股票选择:", bg='#f0f0f0', 
+        tk.Label(selector_frame, text=_("stock_selector_label", "股票选择:"), bg='#f0f0f0', 
                 font=('Arial', 11, 'bold')).pack(side=tk.LEFT, pady=10)
         
         # 股票下拉框
@@ -2462,7 +2462,7 @@ class StockAnalysisWindow:
         self.stock_combo.bind('<<ComboboxSelected>>', self.on_stock_selected)
         
         # 搜索框
-        tk.Label(selector_frame, text="搜索:", bg='#f0f0f0').pack(side=tk.LEFT, padx=(20,5))
+        tk.Label(selector_frame, text=_("search_label", "搜索:"), bg='#f0f0f0').pack(side=tk.LEFT, padx=(20,5))
         self.search_var = tk.StringVar()
         self.search_entry = tk.Entry(selector_frame, textvariable=self.search_var, 
                                     width=15, font=('Arial', 11))
@@ -2481,7 +2481,7 @@ class StockAnalysisWindow:
         }
         
         # 分析按钮
-        self.analyze_btn = tk.Button(selector_frame, text="开始分析", 
+        self.analyze_btn = tk.Button(selector_frame, text=_("btn_start_analysis", "开始分析"), 
                                    command=self.analyze_selected_stock,
                                    **button_style)
         self.analyze_btn.pack(side=tk.LEFT, padx=10, pady=10)
@@ -2494,7 +2494,7 @@ class StockAnalysisWindow:
         left_frame = tk.Frame(main_container, bg='#f0f0f0')
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0,10))
         
-        metrics_frame = tk.LabelFrame(left_frame, text="核心指标", bg='#f0f0f0',
+        metrics_frame = tk.LabelFrame(left_frame, text=_("core_metrics_label", "核心指标"), bg='#f0f0f0',
                                     font=('Arial', 11, 'bold'))
         metrics_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -2603,17 +2603,17 @@ class StockAnalysisWindow:
             'pady': 5
         }
         
-        tk.Button(button_frame, text="导出分析", 
+        tk.Button(button_frame, text=_("btn_export_analysis", "导出分析"), 
                  command=self.export_analysis,
                  **bottom_button_style).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="添加关注", 
+        tk.Button(button_frame, text=_("btn_add_watch", "添加关注"), 
                  command=self.add_to_watchlist,
                  **bottom_button_style).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="刷新数据", 
+        tk.Button(button_frame, text=_("btn_refresh_data", "刷新数据"), 
                  command=self.refresh_data,
                  **bottom_button_style).pack(side=tk.LEFT, padx=5)
         
-        tk.Button(button_frame, text="关闭", command=self.window.destroy,
+        tk.Button(button_frame, text=_("btn_close", "关闭"), command=self.window.destroy,
                  **bottom_button_style).pack(side=tk.RIGHT, padx=5)
     
     def init_empty_chart(self):
@@ -3778,7 +3778,7 @@ class IndustryAnalysisWindow:
         title_frame = tk.Frame(main_frame, bg='#f0f0f0')
         title_frame.pack(fill=tk.X, pady=(0, 10))
         
-        title_label = tk.Label(title_frame, text="行业轮动强度分析", 
+        title_label = tk.Label(title_frame, text=_("industry_rotation_title", "行业轮动强度分析"), 
                               font=('Microsoft YaHei', 11, 'bold'), 
                               bg='#f0f0f0', fg='#0078d4')
         title_label.pack(side=tk.LEFT)
@@ -3799,13 +3799,13 @@ class IndustryAnalysisWindow:
             'pady': 5
         }
         
-        refresh_btn = tk.Button(button_frame, text="刷新", 
+        refresh_btn = tk.Button(button_frame, text=_("btn_refresh", "刷新"), 
                                command=self.load_industry_data,
                                **button_style)
         refresh_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # 导出按钮
-        export_btn = tk.Button(button_frame, text="导出", 
+        export_btn = tk.Button(button_frame, text=_("btn_export", "导出"), 
                               command=self.export_industry_data,
                               **button_style)
         export_btn.pack(side=tk.LEFT)
@@ -3815,7 +3815,7 @@ class IndustryAnalysisWindow:
         content_frame.pack(fill=tk.BOTH, expand=True)
         
         # 左侧：行业列表
-        left_frame = tk.LabelFrame(content_frame, text="行业IRSI排名", 
+        left_frame = tk.LabelFrame(content_frame, text=_("industry_irsi_ranking", "行业IRSI排名"), 
                                   font=('Microsoft YaHei', 11, 'bold'),
                                   bg='#f0f0f0', fg='#333333')
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
@@ -3852,7 +3852,7 @@ class IndustryAnalysisWindow:
         tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=5)
         
         # 右侧：详细信息
-        right_frame = tk.LabelFrame(content_frame, text="行业详细信息", 
+        right_frame = tk.LabelFrame(content_frame, text=_("industry_detail_info", "行业详细信息"), 
                                    font=('Microsoft YaHei', 11, 'bold'),
                                    bg='#f0f0f0', fg='#333333')
         right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
@@ -4272,7 +4272,7 @@ class MarketSentimentWindow:
         title_frame = tk.Frame(main_frame, bg='#f0f0f0')
         title_frame.pack(fill=tk.X, pady=(0, 10))
         
-        title_label = tk.Label(title_frame, text="市场情绪综合分析", 
+        title_label = tk.Label(title_frame, text=_("market_sentiment_title", "市场情绪综合分析"), 
                               font=('Microsoft YaHei', 11, 'bold'), 
                               bg='#f0f0f0', fg='#0078d4')
         title_label.pack(side=tk.LEFT)
@@ -4292,12 +4292,12 @@ class MarketSentimentWindow:
             'pady': 5
         }
         
-        msci_btn = tk.Button(button_frame, text="MSCI详情", 
+        msci_btn = tk.Button(button_frame, text=_("btn_msci_details", "MSCI详情"), 
                            command=self.show_msci_details,
                            **button_style)
         msci_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        alert_btn = tk.Button(button_frame, text="市场预警", 
+        alert_btn = tk.Button(button_frame, text=_("btn_market_alerts", "市场预警"), 
                             command=self.show_market_alerts,
                             **button_style)
         alert_btn.pack(side=tk.LEFT)
