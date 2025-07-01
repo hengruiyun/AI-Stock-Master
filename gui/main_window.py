@@ -2619,11 +2619,11 @@ class StockAnalysisWindow:
     def init_empty_chart(self):
         """初始化空图表"""
         self.ax.clear()
-        self.ax.set_title("请选择股票进行分析", fontsize=12, pad=20)
-        self.ax.set_xlabel("时间", fontsize=11)
-        self.ax.set_ylabel("评级分数", fontsize=11)
+        self.ax.set_title(_("chart_select_stock", "请选择股票进行分析"), fontsize=12, pad=20)
+        self.ax.set_xlabel(_("chart_time", "时间"), fontsize=11)
+        self.ax.set_ylabel(_("chart_rating_score", "评级分数"), fontsize=11)
         self.ax.grid(True, alpha=0.3)
-        self.ax.text(0.5, 0.5, '等待分析...', 
+        self.ax.text(0.5, 0.5, _("chart_waiting_analysis", "等待分析..."), 
                     transform=self.ax.transAxes, 
                     horizontalalignment='center',
                     verticalalignment='center',
@@ -3388,7 +3388,8 @@ X 【数据状态】
                        bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
             
             # 添加数据来源信息 (右下角)
-            self.ax.text(0.98, 0.02, f'数据来源：{source_type}', transform=self.ax.transAxes, 
+            data_source_text = f'{_("data_source", "数据来源")}：{source_type}'
+            self.ax.text(0.98, 0.02, data_source_text, transform=self.ax.transAxes, 
                        fontsize=9, style='italic', horizontalalignment='right', verticalalignment='bottom',
                        bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.6))
             
@@ -3409,53 +3410,73 @@ X 【数据状态】
             market_cap_level = self.estimate_market_cap_level(stock_code)
             sector_performance = self.get_sector_performance(industry)
             
+            # 获取国际化文本
+            report_title = _("deep_analysis_report", "深度分析报告")
+            core_indicators = _("core_indicators", "核心指标")
+            technical_analysis = _("technical_analysis", "技术分析")
+            industry_comparison = _("industry_comparison", "行业对比")
+            investment_advice = _("investment_advice", "投资建议")
+            risk_assessment = _("risk_assessment", "风险评估")
+            operation_advice = _("operation_advice", "操作建议")
+            future_outlook = _("future_outlook", "后市展望")
+            disclaimer = _("disclaimer", "免责声明")
+            disclaimer_text = _("disclaimer_text", "本分析基于RTSI技术算法，仅供参考，不构成投资建议。")
+            generation_time = _("generation_time", "生成时间")
+            
+            # 获取动态文本
+            tech_strength = _("strong", "强势") if rtsi_value > 60 else (_("neutral", "中性") if rtsi_value > 40 else _("weak", "弱势"))
+            relative_pos = _("leading", "领先") if rtsi_value > 50 else _("lagging", "落后")
+            industry_pos = _("blue_chip", "龙头股") if rtsi_value > 70 else (_("average", "一般") if rtsi_value > 40 else _("lagging", "落后"))
+            rotation_sig = _("active", "积极") if rtsi_value > 60 else (_("wait_and_see", "观望") if rtsi_value > 30 else _("cautious", "谨慎"))
+            liquidity_level = _("good", "良好") if market_cap_level != _("small_cap", "小盘股") else _("average", "一般")
+            
             analysis_text = f"""
-上涨 {stock_name} 深度分析报告
+📈 {stock_name} {report_title}
 {'='*50}
 
-核心 【核心指标】
-• RTSI指数: {rtsi_value:.2f}/100
-• 趋势状态: {self.get_trend_description(rtsi_value)}
-• 技术强度: {'强势' if rtsi_value > 60 else '中性' if rtsi_value > 40 else '弱势'}
-• 所属行业: {industry}
-• 市值等级: {market_cap_level}
+📊 【{core_indicators}】
+• RTSI{_("index", "指数")}: {rtsi_value:.2f}/100
+• {_("trend_status", "趋势状态")}: {self.get_trend_description(rtsi_value)}
+• {_("technical_strength", "技术强度")}: {tech_strength}
+• {_("industry_category", "所属行业")}: {industry}
+• {_("market_cap_level", "市值等级")}: {market_cap_level}
 
- 【技术分析】
-• 趋势方向: {self.get_detailed_trend(rtsi_value)}
-• 波动程度: {volatility}
-• 支撑阻力: 基于评级变化分析
-• 相对强度: 在{industry}行业中{'领先' if rtsi_value > 50 else '落后'}
+🔍 【{technical_analysis}】
+• {_("trend_direction", "趋势方向")}: {self.get_detailed_trend(rtsi_value)}
+• {_("volatility_level", "波动程度")}: {volatility}
+• {_("support_resistance", "支撑阻力")}: {_("based_on_rating_analysis", "基于评级变化分析")}
+• {_("relative_strength", "相对强度")}: 在{industry}{_("industry", "行业")}中{relative_pos}
 
-行业 【行业对比】
-• 行业表现: {sector_performance}
-• 行业地位: {'龙头股' if rtsi_value > 70 else '一般' if rtsi_value > 40 else '落后'}
-• 轮动信号: {'积极' if rtsi_value > 60 else '观望' if rtsi_value > 30 else '谨慎'}
+🏭 【{industry_comparison}】
+• {_("industry_performance", "行业表现")}: {sector_performance}
+• {_("industry_position", "行业地位")}: {industry_pos}
+• {_("rotation_signal", "轮动信号")}: {rotation_sig}
 
-投资 【投资建议】
-• 短线策略: {self.get_short_term_advice(rtsi_value)}
-• 中线策略: {self.get_medium_term_advice(rtsi_value, industry)}
-• 风险提示: {self.get_risk_warning(rtsi_value)}
+💡 【{investment_advice}】
+• {_("short_term_strategy", "短线策略")}: {self.get_short_term_advice(rtsi_value)}
+• {_("medium_term_strategy", "中线策略")}: {self.get_medium_term_advice(rtsi_value, industry)}
+• {_("risk_warning", "风险提示")}: {self.get_risk_warning(rtsi_value)}
 
-警告 【风险评估】
-• 技术风险: {self.calculate_risk_level(rtsi_value, 0.8)}
-• 行业风险: 关注{industry}政策和周期变化
-• 市场风险: 需关注大盘趋势和系统性风险
-• 流动性: {'良好' if market_cap_level != '小盘股' else '一般'}
+⚠️ 【{risk_assessment}】
+• {_("technical_risk", "技术风险")}: {self.calculate_risk_level(rtsi_value, 0.8)}
+• {_("industry_risk", "行业风险")}: {_("pay_attention_to_policy", "关注{industry}政策和周期变化").format(industry=industry)}
+• {_("market_risk", "市场风险")}: {_("pay_attention_to_market", "需关注大盘趋势和系统性风险")}
+• {_("liquidity", "流动性")}: {liquidity_level}
 
-时间 【操作建议】
-• 最佳买点: {self.suggest_entry_point(rtsi_value)}
-• 止损位置: {self.suggest_stop_loss(rtsi_value)}
-• 目标价位: {self.suggest_target_price(rtsi_value)}
-• 持仓周期: {self.suggest_holding_period(rtsi_value)}
+⏰ 【{operation_advice}】
+• {_("best_entry_point", "最佳买点")}: {self.suggest_entry_point(rtsi_value)}
+• {_("stop_loss_position", "止损位置")}: {self.suggest_stop_loss(rtsi_value)}
+• {_("target_price", "目标价位")}: {self.suggest_target_price(rtsi_value)}
+• {_("holding_period", "持仓周期")}: {self.suggest_holding_period(rtsi_value)}
 
-预测 【后市展望】
+🔮 【{future_outlook}】
 {self.generate_outlook(rtsi_value, industry)}
 
-说明 【免责声明】
-本分析基于RTSI技术算法，仅供参考，不构成投资建议。
-股市有风险，投资需谨慎。请结合基本面分析和风险承受能力。
+📋 【{disclaimer}】
+{disclaimer_text}
+{_("risk_warning", "股市有风险，投资需谨慎。请结合基本面分析和风险承受能力。")}
 
-生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+{generation_time}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
             
             self.analysis_text.delete(1.0, tk.END)
@@ -3463,11 +3484,11 @@ X 【数据状态】
             
         except Exception as e:
             error_text = f"""
-X 分析报告生成失败
+❌ {_("analysis_failed", "分析报告生成失败")}
 
-错误信息: {str(e)}
+{_("error_info", "错误信息")}: {str(e)}
 
-请检查数据完整性或联系技术支持。
+{_("check_data_integrity", "请检查数据完整性或联系技术支持。")}
 """
             self.analysis_text.delete(1.0, tk.END)
             self.analysis_text.insert(1.0, error_text)
@@ -3475,27 +3496,27 @@ X 分析报告生成失败
     def get_trend_description(self, rtsi_value):
         """获取趋势描述"""
         if rtsi_value >= 80:
-            return " 超强趋势"
+            return _("super_strong_trend", "超强趋势")
         elif rtsi_value >= 60:
-            return "上涨 强势上涨"
+            return _("strong_uptrend", "强势上涨")
         elif rtsi_value >= 40:
-            return "-> 震荡整理"
+            return _("consolidation", "震荡整理")
         elif rtsi_value >= 20:
-            return "下跌 弱势下跌"
+            return _("weak_downtrend", "弱势下跌")
         else:
-            return "强势下跌 深度调整"
+            return _("deep_adjustment", "深度调整")
     
     def get_detailed_trend(self, rtsi_value):
         """获取详细趋势分析 - 统一标准版本，与核心指标区保持一致"""
         # 采用与核心指标区完全一致的判断标准和专业术语
         if rtsi_value >= 75:
-            return "强势多头趋势，技术面极度乐观，建议积极配置"
+            return _("strong_bull_trend", "强势多头趋势，技术面极度乐观，建议积极配置")
         elif rtsi_value >= 60:
-            return "温和多头趋势，上升动能充足，适合中线持有"
+            return _("moderate_bull_trend", "温和多头趋势，上升动能充足，适合中线持有")
         elif rtsi_value >= 50:
-            return "弱势多头格局，上升空间有限，谨慎乐观"
+            return _("weak_bull_pattern", "弱势多头格局，上升空间有限，谨慎乐观")
         elif rtsi_value >= 40:
-            return "横盘整理格局，方向选择待定，观望为主"
+            return _("sideways_consolidation", "横盘整理格局，方向选择待定，观望为主")
         elif rtsi_value >= 30:
             return "弱势空头格局，下跌空间有限，适度防御"
         elif rtsi_value >= 20:
@@ -4057,8 +4078,11 @@ class IndustryAnalysisWindow:
         """显示行业详细信息"""
         try:
             if not hasattr(self.analysis_results, 'industries') or industry_name not in self.analysis_results.industries:
+                cannot_find_msg = _("cannot_find_industry_data", "无法找到行业")
+                detailed_data_msg = _("detailed_data", "的详细数据")
+                error_msg = f"❌ {cannot_find_msg} '{industry_name}' {detailed_data_msg}"
                 self.detail_text.delete(1.0, tk.END)
-                self.detail_text.insert(1.0, f"错误 无法找到行业 '{industry_name}' 的详细数据")
+                self.detail_text.insert(1.0, error_msg)
                 return
             
             industry_info = self.analysis_results.industries[industry_name]
@@ -4066,36 +4090,47 @@ class IndustryAnalysisWindow:
             
             # 生成详细分析
             report_title = _("industry_analysis_report", "行业分析报告")
+            core_metrics = _("core_metrics", "核心指标")
+            performance_analysis = _("performance_analysis", "表现分析")
+            investment_advice = _("investment_advice", "投资建议")
+            risk_warning = _("risk_warning", "风险提示")
+            analysis_time = _("analysis_time", "分析时间")
+            analysis_description = _("analysis_description", "说明")
+            
+            # 获取相对强度描述
+            relative_strength = _("outperform_market", "跑赢大盘") if irsi_value > 0 else (_("underperform_market", "跑输大盘") if irsi_value < 0 else _("sync_with_market", "与大盘同步"))
+            
             detail_info = f"""
-{report_title} - {industry_name}
+📊 {report_title} - {industry_name}
 {'='*50}
 
-数据 核心指标：
-• IRSI指数：{irsi_value:.2f}
-• 相对强度：{'跑赢大盘' if irsi_value > 0 else '跑输大盘' if irsi_value < 0 else '与大盘同步'}
-• 强度等级：{self.get_strength_level(irsi_value)}
+📈 {core_metrics}：
+• {_("irsi_index", "IRSI指数")}：{irsi_value:.2f}
+• {_("relative_strength_performance", "相对强度")}：{relative_strength}
+• {_("strength_level", "强度等级")}：{self.get_strength_level(irsi_value)}
 
-上涨 表现分析：
-• 短期趋势：{self.get_trend_analysis(irsi_value)}
-• 投资价值：{self.get_investment_value(irsi_value)}
-• 风险等级：{self.get_risk_level(irsi_value)}
+📊 {performance_analysis}：
+• {_("short_term_trend", "短期趋势")}：{self.get_trend_analysis(irsi_value)}
+• {_("investment_value", "投资价值")}：{self.get_investment_value(irsi_value)}
+• {_("risk_level", "风险等级")}：{self.get_risk_level(irsi_value)}
 
-投资 投资建议：
+💡 {investment_advice}：
 {self.get_investment_advice(industry_name, irsi_value)}
 
-警告 风险提示：
+⚠️ {risk_warning}：
 {self.get_risk_warning(irsi_value)}
 
-时间 分析时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ {analysis_time}：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-提示 说明：IRSI指数基于行业内股票评级相对于整体市场的表现计算
+📋 {analysis_description}：{_("irsi_description", "IRSI指数基于行业内股票评级相对于整体市场的表现计算")}
 """
             
             self.detail_text.delete(1.0, tk.END)
             self.detail_text.insert(1.0, detail_info)
             
         except Exception as e:
-            error_msg = f"显示行业详细信息失败: {str(e)}"
+            display_failed_text = _('display_industry_detail_failed', '显示行业详细信息失败')
+            error_msg = f"❌ {display_failed_text}: {str(e)}"
             self.detail_text.delete(1.0, tk.END)
             self.detail_text.insert(1.0, error_msg)
     
@@ -4349,17 +4384,17 @@ class MarketSentimentWindow:
         
         # 状态翻译字典
         state_translations = {
-            'euphoric': '极度乐观',
-            'optimistic': '乐观',
-            'neutral': '中性',
-            'pessimistic': '悲观',
-            'panic': '恐慌'
+            'euphoric': _("euphoric", "极度乐观"),
+            'optimistic': _("optimistic", "乐观"),
+            'neutral': _("neutral", "中性"),
+            'pessimistic': _("pessimistic", "悲观"),
+            'panic': _("panic", "恐慌")
         }
         
         risk_translations = {
-            'low': '低风险',
-            'medium': '中等风险',  
-            'high': '高风险'
+            'low': _("low_risk", "低风险"),
+            'medium': _("medium_risk", "中等风险"),  
+            'high': _("high_risk", "高风险")
         }
         
         # 翻译状态
@@ -4367,23 +4402,28 @@ class MarketSentimentWindow:
         risk_level = risk_translations.get(raw_risk_level, raw_risk_level)
         
         report_title = _("market_analysis_report", "市场情绪综合分析报告")
+        core_indicators = _("core_indicators", "核心指标")
+        sentiment_interpretation = _("sentiment_interpretation", "情绪解读")
+        bull_bear_balance = _("bull_bear_balance", "多空力量对比")
+        risk_assessment = _("risk_assessment", "风险评估")
+        
         report = f"""
-{report_title}
+📊 {report_title}
 {'='*60}
 
-核心 【核心指标】
-• MSCI指数: {msci_value:.2f}/100
-• 市场状态: {market_state}
-• 风险等级: {risk_level}
-• 5日趋势: {trend_5d:+.2f}
+📈 【{core_indicators}】
+• {_("msci_index", "MSCI指数")}: {msci_value:.2f}/100
+• {_("market_state", "市场状态")}: {market_state}
+• {_("risk_level", "风险等级")}: {risk_level}
+• {_("trend_5d", "5日趋势")}: {trend_5d:+.2f}
 
-上涨 【情绪解读】
+📊 【{sentiment_interpretation}】
 {self.interpret_market_sentiment(msci_value, market_state)}
 
-数据 【多空力量对比】
+⚖️ 【{bull_bear_balance}】
 {self.analyze_bull_bear_balance(market_data)}
 
-警告 【风险评估】
+⚠️ 【{risk_assessment}】
 {self.assess_market_risk(msci_value, risk_level)}
 
 投资 【投资策略建议】
