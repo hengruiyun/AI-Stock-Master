@@ -13,6 +13,11 @@
 
 import tkinter as tk
 from tkinter import ttk
+from localization.improved_language_manager import ImprovedLanguageManager
+
+# 获取国际化函数
+lang_manager = ImprovedLanguageManager()
+_ = lang_manager.get_text
 from typing import List, Dict, Any
 import pandas as pd
 
@@ -314,13 +319,13 @@ class RankingWidget(ttk.Treeview):
         # 根据类型设置列
         if ranking_type == "stock":
             columns = ('rank', 'code', 'name', 'rtsi', 'trend')
-            self.column_headers = ['排名', '代码', '名称', 'RTSI', '趋势']
+            self.column_headers = [_("column_rank", "排名"), _("column_code", "代码"), _("column_name", "名称"), 'RTSI', _("column_trend", "趋势")]
         elif ranking_type == "industry":
             columns = ('rank', 'industry', 'irsi', 'status', 'stocks')
-            self.column_headers = ['排名', '行业', 'IRSI', '状态', '股票数']
+            self.column_headers = [_("column_rank", "排名"), _("column_industry", "行业"), 'IRSI', _("column_status", "状态"), _("column_stock_count", "股票数")]
         else:
             columns = ('rank', 'item', 'value', 'status')
-            self.column_headers = ['排名', '项目', '数值', '状态']
+            self.column_headers = [_("column_rank", "排名"), _("column_item", "项目"), _("column_value", "数值"), _("column_status", "状态")]
         
         super().__init__(parent, columns=columns, show='headings', **kwargs)
         
@@ -580,4 +585,4 @@ if __name__ == "__main__":
     stock_list = StockListWidget(frame)
     stock_list.load_stock_data(test_stocks)
     
-    root.mainloop() 
+    root.mainloop()

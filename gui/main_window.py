@@ -3639,7 +3639,7 @@ X 分析报告生成失败
             
             # 选择保存路径
             filename = filedialog.asksaveasfilename(
-                title="导出个股分析报告",
+                title=_("export_analysis_report", "导出个股分析报告"),
                 defaultextension=".txt",
                 filetypes=[("文本文件", "*.txt"), ("Excel文件", "*.xlsx"), ("所有文件", "*.*")],
                 initialname=f"{stock_name}_{stock_code}_分析报告.txt"
@@ -3650,14 +3650,16 @@ X 分析报告生成失败
                 analysis_content = self.analysis_text.get(1.0, tk.END)
                 
                 with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(f"个股分析报告\n")
+                    report_title = _("stock_analysis_report", "个股分析报告")
+                    f.write(f"{report_title}\n")
                     f.write(f"股票代码: {stock_code}\n")
                     f.write(f"股票名称: {stock_name}\n")
                     f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write("="*50 + "\n\n")
                     f.write(analysis_content)
                 
-                messagebox.showinfo("成功", f"分析报告已导出到:\n{filename}")
+                export_msg = _("report_export_success", "分析报告已导出到")
+                messagebox.showinfo("成功", f"{export_msg}:\n{filename}")
         
         except Exception as e:
             messagebox.showerror("错误", f"导出失败:\n{str(e)}")
@@ -3830,11 +3832,11 @@ class IndustryAnalysisWindow:
         treeview_style.configure("Treeview.Heading", font=('Microsoft YaHei', 11, 'bold'))
         
         # 设置列标题
-        self.industry_tree.heading('rank', text='排名')
-        self.industry_tree.heading('industry', text='行业名称')
+        self.industry_tree.heading('rank', text=_("column_rank", "排名"))
+        self.industry_tree.heading('industry', text=_("column_industry", "行业名称"))
         self.industry_tree.heading('irsi', text='IRSI指数')
-        self.industry_tree.heading('status', text='强度状态')
-        self.industry_tree.heading('stock_count', text='股票数量')
+        self.industry_tree.heading('status', text=_("column_status", "强度状态"))
+        self.industry_tree.heading('stock_count', text=_("column_stock_count", "股票数量"))
         
         # 设置列宽
         self.industry_tree.column('rank', width=60, minwidth=50)
@@ -3876,7 +3878,7 @@ class IndustryAnalysisWindow:
         status_frame.pack(fill=tk.X, pady=(5, 0))
         
         self.status_var = tk.StringVar()
-        self.status_var.set("正在加载行业数据...")
+        self.status_var.set(_("status_loading_industry", "正在加载行业数据..."))
         
         status_label = tk.Label(status_frame, textvariable=self.status_var,
                                bg='#f0f0f0', fg='#606060',
@@ -4063,8 +4065,9 @@ class IndustryAnalysisWindow:
             irsi_value = self.safe_get_irsi((industry_name, industry_info))
             
             # 生成详细分析
+            report_title = _("industry_analysis_report", "行业分析报告")
             detail_info = f"""
-行业 {industry_name} 行业分析报告
+{report_title} - {industry_name}
 {'='*50}
 
 数据 核心指标：
@@ -4363,8 +4366,9 @@ class MarketSentimentWindow:
         market_state = state_translations.get(raw_market_state, raw_market_state)
         risk_level = risk_translations.get(raw_risk_level, raw_risk_level)
         
+        report_title = _("market_analysis_report", "市场情绪综合分析报告")
         report = f"""
-数据 市场情绪综合分析报告
+{report_title}
 {'='*60}
 
 核心 【核心指标】

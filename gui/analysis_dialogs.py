@@ -13,6 +13,11 @@
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+from localization.improved_language_manager import ImprovedLanguageManager
+
+# 获取国际化函数
+lang_manager = ImprovedLanguageManager()
+_ = lang_manager.get_text
 import threading
 import time
 from typing import Callable, Dict, Any
@@ -124,13 +129,13 @@ class AnalysisProgressDialog:
             try:
                 # 分析阶段
                 stages = [
-                    ("正在加载数据...", 10),
-                    ("数据验证和预处理...", 20),
-                    ("计算RTSI个股趋势指数...", 40),
-                    ("计算IRSI行业强度指数...", 70),
-                    ("计算MSCI市场情绪指数...", 85),
-                    ("生成分析报告...", 95),
-                    ("分析完成!", 100)
+                    (_("status_loading_data", "正在加载数据..."), 10),
+                    (_("status_data_validation", "数据验证和预处理..."), 20),
+                    (_("status_calculating_rtsi", "计算RTSI个股趋势指数..."), 40),
+                    (_("status_calculating_irsi", "计算IRSI行业强度指数..."), 70),
+                    (_("status_calculating_msci", "计算MSCI市场情绪指数..."), 85),
+                    (_("status_generating_report", "生成分析报告..."), 95),
+                    (_("status_analysis_complete", "分析完成!"), 100)
                 ]
                 
                 for stage_text, progress in stages:
@@ -584,4 +589,4 @@ if __name__ == "__main__":
     # 测试关于对话框
     AboutDialog(root)
     
-    root.mainloop() 
+    root.mainloop()

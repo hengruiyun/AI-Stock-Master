@@ -29,13 +29,20 @@ class ImprovedLanguageManager:
                 print("环境变量FORCE_LANG设置为中文，强制使用中文")
                 return 'zh'
             
+            # 检查环境变量LANG（优先级高于系统检测）
+            lang_env = os.environ.get('LANG', '')
+            print(f"环境变量LANG: {lang_env}")
+            if lang_env:
+                if 'en' in lang_env.lower():
+                    print("环境变量强制设置为英文")
+                    return 'en'
+                elif 'zh' in lang_env.lower():
+                    print("环境变量设置为中文")
+                    return 'zh'
+            
             # 获取系统默认语言
             system_locale = locale.getdefaultlocale()[0]
             print(f"系统语言检测 - system_locale: {system_locale}")
-            
-            # 检查环境变量
-            lang_env = os.environ.get('LANG', '')
-            print(f"环境变量LANG: {lang_env}")
             
             # Windows系统特殊处理
             windows_lang_id = None
@@ -48,7 +55,7 @@ class ImprovedLanguageManager:
                 except Exception as e:
                     print(f"Windows语言检测异常: {e}")
             
-            # 优先检查Windows语言ID（更准确）
+            # 检查Windows语言ID
             if windows_lang_id:
                 # 中文语言ID范围
                 if windows_lang_id in [2052, 1028, 3076, 5124]:  # 简体中文、繁体中文等
@@ -61,11 +68,6 @@ class ImprovedLanguageManager:
             # 如果Windows API不可用，检查locale
             if system_locale and 'zh' in system_locale.lower():
                 print("locale检测到中文系统，使用中文")
-                return 'zh'
-            
-            # 检查环境变量
-            if 'zh' in lang_env.lower():
-                print("环境变量检测到中文，使用中文")
                 return 'zh'
             
             print("未检测到中文环境，使用英文")
@@ -155,6 +157,36 @@ class ImprovedLanguageManager:
                 'market_sentiment_title': '市场情绪综合分析',
                 'btn_msci_details': 'MSCI详情',
                 'btn_market_alerts': '市场预警',
+                
+                # 状态信息
+                'status_loading_industry': '正在加载行业数据...',
+                'status_loading_data': '正在加载数据...',
+                'status_generating_report': '生成分析报告...',
+                'status_data_validation': '数据验证和预处理...',
+                'status_calculating_rtsi': '计算RTSI个股趋势指数...',
+                'status_calculating_irsi': '计算IRSI行业强度指数...',
+                'status_calculating_msci': '计算MSCI市场情绪指数...',
+                'status_analysis_complete': '分析完成!',
+                
+                # 表格列标题
+                'column_rank': '排名',
+                'column_code': '代码',
+                'column_name': '名称',
+                'column_industry': '行业',
+                'column_status': '状态',
+                'column_stock_count': '股票数',
+                'column_item': '项目',
+                'column_value': '数值',
+                'column_trend': '趋势',
+                
+                # 分析报告相关
+                'analysis_report_title': '分析报告',
+                'industry_analysis_report': '行业分析报告',
+                'market_analysis_report': '市场情绪综合分析报告',
+                'stock_analysis_report': '个股分析报告',
+                'export_analysis_report': '导出个股分析报告',
+                'report_export_success': '分析报告已导出到',
+                'report_generation_failed': '分析报告生成失败',
                 
                 # 窗口标题
                 'stock_analysis_window_title': '个股趋势分析 - RTSI算法分析',
@@ -489,6 +521,36 @@ class ImprovedLanguageManager:
                 'market_sentiment_title': 'Market Sentiment Comprehensive Analysis',
                 'btn_msci_details': 'MSCI Details',
                 'btn_market_alerts': 'Market Alerts',
+                
+                # Status Information
+                'status_loading_industry': 'Loading industry data...',
+                'status_loading_data': 'Loading data...',
+                'status_generating_report': 'Generating analysis report...',
+                'status_data_validation': 'Data validation and preprocessing...',
+                'status_calculating_rtsi': 'Calculating RTSI stock trend index...',
+                'status_calculating_irsi': 'Calculating IRSI industry strength index...',
+                'status_calculating_msci': 'Calculating MSCI market sentiment index...',
+                'status_analysis_complete': 'Analysis complete!',
+                
+                # Table Column Headers
+                'column_rank': 'Rank',
+                'column_code': 'Code',
+                'column_name': 'Name',
+                'column_industry': 'Industry',
+                'column_status': 'Status',
+                'column_stock_count': 'Stock Count',
+                'column_item': 'Item',
+                'column_value': 'Value',
+                'column_trend': 'Trend',
+                
+                # Analysis Report Related
+                'analysis_report_title': 'Analysis Report',
+                'industry_analysis_report': 'Industry Analysis Report',
+                'market_analysis_report': 'Market Sentiment Comprehensive Analysis Report',
+                'stock_analysis_report': 'Stock Analysis Report',
+                'export_analysis_report': 'Export Stock Analysis Report',
+                'report_export_success': 'Analysis report exported to',
+                'report_generation_failed': 'Analysis report generation failed',
                 
                 # Window Titles
                 'stock_analysis_window_title': 'Stock Trend Analysis - RTSI Algorithm',
