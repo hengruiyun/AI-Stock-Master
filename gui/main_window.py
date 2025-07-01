@@ -2414,7 +2414,7 @@ class StockAnalysisWindow:
     
     def setup_window(self):
         """设置窗口基本属性"""
-        self.window.title("个股趋势分析 - RTSI算法分析")
+        self.window.title(_("stock_analysis_window_title", "个股趋势分析 - RTSI算法分析"))
         self.window.geometry("1000x700")
         self.window.configure(bg='#f0f0f0')
         self.window.transient(self.parent)
@@ -3739,7 +3739,7 @@ class IndustryAnalysisWindow:
     
     def setup_window(self):
         """设置窗口"""
-        self.window.title("行业轮动分析")
+        self.window.title(_("industry_analysis_window_title", "行业轮动分析"))
         self.window.geometry("1000x700")
         self.window.configure(bg='#f0f0f0')
         
@@ -4236,7 +4236,7 @@ class MarketSentimentWindow:
     
     def setup_window(self):
         """设置窗口"""
-        self.window.title("市场情绪综合分析")
+        self.window.title(_("market_analysis_window_title", "市场情绪综合分析"))
         self.window.geometry("1000x700")
         self.window.configure(bg='#f0f0f0')
         

@@ -20,6 +20,15 @@ class ImprovedLanguageManager:
     def _detect_system_language(self) -> str:
         """检测系统语言"""
         try:
+            # 检查强制语言环境变量
+            force_lang = os.environ.get('FORCE_LANG', '').lower()
+            if force_lang == 'en' or force_lang == 'english':
+                print("环境变量FORCE_LANG设置为英文，强制使用英文")
+                return 'en'
+            elif force_lang == 'zh' or force_lang == 'chinese':
+                print("环境变量FORCE_LANG设置为中文，强制使用中文")
+                return 'zh'
+            
             # 获取系统默认语言
             system_locale = locale.getdefaultlocale()[0]
             print(f"系统语言检测 - system_locale: {system_locale}")
@@ -128,6 +137,11 @@ class ImprovedLanguageManager:
                 'btn_close': '关闭',
                 'btn_cancel': '取消',
                 'btn_complete': '完成',
+                
+                # 窗口标题
+                'stock_analysis_window_title': '个股趋势分析 - RTSI算法分析',
+                'industry_analysis_window_title': '行业轮动分析',
+                'market_analysis_window_title': '市场情绪综合分析',
                 
                 # 状态栏
                 'status_ready': '就绪',
@@ -439,6 +453,11 @@ class ImprovedLanguageManager:
                 'btn_close': 'Close',
                 'btn_cancel': 'Cancel',
                 'btn_complete': 'Complete',
+                
+                # Window Titles
+                'stock_analysis_window_title': 'Stock Trend Analysis - RTSI Algorithm',
+                'industry_analysis_window_title': 'Industry Rotation Analysis',
+                'market_analysis_window_title': 'Market Sentiment Analysis',
                 
                 # Status Bar
                 'status_ready': 'Ready',
