@@ -236,13 +236,7 @@ class StockAnalyzerMainWindow:
         top_frame = tk.Frame(main_frame, bg='#f0f0f0')
         top_frame.pack(fill=tk.X, pady=(0, 8))
         
-        # GitHub链接区域（左上角）
-        github_label = tk.Label(top_frame, text="HengruiYun", 
-                               bg='#f0f0f0', fg='#0066cc', 
-                               font=('Microsoft YaHei', 11, 'underline'),
-                               cursor='hand2')
-        github_label.pack(side=tk.LEFT, padx=(0, 10))
-        github_label.bind('<Button-1>', self.open_github_page)
+        # 左上角区域留空（已删除HengruiYun标签）
         
         # AI分析状态显示
         self.ai_status_var = tk.StringVar()
@@ -307,6 +301,12 @@ class StockAnalyzerMainWindow:
                                      command=self.open_ai_model_settings,
                                      **button_style)
         self.ai_model_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        
+        # Star按钮 (GitHub Star功能)
+        self.star_btn = tk.Button(button_frame, text="⭐ Star", 
+                                 command=self.open_github_star,
+                                 **button_style)
+        self.star_btn.pack(side=tk.RIGHT, padx=(5, 0))
         
         # 加载按钮 (对应HTML样本右上角)
         self.load_btn = tk.Button(button_frame, text=_("btn_load", "加载"), 
@@ -1275,7 +1275,188 @@ class StockAnalyzerMainWindow:
     def open_github_page(self, event):
         """打开GitHub页面"""
         import webbrowser
-        webbrowser.open("https://github.com/hengruiyun/ai-stock")
+        webbrowser.open("https://github.com/hengruiyun/AI-Stock-Analysis")
+    
+    def open_github_star(self):
+        """打开GitHub Star页面并显示提示"""
+        # 开始按钮闪烁效果
+        self.start_star_button_flash()
+        
+        # 创建GitHub信息窗口
+        self.show_github_info_window()
+    
+    def show_github_info_window(self):
+        """显示GitHub项目信息窗口"""
+        import tkinter.messagebox as messagebox
+        
+        # 创建新窗口
+        github_window = tk.Toplevel(self.root)
+        
+        # 检测系统语言
+        is_chinese = not is_english()
+        
+        # 设置窗口标题和内容
+        if is_chinese:
+            github_window.title("GitHub Star - AI股票分析系统")
+            title_text = "🌟 为AI股票分析系统点Star"
+            star_button_text = "⭐ 去GitHub点Star"
+        else:
+            github_window.title("GitHub Star - AI Stock Analysis System")
+            title_text = "🌟 Star AI Stock Analysis System"
+            star_button_text = "⭐ Go to GitHub Star"
+        
+        github_window.geometry("600x500")
+        github_window.resizable(False, False)
+        
+        # 设置窗口居中到屏幕中央
+        github_window.update_idletasks()
+        width = github_window.winfo_width()
+        height = github_window.winfo_height()
+        x = (github_window.winfo_screenwidth() // 2) - (width // 2)
+        y = (github_window.winfo_screenheight() // 2) - (height // 2)
+        github_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        github_window.transient(self.root)
+        github_window.grab_set()
+        
+        # 主框架
+        main_frame = tk.Frame(github_window, bg='white', padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 标题
+        title_label = tk.Label(main_frame, text=title_text, 
+                              font=('Microsoft YaHei', 16, 'bold'), 
+                              bg='white', fg='#0366d6')
+        title_label.pack(pady=(0, 20))
+        
+        # 项目信息
+        info_text = tk.Text(main_frame, height=15, width=70, 
+                           font=('Microsoft YaHei', 11), 
+                           bg='#f6f8fa', relief=tk.FLAT, 
+                           wrap=tk.WORD, state=tk.NORMAL)
+        
+        if is_chinese:
+            project_info = """📊 AI股票趋势分析系统 v2.1
+
+🎯 项目特色：
+• RTSI - 个股趋势强度指数
+• IRSI - 行业相对强度指数  
+• MSCI - 市场情绪综合指数
+• 支持A股、港股、美股全市场分析
+• 集成大语言模型智能分析
+• 专业级投资决策支持
+
+🚀 核心功能：
+• 多维数据融合，精准趋势预测
+• 三层分析体系：个股-行业-市场
+• AI增强分析，智能解读与建议生成
+• 高级自然语言处理市场分析
+
+💡 技术架构：
+• 现代人工智能理论基础
+• 机器学习与深度学习技术
+• 大语言模型技术集成
+• 多层AI架构设计
+
+🌟 如果这个项目对您有帮助，请点击下方按钮为项目点Star！
+您的支持是我们持续改进的动力！"""
+        else:
+            project_info = """📊 AI Stock Trend Analysis System v2.1
+
+🎯 Project Features:
+• RTSI - Real-time Stock Trend Index
+• IRSI - Industry Relative Strength Index  
+• MSCI - Market Sentiment Composite Index
+• Support for A-shares, Hong Kong stocks, US stocks
+• Integrated Large Language Model analysis
+• Professional investment decision support
+
+🚀 Core Functions:
+• Multi-dimensional data fusion, precise trend prediction
+• Three-layer analysis system: Stock-Industry-Market
+• AI-enhanced analysis, intelligent interpretation & recommendations
+• Advanced natural language processing market analysis
+
+💡 Technical Architecture:
+• Modern artificial intelligence theoretical foundation
+• Machine learning and deep learning technology
+• Large language model technology integration
+• Multi-layer AI architecture design
+
+🌟 If this project helps you, please click the button below to Star!
+Your support is our motivation for continuous improvement!"""
+        
+        info_text.insert(tk.END, project_info)
+        info_text.config(state=tk.DISABLED)
+        info_text.pack(pady=(0, 20), fill=tk.BOTH, expand=True)
+        
+        # 按钮框架
+        button_frame = tk.Frame(main_frame, bg='white')
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # Star按钮（居中显示）
+        star_btn = tk.Button(button_frame, text=star_button_text, 
+                            command=lambda: self.open_github_and_close(github_window),
+                            font=('Microsoft YaHei', 11, 'bold'),
+                            bg='#28a745', fg='white',
+                            padx=20, pady=8)
+        star_btn.pack(expand=True)
+        
+        # 添加按钮悬停效果
+        def on_enter(e):
+            star_btn.config(bg='#218838')
+        def on_leave(e):
+            star_btn.config(bg='#28a745')
+        
+        star_btn.bind("<Enter>", on_enter)
+        star_btn.bind("<Leave>", on_leave)
+    
+    def open_github_and_close(self, window):
+        """打开GitHub页面并关闭窗口"""
+        import webbrowser
+        import tkinter.messagebox as messagebox
+        
+        # 检测系统语言
+        is_chinese = not is_english()
+        
+        # 关闭窗口
+        window.destroy()
+        
+        # 打开GitHub页面
+        webbrowser.open("https://github.com/hengruiyun/AI-Stock-Analysis")
+        
+        # 延迟显示感谢提示
+        if is_chinese:
+            self.root.after(1500, lambda: messagebox.showinfo(
+                "感谢支持 🙏", 
+                "感谢您的支持！\n\n请在GitHub页面点击右上角的 ⭐ Star 按钮\n为AI股票分析系统点赞！\n\n您的每一个Star都是我们前进的动力！"
+            ))
+        else:
+            self.root.after(1500, lambda: messagebox.showinfo(
+                "Thank You 🙏", 
+                "Thank you for your support!\n\nPlease click the ⭐ Star button in the upper right corner\nof the GitHub page to star the AI Stock Analysis System!\n\nEvery Star is our motivation to move forward!"
+            ))
+    
+    def start_star_button_flash(self):
+        """开始Star按钮闪烁效果"""
+        self.flash_count = 0
+        self.flash_star_button()
+    
+    def flash_star_button(self):
+        """Star按钮闪烁动画"""
+        if self.flash_count < 6:  # 闪烁3次
+            if self.flash_count % 2 == 0:
+                # 高亮状态
+                self.star_btn.config(bg='#FFD700', fg='#000080', relief=tk.RAISED)
+            else:
+                # 正常状态
+                self.star_btn.config(bg='#f0f0f0', fg='black', relief=tk.RAISED)
+            
+            self.flash_count += 1
+            self.root.after(300, self.flash_star_button)  # 300ms后继续闪烁
+        else:
+            # 恢复正常状态
+            self.star_btn.config(bg='#f0f0f0', fg='black', relief=tk.RAISED)
     
     def on_close(self):
         """关闭窗口"""
