@@ -115,6 +115,7 @@ class ImprovedLanguageManager:
                 'menu_tools': '工具',
                 'menu_data_validation': '数据验证',
                 'menu_performance_monitor': '性能监控',
+                'menu_update_data_files': '更新数据文件',
                 'menu_settings': '系统设置',
                 'menu_help': '帮助',
                 'menu_user_guide': '使用说明',
@@ -167,6 +168,9 @@ class ImprovedLanguageManager:
                 'status_calculating_irsi': '计算IRSI行业强度指数...',
                 'status_calculating_msci': '计算MSCI市场情绪指数...',
                 'status_analysis_complete': '分析完成!',
+                'status_updating_data': '正在更新数据文件...',
+                'status_data_update_complete': '数据文件更新完成',
+                'status_data_update_failed': '数据文件更新失败',
                 
                 # 表格列标题
                 'column_rank': '排名',
@@ -319,6 +323,28 @@ class ImprovedLanguageManager:
                 'error_calculation_error': '计算错误',
                 'warning_data_quality': '数据质量警告：插值比例过高',
                 'warning_serious': '严重警告：超过一半数据需要插值，RTSI结果可靠性较低',
+                
+                # 数据更新相关
+                'feature_unavailable': '功能不可用',
+                'data_updater_not_found': '数据更新模块未找到，请检查系统配置',
+                'update_failed': '更新失败',
+                'data_update_error': '数据文件更新过程中出现错误',
+                'data_update_failed': '数据文件更新失败',
+                'data_update_success': '数据文件更新成功',
+                'data_update_cancelled': '数据更新已取消',
+                'data_update_skipped': '数据更新已跳过',
+                'downloading_file': '正在下载文件',
+                'download_progress': '下载进度',
+                'download_complete': '下载完成',
+                'download_failed': '下载失败',
+                'checking_updates': '正在检查数据更新...',
+                'no_updates_needed': '数据文件已是最新版本',
+                'updates_available': '发现数据文件更新',
+                'update_data_files_title': '更新数据文件',
+                'update_data_files_message': '是否要下载最新的数据文件？',
+                'btn_update': '更新',
+                'btn_skip': '跳过',
+                'btn_cancel_update': '取消',
                 
                 # 趋势描述
                 'trend_strong_bull': '强势多头',
@@ -626,6 +652,7 @@ class ImprovedLanguageManager:
                 'menu_tools': 'Tools',
                 'menu_data_validation': 'Data Validation',
                 'menu_performance_monitor': 'Performance Monitor',
+                'menu_update_data_files': 'Update Data Files',
                 'menu_settings': 'System Settings',
                 'menu_help': 'Help',
                 'menu_user_guide': 'User Guide',
@@ -678,6 +705,9 @@ class ImprovedLanguageManager:
                 'status_calculating_irsi': 'Calculating IRSI industry strength index...',
                 'status_calculating_msci': 'Calculating MSCI market sentiment index...',
                 'status_analysis_complete': 'Analysis complete!',
+                'status_updating_data': 'Updating data files...',
+                'status_data_update_complete': 'Data files update completed',
+                'status_data_update_failed': 'Data files update failed',
                 
                 # Table Column Headers
                 'column_rank': 'Rank',
@@ -886,6 +916,20 @@ class ImprovedLanguageManager:
                 'error_calculation_error': 'Calculation error',
                 'warning_data_quality': 'Data quality warning: High interpolation ratio',
                 'warning_serious': 'Serious warning: More than half of data requires interpolation, RTSI result reliability is low',
+                
+                # Data Update Feature
+                'data_update_feature_unavailable': 'Data update feature is currently unavailable',
+                'data_update_module_not_found': 'Data update module not found',
+                'data_update_success': 'Data files updated successfully',
+                'data_update_failed': 'Data update failed',
+                'data_update_cancelled': 'Data update cancelled',
+                'data_update_skipped': 'Data update skipped',
+                'data_update_downloading': 'Downloading data files...',
+                'data_update_progress': 'Download Progress',
+                'data_update_cancel': 'Cancel',
+                'data_update_skip': 'Skip Update',
+                'data_update_checking': 'Checking for data updates...',
+                'data_update_complete': 'Data update complete',
                 
                 # Trend Descriptions
                 'trend_strong_bull': 'Strong Bullish',

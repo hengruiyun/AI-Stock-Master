@@ -210,6 +210,8 @@ class StockAnalyzerMainWindow:
         # 工具菜单
         tools_menu = tk.Menu(menubar, tearoff=0, bg='#f0f0f0', font=('Microsoft YaHei', 11))
         menubar.add_cascade(label=_("menu_tools", "工具") + "(T)", menu=tools_menu, underline=2)
+        tools_menu.add_command(label=_("menu_update_data", "更新数据文件"), command=self.update_data_files)
+        tools_menu.add_separator()
         tools_menu.add_command(label=_("menu_data_validation", "数据验证"), command=self.show_data_validation)
         tools_menu.add_command(label=_("menu_performance_monitor", "性能监控"), command=self.show_performance_monitor)
         tools_menu.add_separator()
@@ -2561,6 +2563,28 @@ CPU使用率: {new_system_metrics.get('current_cpu_percent', 'N/A')}%
         except Exception as e:
             messagebox.showerror("监控失败", f"性能监控过程中出现错误:\n{str(e)}")
             self.update_text_area(f"性能监控失败: {str(e)}", "red")
+    
+    def update_data_files(self):
+        """手动更新数据文件"""
+        try:
+            from utils.data_updater import DataUpdater
+            
+            # 创建数据更新器并显示进度窗口
+            updater = DataUpdater(self.root)
+            updater.check_and_update(show_progress=True)
+            
+            # 更新状态
+            self.status_var.set(_("status_updating_data", "正在更新数据文件..."))
+            
+        except ImportError:
+            messagebox.showerror(_("feature_unavailable", "功能不可用"), 
+                               _("data_updater_not_found", "数据更新模块未找到，请检查系统配置"))
+        except Exception as e:
+            error_msg = _("data_update_error", "数据文件更新过程中出现错误")
+            messagebox.showerror(_("update_failed", "更新失败"), 
+                               f"{error_msg}:\n{str(e)}")
+            failed_msg = _("data_update_failed", "数据文件更新失败")
+            self.update_text_area(f"{failed_msg}: {str(e)}", "red")
 
 
 # 分析窗口类定义

@@ -176,6 +176,21 @@ def main():
             dir_path = project_root / dir_name
             dir_path.mkdir(exist_ok=True)
         
+        # 自动更新数据文件
+        print("检查 检查数据文件更新...")
+        try:
+            from utils.data_updater import auto_update_data_files
+            # 在控制台显示更新信息，但不显示GUI进度窗口
+            print("更新 正在检查并下载最新数据文件...")
+            update_success = auto_update_data_files(parent=None, show_progress=False)
+            if update_success:
+                print("成功 数据文件更新完成")
+            else:
+                print("警告 部分数据文件更新失败，将使用现有文件")
+        except Exception as e:
+            print(f"警告 数据文件更新失败: {e}")
+            print("提示 将使用现有数据文件，不影响系统正常使用")
+        
         # 初始化用户配置
         try:
             from config import load_user_config
