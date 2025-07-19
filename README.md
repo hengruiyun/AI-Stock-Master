@@ -193,97 +193,21 @@ News_Sentiment = News Sentiment Analysis Score (Based on NLP Technology)
 
 ---
 
-<img width="1259" height="8061" alt="aistock-3" src="https://github.com/user-attachments/assets/193b7844-9088-49a2-8235-7856e8f0901d" />
-
-**AI-Enhanced Sentiment Analysis**
-
-The system uses large language models for news sentiment analysis:
-
-```python
-# News sentiment analysis workflow
-def analyze_market_sentiment(news_data):
-    # 1. Text preprocessing
-    processed_text = preprocess_news(news_data)
-    
-    # 2. LLM sentiment analysis
-    sentiment_scores = llm_model.analyze_sentiment(processed_text)
-    
-    # 3. Weight calculation
-    weighted_sentiment = calculate_weighted_sentiment(sentiment_scores)
-    
-    # 4. Time decay
-    time_weighted_sentiment = apply_time_decay(weighted_sentiment)
-    
-    return time_weighted_sentiment
-```
-
-**Real Case Example**
-```
-Market Sentiment Analysis (March 2024):
-
-Input Data:
-- VIX Index: 18.5 (Normalized: 0.65)
-- Capital Flow: +2.3% (Net Inflow)
-- Volatility Ratio: 1.15
-- Long/Short Ratio: 0.68
-- News Sentiment: 0.72 (Positive Bias)
-
-Calculation Process:
-MSCI = 0.25×0.65 + 0.2×2.3 + 0.2×1.15 + 0.15×0.68 + 0.2×0.72
-MSCI = 0.1625 + 0.46 + 0.23 + 0.102 + 0.144 = 1.0985
-
-Result: MSCI = 1.10 (Moderately Optimistic)
-Recommendation: Moderately increase risk asset allocation, watch for pullback risks
-```
-
-**Interactive Web Demo**
- **[Live MSCI Sentiment Tracker](https://msci-demo.hengruiyun.com)** - Real-time market sentiment analysis and visualization
-
- **[MSCI Sentiment Dashboard](https://stockanalysis.hengruiyun.com/msci)** - Comprehensive market sentiment monitoring platform
-
- **[MSCI Historical Charts](https://charts.hengruiyun.com/msci)** - Interactive historical sentiment analysis with predictive insights
-
-**Research Literature Support**
-- "RSI can effectively identify sustained uptrends and strong momentum, particularly suitable for trend-following and momentum strategies." [Finding Consistent Trends with Strong Momentum](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3412429)
-- "Market sentiment and asset pricing: A machine learning approach" - Review of Financial Studies, 2024
-
-**Application Scenarios**
-- Market timing: Determining entry and exit timing
-- Risk control: Dynamic position adjustment
-- Volatility prediction: Predicting market volatility
-- Crisis warning: Identifying abnormal market conditions
-
----
-
-##  Live System Demonstrations
-
-### Educational Resources
- **[Interactive Tutorial](https://tutorial.hengruiyun.com/ai-stock-analysis)** - Step-by-step algorithm explanation
-
- **[Algorithm Comparison Tool](https://compare.hengruiyun.com/algorithms)** - Side-by-side algorithm performance analysis
-
- **[Academic Papers Collection](https://research.hengruiyun.com/papers)** - Research papers and methodology documentation
-
-### API Documentation
- **[Developer API](https://api.hengruiyun.com/docs)** - RESTful API for algorithm integration
-
- **[Integration Guide](https://docs.hengruiyun.com/integration)** - Complete developer documentation
-
----
+<img width="1259" height="" alt="aistock-3" src="https://github.com/user-attachments/assets/193b7844-9088-49a2-8235-7856e8f0901d" />
 
 ## Technical Implementation Architecture
 
 ### System Architecture Diagram
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Data Collection│    │   AI Processing │    │  Application    │
-│      Layer      │    │      Layer      │    │  Display Layer  │
-├─────────────────┤    ├─────────────────┤    ├─────────────────┤
+┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐
+│  Data Collection│     │   AI Processing │    │  Application    │
+│      Layer      │     │      Layer      │    │  Display Layer  │
+├─────────────────┤     ├─────────────────┤    ├─────────────────┤
 │ • Stock Data    │───▶│ • Feature Eng.  │───▶│ • GUI Interface │
-│ • Financial Data│    │ • Model Inference│    │ • Analysis Report│
-│ • News Data     │    │ • Sentiment Anal.│    │ • Investment Adv.│
-│ • Macro Data    │    │ • Risk Assessment│    │ • Data Export   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+│ • Financial Data│     │ • Model Inference│    │ • Analysis Report│
+│ • News Data     │     │ • Sentiment Anal.│    │ • Investment Adv.│
+│ • Macro Data    │     │ • Risk Assessment│    │ • Data Export   │
+└─────────────────┘     └─────────────────┘    └─────────────────┘
 ```
 
 ### Core Technology Stack
