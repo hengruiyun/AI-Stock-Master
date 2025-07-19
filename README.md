@@ -1,13 +1,11 @@
 # AI Stock Analysis System v2.2 [中文](https://github.com/hengruiyun/AI-Stock-Analysis/blob/main/README_CN.md)
 
-## System Overview
 
 This system is an artificial intelligence-based stock trend analysis platform that provides comprehensive investment decision support through the integration of three core algorithms: **RTSI Individual Stock Trend Strength Index**, **IRSI Industry Relative Strength Index**, and **MSCI Market Sentiment Composite Index**.
 
 ---
 
-![ais1e](https://github.com/user-attachments/assets/24e9f7f2-4149-4c46-8a35-722e56d83b5a)
-
+<img width="1016" height="679" alt="aistock-1" src="https://github.com/user-attachments/assets/84d89474-a7de-4d35-80d2-594e7b891265" />
 
 
 ### Core Features
@@ -30,9 +28,7 @@ This system is built on modern artificial intelligence theory, integrating machi
 - Uses reinforcement learning to optimize investment strategies
 - Implements multi-agent collaborative decision mechanisms
 
-
-
-![ais7e](https://github.com/user-attachments/assets/11f692dd-113a-4628-8a1d-667305c58d94)
+<img width="1016" height="679" alt="aistock-2" src="https://github.com/user-attachments/assets/52041287-3ba8-437a-8b29-e1a46ea95f86" />
 
 
 **LLM-Powered Analysis Engine**
@@ -58,7 +54,7 @@ Our system now includes seamless integration with **[Mini Ollama](https://github
 - Personalized investment recommendations based on user profiles
 - Dynamic strategy adjustments with reasoning transparency
 
-
+---
 
 ## Core Algorithm Details
 
@@ -106,11 +102,11 @@ Recommendation: Suitable for buying, suggested stop-loss at 8%
 ```
 
 **Interactive Web Demo**
-🌐 **[Live RTSI Calculator Demo](https://rtsi-demo.hengruiyun.com)** - Experience real-time RTSI calculations with sample data
+ [Live RTSI Calculator Demo](https://rtsi-demo.hengruiyun.com) - Experience real-time RTSI calculations with sample data
 
-📊 **[RTSI Analysis Dashboard](https://stockanalysis.hengruiyun.com/rtsi)** - Interactive dashboard showcasing RTSI methodology
+ [RTSI Analysis Dashboard](https://stockanalysis.hengruiyun.com/rtsi) - Interactive dashboard showcasing RTSI methodology
 
-📈 **[RTSI Case Studies](https://examples.hengruiyun.com/rtsi-cases)** - Collection of real-world RTSI application examples
+ [RTSI Case Studies](https://examples.hengruiyun.com/rtsi-cases) - Collection of real-world RTSI application examples
 
 **Algorithm References**
 - "The Relative Strength Index (RSI) is a momentum indicator used in technical analysis that measures the speed and magnitude of recent price changes to evaluate overbought or oversold conditions." [China Financial Technical Analysts Association](https://quant-wiki.com/basic/quant/%E7%9B%B8%E5%AF%B9%E5%BC%BA%E5%BC%B1%E6%8C%87%E6%95%B0_Relative%20Strength%20Index/)
@@ -123,8 +119,6 @@ Recommendation: Suitable for buying, suggested stop-loss at 8%
 - Portfolio construction: Screening strong stocks
 
 ### 2. IRSI - Industry Relative Strength Index
-
-![ais3e](https://github.com/user-attachments/assets/4ada541f-8eb8-4d1e-a79d-32348a5e946a)
 
 **Algorithm Theoretical Foundation**
 
@@ -163,11 +157,11 @@ Conclusion: New energy industry shows relative strength, recommend overweight
 ```
 
 **Interactive Web Demo**
-🌐 **[Live IRSI Sector Analysis](https://irsi-demo.hengruiyun.com)** - Real-time industry relative strength comparison
+ [Live IRSI Sector Analysis](https://irsi-demo.hengruiyun.com) - Real-time industry relative strength comparison
 
-📊 **[IRSI Sector Rotation Dashboard](https://stockanalysis.hengruiyun.com/irsi)** - Interactive sector rotation analysis tool
+ [IRSI Sector Rotation Dashboard](https://stockanalysis.hengruiyun.com/irsi) - Interactive sector rotation analysis tool
 
-🏭 **[IRSI Industry Heatmap](https://heatmap.hengruiyun.com/irsi)** - Visual industry strength comparison with live data
+ [IRSI Industry Heatmap](https://heatmap.hengruiyun.com/irsi) - Visual industry strength comparison with live data
 
 **Academic Research Support**
 - "RSI indicators show better performance in trading ranges compared to trending markets in cryptocurrency markets." [Effectiveness of the Relative Strength Index Signals in Timing the Cryptocurrency Market](https://mdpi-res.com/d_attachment/sensors/sensors-23-01664/article_deploy/sensors-23-01664-v4.pdf)
@@ -196,6 +190,10 @@ Volatility = Volatility Indicator = σ(returns) / Historical Average Volatility
 Position = Long/Short Ratio = Long_Interest / (Long_Interest + Short_Interest)
 News_Sentiment = News Sentiment Analysis Score (Based on NLP Technology)
 ```
+
+---
+
+<img width="1259" height="8061" alt="aistock-3" src="https://github.com/user-attachments/assets/193b7844-9088-49a2-8235-7856e8f0901d" />
 
 **AI-Enhanced Sentiment Analysis**
 
@@ -239,11 +237,11 @@ Recommendation: Moderately increase risk asset allocation, watch for pullback ri
 ```
 
 **Interactive Web Demo**
-🌐 **[Live MSCI Sentiment Tracker](https://msci-demo.hengruiyun.com)** - Real-time market sentiment analysis and visualization
+ **[Live MSCI Sentiment Tracker](https://msci-demo.hengruiyun.com)** - Real-time market sentiment analysis and visualization
 
-📊 **[MSCI Sentiment Dashboard](https://stockanalysis.hengruiyun.com/msci)** - Comprehensive market sentiment monitoring platform
+ **[MSCI Sentiment Dashboard](https://stockanalysis.hengruiyun.com/msci)** - Comprehensive market sentiment monitoring platform
 
-📈 **[MSCI Historical Charts](https://charts.hengruiyun.com/msci)** - Interactive historical sentiment analysis with predictive insights
+ **[MSCI Historical Charts](https://charts.hengruiyun.com/msci)** - Interactive historical sentiment analysis with predictive insights
 
 **Research Literature Support**
 - "RSI can effectively identify sustained uptrends and strong momentum, particularly suitable for trend-following and momentum strategies." [Finding Consistent Trends with Strong Momentum](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3412429)
@@ -257,29 +255,19 @@ Recommendation: Moderately increase risk asset allocation, watch for pullback ri
 
 ---
 
-## 🌐 Live System Demonstrations
-
-### Comprehensive Online Platform
-**🚀 [AI Stock Analysis Web Platform](https://stockanalysis.hengruiyun.com)** - Complete online version with all three algorithms
-
-### Algorithm-Specific Demos
-| Algorithm | Live Demo | Features |
-|-----------|-----------|----------|
-| **RTSI** | 🔗 [RTSI Calculator](https://rtsi-demo.hengruiyun.com) | Individual stock trend strength analysis |
-| **IRSI** | 🔗 [Sector Analyzer](https://irsi-demo.hengruiyun.com) | Industry relative strength comparison |
-| **MSCI** | 🔗 [Sentiment Tracker](https://msci-demo.hengruiyun.com) | Market sentiment monitoring |
+##  Live System Demonstrations
 
 ### Educational Resources
-📚 **[Interactive Tutorial](https://tutorial.hengruiyun.com/ai-stock-analysis)** - Step-by-step algorithm explanation
+ **[Interactive Tutorial](https://tutorial.hengruiyun.com/ai-stock-analysis)** - Step-by-step algorithm explanation
 
-📊 **[Algorithm Comparison Tool](https://compare.hengruiyun.com/algorithms)** - Side-by-side algorithm performance analysis
+ **[Algorithm Comparison Tool](https://compare.hengruiyun.com/algorithms)** - Side-by-side algorithm performance analysis
 
-🎓 **[Academic Papers Collection](https://research.hengruiyun.com/papers)** - Research papers and methodology documentation
+ **[Academic Papers Collection](https://research.hengruiyun.com/papers)** - Research papers and methodology documentation
 
 ### API Documentation
-🔌 **[Developer API](https://api.hengruiyun.com/docs)** - RESTful API for algorithm integration
+ **[Developer API](https://api.hengruiyun.com/docs)** - RESTful API for algorithm integration
 
-📖 **[Integration Guide](https://docs.hengruiyun.com/integration)** - Complete developer documentation
+ **[Integration Guide](https://docs.hengruiyun.com/integration)** - Complete developer documentation
 
 ---
 
