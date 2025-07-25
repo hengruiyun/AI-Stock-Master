@@ -3,7 +3,9 @@
 这是一个基于人工智能的股票趋势分析平台，经过AI 大模型加持，通过融合三大核心算法：**RTSI个股趋势强度指数**、**IRSI行业相对强度指数**和**MSCI市场情绪指数**，为投资者提供全方位的投资决策支持。
 
 ---
-![ais1](https://github.com/user-attachments/assets/824df195-9675-4290-8099-d720ac37bfe9)
+
+<img width="1016" height="739" alt="aisa-c1" src="https://github.com/user-attachments/assets/0f50a640-d2fb-48cf-8bbf-5a9721595e3d" />
+
 
 
 ### 核心特色
@@ -26,7 +28,8 @@
 - 实现多智能体协作决策机制
 
 
-![ais7](https://github.com/user-attachments/assets/c0f1e1f6-6b9c-464c-b2a0-770d19751b93)
+<img width="1167" height="5741" alt="aisa-c2" src="https://github.com/user-attachments/assets/8e5fe1c7-fe0f-40fd-b14e-2d9b5ad683a1" />
+
 
 
 **LLM驱动的分析引擎**
@@ -232,6 +235,11 @@ News_Sentiment = 新闻情感分析得分（基于NLP技术）
 ```bash
 AI-Stock-Analysis.bat
 ```
+
+## 注意
+
+- **CN_Demo300 不完整数据**：分析结论不可靠，软件只作为学习编程用途
+
 
 ### 核心功能模块
 
