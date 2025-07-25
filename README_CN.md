@@ -28,7 +28,7 @@
 - 实现多智能体协作决策机制
 
 
-<img width="1167" height="5741" alt="aisa-c2" src="https://github.com/user-attachments/assets/8e5fe1c7-fe0f-40fd-b14e-2d9b5ad683a1" />
+<img width="1167"  alt="aisa-c2" src="https://github.com/user-attachments/assets/8e5fe1c7-fe0f-40fd-b14e-2d9b5ad683a1" />
 
 
 
