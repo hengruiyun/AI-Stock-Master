@@ -1,8 +1,0 @@
-{
-  "default_provider": "OpenAI",
-  "default_chat_model": "gpt-4o",
-  "default_structured_model": "gpt-4o",
-  "request_timeout": 300,
-  "OPENAI_API_KEY": "your-openai-api-key-here",
-  "OPENAI_BASE_URL": "https://api.openai.com/v1"
-}
