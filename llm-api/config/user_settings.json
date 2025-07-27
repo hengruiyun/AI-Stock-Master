@@ -1,8 +1,0 @@
-{
-  "default_provider": "Ollama",
-  "default_chat_model": "gemma3:1b",
-  "default_structured_model": "gemma3:1b",
-  "request_timeout": 300,
-  "agent_role": "不使用",
-  "OLLAMA_BASE_URL": "http://localhost:11434"
-}
