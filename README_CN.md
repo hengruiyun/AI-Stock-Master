@@ -2,8 +2,9 @@
 
 这是一个基于AI 的股票趋势分析平台，经过AI 大模型解读中国、香港、美国股票市场，融合多种核心算法：**RTSI个股趋势强度指数**、**MSCI市场情绪指数**和**核心强势分析器**，为投资者提供全方位的投资决策支持。
 
----
+<img width="1252" height="910" alt="aismc-1" src="https://github.com/user-attachments/assets/f6bf113d-c1dc-47f7-b02e-b258690f1dd0" />
 
+---
 
 ### 核心特色
 - **多维数据**：多维度数据点融合，记录市场的关键信息
@@ -150,6 +151,7 @@ Volatility = 波动率指标 = σ(returns) / 历史平均波动率
 Position = 多空比例 = Long_Interest / (Long_Interest + Short_Interest)
 News_Sentiment = 新闻情感分析得分（基于NLP技术）
 ```
+<img width="" height="8383" alt="aismc-2" src="https://github.com/user-attachments/assets/c0b7eda4-6507-4165-a432-946f01555432" />
 
 
 ## 使用方法
