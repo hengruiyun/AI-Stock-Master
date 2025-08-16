@@ -1,6 +1,9 @@
-# AI Stock Master
+# AI Stock Master [中文](https://github.com/hengruiyun/AI-Stock-Master/blob/main/README_CN.md)
 
 This is an AI-based stock trend analysis platform that leverages large language models to interpret Chinese, Hong Kong, and US stock markets. It integrates multiple core algorithms: **RTSI Individual Stock Trend Strength Index**, **MSCI Market Sentiment Index**, and **Core Strength Analyzer**, providing comprehensive investment decision support for investors.
+
+<img width="1253" height="909" alt="aisme-1" src="https://github.com/user-attachments/assets/742e0b33-c70e-49bf-adcc-d873a5b521d5" />
+
 
 ---
 
@@ -146,6 +149,8 @@ Volatility = Volatility indicator = σ(returns) / Historical_Average_Volatility
 Position = Long/Short ratio = Long_Interest / (Long_Interest + Short_Interest)
 News_Sentiment = News sentiment analysis score (based on NLP technology)
 ```
+<img width="" height="8506" alt="aisme-2" src="https://github.com/user-attachments/assets/193e28f9-3b3c-4b45-9e13-573a1a831973" />
+
 
 ## Usage Instructions
 
@@ -235,3 +240,4 @@ AI-Stock-Master.bat
 Let AI Empower Your Investment Decisions
 
 </div>
+
