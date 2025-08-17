@@ -23,7 +23,7 @@ from pathlib import Path
 # =============================================================================
 
 # 版本信息
-VERSION = "2.3.0"
+VERSION = "2.4.1"
 APP_NAME = "AI股票大师"
 from config.constants import AUTHOR, VERSION, HOMEPAGE
 

@@ -388,7 +388,7 @@ class StockAnalyzerMainWindow:
         self.ai_model_btn.pack(side=tk.RIGHT, padx=(5, 0))
         
         # Star按钮 (GitHub Star功能)
-        self.star_btn = tk.Button(button_frame, text=t_gui("star"), 
+        self.star_btn = tk.Button(button_frame, text=t_tools("github_star_button"), 
                                  command=self.open_github_star,
                                  **button_style)
         self.star_btn.pack(side=tk.RIGHT, padx=(5, 0))

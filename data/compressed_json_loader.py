@@ -466,7 +466,7 @@ def test_compressed_json_loader():
     print("测试压缩JSON加载器...")
     
     # 测试文件
-    test_files = ["CN_Demo1600.json.gz", "CN_Demo1600.xlsx"]
+    test_files = ["CN_Data5000.json.gz", "CN_Data5000.xlsx"]
     
     for test_file in test_files:
         if os.path.exists(test_file):

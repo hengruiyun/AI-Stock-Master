@@ -41,19 +41,19 @@ class DataUpdater:
         from config.i18n import t_tools
         self.files_to_download = [
             {
-                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/CN_Demo1600.json.gz',
-                'filename': 'CN_Demo1600.json.gz',
-                'description': t_tools('cn_demo_desc')
+                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/CN_Data5000.json.gz',
+                'filename': 'CN_Data5000.json.gz',
+                'description': t_tools('CN_Data_desc')
             },
             {
-                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/HK_Demo500.json.gz',
-                'filename': 'HK_Demo500.json.gz',
-                'description': t_tools('hk_demo_desc')
+                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/HK_Data1000.json.gz',
+                'filename': 'HK_Data1000.json.gz',
+                'description': t_tools('HK_Data_desc')
             },
             {
-                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/US_Demo500.json.gz',
-                'filename': 'US_Demo500.json.gz',
-                'description': t_tools('us_demo_desc')
+                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/US_Data1000.json.gz',
+                'filename': 'US_Data1000.json.gz',
+                'description': t_tools('US_Data_desc')
             }
         ]
         
