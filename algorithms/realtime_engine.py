@@ -186,13 +186,21 @@ class RealtimeAnalysisEngine:
                 logger.warning(f"增强TMA分析器初始化失败，使用基础模式: {e}")
                 self.enable_enhanced_tma = False
         
-        # 初始化增强RTSI计算器
+        # 初始化智能RTSI计算器
         try:
-            self.enhanced_rtsi_calculator = EnhancedRTSICalculator()
-            logger.info("增强RTSI计算器已启用")
+            from .smart_rtsi_algorithm import get_smart_rtsi_calculator
+            self.smart_rtsi_calculator = get_smart_rtsi_calculator(enable_cache=True, verbose=False)
+            logger.info("智能RTSI计算器已启用")
         except Exception as e:
-            logger.warning(f"增强RTSI计算器初始化失败，使用基础模式: {e}")
-            self.enhanced_rtsi_calculator = None
+            logger.warning(f"智能RTSI计算器初始化失败，回退到增强RTSI: {e}")
+            try:
+                self.enhanced_rtsi_calculator = EnhancedRTSICalculator()
+                self.smart_rtsi_calculator = None
+                logger.info("增强RTSI计算器已启用（回退模式）")
+            except Exception as e2:
+                logger.warning(f"增强RTSI计算器也初始化失败，使用基础模式: {e2}")
+                self.enhanced_rtsi_calculator = None
+                self.smart_rtsi_calculator = None
         
         # 配置参数
         try:
@@ -229,6 +237,39 @@ class RealtimeAnalysisEngine:
         }
         
         logger.info(f"实时分析引擎初始化完成 (多线程: {enable_multithreading})")
+    
+    def _detect_market_type(self, stock_data: Dict[str, Any]) -> str:
+        """检测股票所属市场类型"""
+        try:
+            # 优先从数据源的文件路径判断
+            if hasattr(self.data_source, 'file_path') and self.data_source.file_path:
+                file_name = os.path.basename(self.data_source.file_path).lower()
+                if file_name.startswith('cn'):
+                    return 'cn'
+                elif file_name.startswith('hk'):
+                    return 'hk'
+                elif file_name.startswith('us'):
+                    return 'us'
+            
+            # 从股票代码格式判断
+            stock_code = str(stock_data.get('股票代码', ''))
+            if stock_code:
+                # 中国股票：6位数字
+                if len(stock_code) == 6 and stock_code.isdigit():
+                    return 'cn'
+                # 香港股票：5位数字（通常前面补0到6位）
+                elif len(stock_code) == 6 and stock_code.startswith('00') and stock_code[2:].isdigit():
+                    return 'hk'
+                # 美国股票：字母+数字组合
+                elif not stock_code.isdigit():
+                    return 'us'
+            
+            # 默认返回中国市场
+            return 'cn'
+            
+        except Exception as e:
+            logger.debug(f"市场类型检测失败: {e}")
+            return 'cn'
     
     def calculate_all_metrics(self, force_refresh: bool = False) -> AnalysisResults:
         """
@@ -344,11 +385,30 @@ class RealtimeAnalysisEngine:
                 stock_name = stock_data.get('股票名称', '')
                 industry = stock_data.get('行业', '未分类')
                 
-                # 优先使用RTSI算法（主算法）
+                # 优先使用智能RTSI算法（主算法）
                 rtsi_success = False
                 
-                # 计算RTSI - 使用增强计算器（如果可用）
-                if self.enhanced_rtsi_calculator is not None:
+                # 计算RTSI - 使用智能RTSI计算器（如果可用）
+                if hasattr(self, 'smart_rtsi_calculator') and self.smart_rtsi_calculator is not None:
+                    try:
+                        # 确定市场类型
+                        market = self._detect_market_type(stock_data)
+                        
+                        # 使用智能RTSI计算器
+                        rtsi_result = self.smart_rtsi_calculator.calculate_smart_rtsi(
+                            stock_data, 
+                            market=market, 
+                            stock_code=stock_code
+                        )
+                        rtsi_success = True
+                        logger.debug(f"智能RTSI计算成功 {stock_code}: {rtsi_result.get('algorithm', 'unknown')}")
+                    except Exception as e:
+                        # 静默处理智能RTSI计算失败，回退到增强RTSI
+                        logger.debug(f"智能RTSI计算失败 {stock_code}: {e}")
+                        rtsi_success = False
+                
+                # 如果智能RTSI失败，尝试增强RTSI
+                if not rtsi_success and hasattr(self, 'enhanced_rtsi_calculator') and self.enhanced_rtsi_calculator is not None:
                     try:
                         # 使用增强RTSI计算器
                         rtsi_enhanced_result = self.enhanced_rtsi_calculator.batch_calculate_enhanced_rtsi(
@@ -364,7 +424,7 @@ class RealtimeAnalysisEngine:
                         logger.debug(f"增强RTSI计算失败 {stock_code}: {e}")
                         rtsi_success = False
                 
-                # 如果增强RTSI失败，尝试标准RTSI
+                # 如果智能RTSI和增强RTSI都失败，尝试标准RTSI
                 if not rtsi_success:
                     try:
                         # 使用AI增强RTSI作为主算法（默认启用）

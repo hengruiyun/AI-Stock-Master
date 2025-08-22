@@ -11,7 +11,7 @@ GUI_TRANSLATIONS = {
         # 窗口和应用程序基本信息
         "window_title": "AI 股票大师 - 267278466@qq.com",
         "app_name": "AI股票大师", 
-        "app_version": "v3.0",
+        "app_version": "v3.01",
         "main_title": "AI 股票大师",
         "subtitle": "智能化股票分析系统",
         "file_selection_desc": "请选择股票数据文件开始分析",
@@ -782,7 +782,7 @@ GUI_TRANSLATIONS = {
         # Window and application basic information
         "window_title": "AI Stock Master - Intelligent Analysis System",
         "app_name": "AI Stock Master",
-        "app_version": "v3.0", 
+        "app_version": "v3.01", 
         "main_title": "AI Stock Master",
         "subtitle": "Intelligent Stock Analysis System",
         "file_selection_desc": "Please select a stock data file to start analysis",

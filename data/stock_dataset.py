@@ -114,13 +114,16 @@ class StockDataSet:
     
     def _normalize_stock_code(self, stock_code: str) -> str:
         """根据市场类型标准化股票代码"""
-        stock_code = str(stock_code)
+        stock_code = str(stock_code).strip()
         
         if self.market_type == 'us':
             # US市场保持原始格式，但统一大写
-            return stock_code.strip().upper()
+            return stock_code.upper()
+        elif self.market_type == 'hk':
+            # HK市场保持原始长度（通常是5位数字或字母代码）
+            return stock_code
         else:
-            # CN/HK市场使用6位填充
+            # CN市场使用6位填充
             return stock_code.zfill(6)
     
     def _initialize_metadata(self):

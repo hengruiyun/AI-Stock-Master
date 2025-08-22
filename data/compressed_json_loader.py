@@ -402,8 +402,12 @@ class CompressedJSONLoader:
                 # US市场保持原始代码格式（字母代码如AAPL, MSFT）
                 df['股票代码'] = df['股票代码'].astype(str).str.strip().str.upper()
                 logger.info("US市场: 保持原始股票代码格式")
+            elif market_type == 'hk':
+                # HK市场保持原始代码格式（5位数字或字母代码）
+                df['股票代码'] = df['股票代码'].astype(str).str.strip()
+                logger.info("HK市场: 保持原始股票代码格式")
             else:
-                # CN/HK市场使用6位数字填充
+                # CN市场使用6位数字填充
                 df['股票代码'] = df['股票代码'].astype(str).str.zfill(6)
                 logger.info(f"{market_type.upper()}市场: 使用6位数字填充格式")
         
