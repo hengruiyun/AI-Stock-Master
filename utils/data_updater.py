@@ -56,18 +56,18 @@ class DataUpdater:
                 'description': t_tools('US_Data_desc')
             },
             {
-                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/cn-lj.json.gz',
-                'filename': 'cn-lj.json.gz',
+                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/cn-lj.dat',
+                'filename': 'cn-lj.dat',
                 'description': '中国市场量价数据'
             },
             {
-                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/hk-lj.json.gz',
-                'filename': 'hk-lj.json.gz',
+                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/hk-lj.dat',
+                'filename': 'hk-lj.dat',
                 'description': '香港市场量价数据'
             },
             {
-                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/us-lj.json.gz',
-                'filename': 'us-lj.json.gz',
+                'url': 'https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/us-lj.dat',
+                'filename': 'us-lj.dat',
                 'description': '美国市场量价数据'
             }
         ]

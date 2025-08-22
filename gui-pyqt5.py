@@ -3105,19 +3105,42 @@ class AnalysisPage(QWidget):
                 stock_code = getattr(self, 'current_stock_code', None)
             
             if not stock_code:
+                print(f"🔍 [调试] 无股票代码，无法获取量价数据")
                 return None
+            
+            # 保存当前股票代码供其他方法使用
+            self.current_stock_code = stock_code
             
             # 导入缓存管理器
             from cache import get_cache_manager
             
             # 获取市场类型
             preferred_market = self._get_preferred_market_from_current_data()
+            
+            # 如果无法确定市场，尝试根据股票代码推断
             if not preferred_market:
-                return None
+                preferred_market = self._infer_market_from_stock_code(stock_code)
+                if preferred_market:
+                    print(f"🔍 [调试] 使用股票代码推断的市场: {preferred_market}")
+                else:
+                    print(f"🔍 [调试] 无法确定市场类型，尝试所有市场")
+                    # 尝试所有市场
+                    for market in ['cn', 'hk', 'us']:
+                        try:
+                            cache_manager = get_cache_manager(verbose=False)
+                            result = cache_manager.get_volume_price_data(stock_code, market, days)
+                            if result:
+                                print(f"🔍 [调试] 在{market.upper()}市场找到数据")
+                                return result
+                        except:
+                            continue
+                    return None
             
             # 从缓存获取数据
             cache_manager = get_cache_manager(verbose=False)
-            return cache_manager.get_volume_price_data(stock_code, preferred_market, days)
+            result = cache_manager.get_volume_price_data(stock_code, preferred_market, days)
+            print(f"🔍 [调试] 缓存获取结果: {result is not None}, 市场: {preferred_market}")
+            return result
             
         except Exception as e:
             print(f"❌ 获取缓存量价数据失败: {stock_code} - {e}")
@@ -3252,19 +3275,29 @@ class AnalysisPage(QWidget):
         
         try:
             # 初始化增强图表生成器
-            from visualization.enhanced_stock_charts import EnhancedStockChartGenerator
-            chart_generator = EnhancedStockChartGenerator(verbose=False)
+            try:
+                from visualization.enhanced_stock_charts import EnhancedStockChartGenerator
+                chart_generator = EnhancedStockChartGenerator(verbose=False)
+                print(f"🔍 [调试] 成功加载EnhancedStockChartGenerator")
+            except Exception as chart_import_error:
+                print(f"🔍 [调试] EnhancedStockChartGenerator加载失败: {chart_import_error}")
+                # 直接使用fallback方法
+                self.update_stock_chart_fallback(stock_code, stock_info)
+                return
             
             # 根据当前加载的数据文件推断优先市场
             preferred_market = self._get_preferred_market_from_current_data()
+            print(f"🔍 [调试] update_stock_chart - preferred_market: {preferred_market}")
             
             # 验证市场参数
             if not preferred_market:
-                raise ValueError("无法确定股票市场，请检查数据文件是否正确加载")
+                print(f"🔍 [调试] 无法确定股票市场，将尝试默认使用cn市场")
+                preferred_market = 'cn'  # 默认使用cn市场而不是抛出异常
             
             # 从统一缓存接口获取38天量价数据
             self.log(f"正在获取股票 {stock_code} 的38天量价数据（{preferred_market.upper()}市场）...")
             volume_price_data = self.get_cached_volume_price_data(stock_code, days=38)
+            print(f"🔍 [调试] volume_price_data结果: {volume_price_data is not None}")
             
             # 获取评级历史数据（使用RTSI值生成，保持与TreeView一致）
             rating_data = self.generate_rtsi_based_chart_data(stock_code, rtsi_value)
@@ -3304,8 +3337,29 @@ class AnalysisPage(QWidget):
             self.update_stock_chart_fallback(stock_code, stock_info)
     
     def generate_fallback_chart(self, stock_code, stock_name, rtsi_value, rating_data):
-        """生成备用图表HTML"""
+        """生成备用图表HTML - 尝试获取量价数据"""
         from datetime import datetime
+        
+        # 尝试获取量价数据
+        volume_price_available = False
+        volume_price_info = ""
+        try:
+            # 获取市场类型
+            preferred_market = self._get_preferred_market_from_current_data()
+            if preferred_market:
+                volume_price_data = self.get_cached_volume_price_data(stock_code, days=38)
+                if volume_price_data and volume_price_data.get('data'):
+                    volume_price_available = True
+                    data_count = len(volume_price_data.get('data', []))
+                    volume_price_info = f"已获取 {data_count} 天量价数据"
+                    print(f"🔍 [调试] fallback图表中成功获取量价数据: {data_count}天")
+                else:
+                    print(f"🔍 [调试] fallback图表中无法获取量价数据")
+            else:
+                print(f"🔍 [调试] fallback图表中无法确定市场类型")
+        except Exception as e:
+            print(f"🔍 [调试] fallback图表获取量价数据失败: {e}")
+            volume_price_available = False
         
         chart_html = f"""
         <!DOCTYPE html>
@@ -3436,8 +3490,8 @@ class AnalysisPage(QWidget):
                     </div>
                 </div>
                 
-                <div class="warning">
-                    ⚠️ <strong>数据说明：</strong> 无法获取该股票的量价数据，仅显示评级趋势分析。建议选择有完整数据的股票以获得最佳分析体验。
+                <div class="{'warning' if not volume_price_available else 'info'}" style="{'background: #fff3cd; border: 1px solid #ffeaa7; color: #856404;' if not volume_price_available else 'background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460;'} border-radius: 8px; padding: 15px; margin: 15px 0;">
+                    {('⚠️ <strong>数据说明：</strong> 无法获取该股票的量价数据，仅显示评级趋势分析。建议选择有完整数据的股票以获得最佳分析体验。') if not volume_price_available else ('📊 <strong>数据说明：</strong> ' + volume_price_info + '，显示技术指标和评级趋势分析。')}
                 </div>
                 
                 <div class="chart-area">
@@ -4813,14 +4867,93 @@ class AnalysisPage(QWidget):
                 'data_source': 'error'
                 }
     
+    def _find_main_window(self):
+        """查找真正的主窗口对象"""
+        try:
+            # 从当前widget向上查找主窗口
+            widget = self
+            while widget is not None:
+                if hasattr(widget, 'detected_market'):
+                    print(f"🔍 [调试] 找到主窗口: {type(widget).__name__}")
+                    return widget
+                widget = widget.parent()
+            
+            # 如果向上查找失败，尝试从QApplication获取主窗口
+            from PyQt5.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app:
+                for widget in app.topLevelWidgets():
+                    if hasattr(widget, 'detected_market'):
+                        print(f"🔍 [调试] 从QApplication找到主窗口: {type(widget).__name__}")
+                        return widget
+            
+            print(f"🔍 [调试] 未找到主窗口")
+            return None
+        except Exception as e:
+            print(f"🔍 [调试] 查找主窗口失败: {e}")
+            return None
+    
+    def _infer_market_from_stock_code(self, stock_code: str) -> str:
+        """根据股票代码推断市场类型"""
+        try:
+            if not stock_code:
+                return None
+                
+            stock_code = str(stock_code).strip()
+            
+            # 中国股票代码特征
+            if (stock_code.isdigit() and len(stock_code) == 6):
+                if stock_code.startswith(('000', '001', '002', '003')):  # 深圳主板/中小板/创业板
+                    return 'cn'
+                elif stock_code.startswith('600') or stock_code.startswith('601') or stock_code.startswith('603') or stock_code.startswith('605'):  # 上海主板
+                    return 'cn'
+                elif stock_code.startswith('688'):  # 科创板
+                    return 'cn'
+            
+            # 香港股票代码特征 (通常以00开头)
+            if stock_code.isdigit() and len(stock_code) <= 5:
+                if stock_code.startswith('00') or len(stock_code) <= 4:
+                    return 'hk'
+            
+            # 美国股票代码特征 (字母代码)
+            if stock_code.isalpha() or any(c.isalpha() for c in stock_code):
+                return 'us'
+            
+            print(f"🔍 [调试] 无法从股票代码推断市场: {stock_code}")
+            return None
+            
+        except Exception as e:
+            print(f"🔍 [调试] 股票代码市场推断失败: {e}")
+            return None
+    
     def _get_preferred_market_from_current_data(self) -> str:
         """根据当前加载的数据文件推断优先市场"""
         try:
-            # 优先使用主界面检测到的市场类型（新增）
-            if hasattr(self.parent(), 'detected_market') and self.parent().detected_market:
-                detected_market = self.parent().detected_market
-                print(f"使用主界面检测的市场类型: {detected_market.upper()}")
+            # 1. 优先使用主界面检测到的市场类型（需要找到真正的主窗口）
+            main_window = self._find_main_window()
+            if main_window and hasattr(main_window, 'detected_market') and main_window.detected_market:
+                detected_market = main_window.detected_market
+                print(f"🔍 [调试] 使用主界面检测的市场类型: {detected_market.upper()}")
                 return detected_market
+            else:
+                print(f"🔍 [调试] 主界面market检测失败: main_window={main_window}, detected_market={getattr(main_window, 'detected_market', None) if main_window else None}")
+                
+            # 2. 从数据文件名推断市场类型（新增强化逻辑）
+            if main_window and hasattr(main_window, 'current_data_file_path') and main_window.current_data_file_path:
+                file_path = main_window.current_data_file_path
+                import os
+                file_name = os.path.basename(file_path).lower()
+                print(f"🔍 [调试] 从文件路径推断市场: {file_name}")
+                
+                if file_name.startswith('cn') or 'cn_data' in file_name:
+                    print(f"🔍 [调试] 从文件名识别为CN市场: {file_name}")
+                    return 'cn'
+                elif file_name.startswith('hk') or 'hk_data' in file_name:
+                    print(f"🔍 [调试] 从文件名识别为HK市场: {file_name}")
+                    return 'hk'
+                elif file_name.startswith('us') or 'us_data' in file_name:
+                    print(f"🔍 [调试] 从文件名识别为US市场: {file_name}")
+                    return 'us'
             
             # 检查是否有分析结果，从中获取数据源信息
             if hasattr(self, 'analysis_results') and self.analysis_results:
@@ -4868,8 +5001,16 @@ class AnalysisPage(QWidget):
                         elif 'cn' in data_file:
                             return 'cn'
             
+            # 最后尝试根据当前股票代码推断市场
+            if hasattr(self, 'current_stock_code') and self.current_stock_code:
+                stock_code = self.current_stock_code
+                inferred_market = self._infer_market_from_stock_code(stock_code)
+                if inferred_market:
+                    print(f"🔍 [调试] 根据股票代码{stock_code}推断市场: {inferred_market}")
+                    return inferred_market
+            
             # 默认返回cn市场（而不是None）
-            print("无法确定具体市场，默认使用CN市场")
+            print("🔍 [调试] 无法确定具体市场，默认使用CN市场")
             return 'cn'
             
         except Exception as e:

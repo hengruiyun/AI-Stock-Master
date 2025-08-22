@@ -47,9 +47,9 @@ class VolumePriceFetcher:
         self.verbose = verbose
         self.search_tool = None
         self.data_file_mapping = {
-            'cn': 'cn-lj.json.gz',
-            'hk': 'hk-lj.json.gz', 
-            'us': 'us-lj.json.gz'
+            'cn': 'cn-lj.dat',
+            'hk': 'hk-lj.dat', 
+            'us': 'us-lj.dat'
         }
         
         # 初始化搜索工具
