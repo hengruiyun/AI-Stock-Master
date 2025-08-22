@@ -2,8 +2,9 @@
 
 这是一个基于AI 的股票趋势分析平台，经过AI 大模型解读中国、香港、美国股票市场，融合多种核心算法：**RTSI个股趋势强度指数**、**MSCI市场情绪指数**和**核心强势分析器**，为投资者提供全方位的投资决策支持。
 
----
+<img width="1298" height="930" alt="asmc3-1" src="https://github.com/user-attachments/assets/3663597c-c19d-4770-8776-aead1651de37" />
 
+---
 
 ### 核心特色
 - **多维数据**：多维度数据点融合，记录市场的关键信息
@@ -40,6 +41,8 @@
 - **资源高效**：桌面部署的最小内存占用
 
 ---
+<img width="1298" height="930" alt="asmc3-2" src="https://github.com/user-attachments/assets/60bf188b-6437-4325-a32f-0348894addd4" />
+
 
 ## 核心算法详解
 
@@ -73,6 +76,8 @@ Volume_Factor = log(Volume_ratio) × 权重
 - 趋势判断：确认长期趋势方向
 - 风险管理：设置动态止损位
 - 组合构建：筛选强势个股
+
+<img width="1298" height="930" alt="asmc3-3" src="https://github.com/user-attachments/assets/70be36d6-a7ef-4b4d-a93e-e951cfb4777d" />
 
 ### 2. TMA - 技术动量分析（行业分析的核心算法）
 
@@ -132,6 +137,9 @@ Volume_Profile = 成交量分布异常度检测
 - **历史回测**：基于5年历史数据验证，年化超额收益12.3%
 - **实时监控**：24小时监控算法表现，及时调整参数
 - **持续优化**：定期引入新的技术指标和机器学习模型
+
+<img width="1298" height="931" alt="asmc3-4" src="https://github.com/user-attachments/assets/f38cfe79-5d62-4f29-b66a-c2e6f78007ab" />
+
 
 ### 3. MSCI - 市场情绪综合指数
 

@@ -2,6 +2,8 @@
 
 This is an AI-based stock trend analysis platform that leverages large language models to interpret Chinese, Hong Kong, and US stock markets. It integrates multiple core algorithms: **RTSI Individual Stock Trend Strength Index**, **MSCI Market Sentiment Index**, and **Core Strength Analyzer**, providing comprehensive investment decision support for investors.
 
+<img width="1143" height="899" alt="asme3-1" src="https://github.com/user-attachments/assets/78b7086c-7daa-4fb4-88da-807fb5094762" />
+
 ---
 
 ### Core Features
@@ -37,6 +39,7 @@ Our system now includes seamless integration with **[Mini Ollama](https://github
 - **Resource Efficient**: Minimal memory footprint for desktop deployment
 
 ---
+<img width="1137" height="900" alt="asme3-2" src="https://github.com/user-attachments/assets/aa4cd2bc-bbb1-4063-9c6a-51af93336314" />
 
 ## Core Algorithm Details
 
@@ -235,3 +238,4 @@ AI-Stock-Master.bat
 Let AI Empower Your Investment Decisions
 
 </div>
+
