@@ -1,4 +1,4 @@
-# AI Stock Master
+# AI Stock Master [中文](https://github.com/hengruiyun/AI-Stock-Master/blob/main/README_CN.md)
 
 This is an AI-based stock trend analysis platform that leverages large language models to interpret Chinese, Hong Kong, and US stock markets. It integrates multiple core algorithms: **RTSI Individual Stock Trend Strength Index**, **MSCI Market Sentiment Index**, and **Core Strength Analyzer**, providing comprehensive investment decision support for investors.
 
@@ -238,4 +238,5 @@ AI-Stock-Master.bat
 Let AI Empower Your Investment Decisions
 
 </div>
+
 
