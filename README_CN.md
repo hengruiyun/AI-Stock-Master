@@ -2,7 +2,8 @@
 
 这是一个基于AI 的股票趋势分析平台，经过AI 大模型解读中国、香港、美国股票市场，融合多种核心算法：**RTSI个股趋势强度指数**、**MSCI市场情绪指数**和**核心强势分析器**，为投资者提供全方位的投资决策支持。
 
-<img width="1298" height="930" alt="asmc3-1" src="https://github.com/user-attachments/assets/3663597c-c19d-4770-8776-aead1651de37" />
+<img width="1272" height="908" alt="aismc-31" src="https://github.com/user-attachments/assets/7461d3b5-54ae-486f-b0b9-e1341f76e5d2" />
+
 
 ---
 
@@ -41,7 +42,8 @@
 - **资源高效**：桌面部署的最小内存占用
 
 ---
-<img width="1298" height="930" alt="asmc3-2" src="https://github.com/user-attachments/assets/60bf188b-6437-4325-a32f-0348894addd4" />
+<img width="1264" height="911" alt="aismc-32" src="https://github.com/user-attachments/assets/91b1bd8f-42ce-463e-acd3-00bf0849c540" />
+
 
 
 ## 核心算法详解
@@ -77,7 +79,8 @@ Volume_Factor = log(Volume_ratio) × 权重
 - 风险管理：设置动态止损位
 - 组合构建：筛选强势个股
 
-<img width="1298" height="930" alt="asmc3-3" src="https://github.com/user-attachments/assets/70be36d6-a7ef-4b4d-a93e-e951cfb4777d" />
+<img width="1265" height="906" alt="aismc-33" src="https://github.com/user-attachments/assets/3d1c0c46-dbb1-4c18-9d4f-5269d27a7dc2" />
+
 
 ### 2. TMA - 技术动量分析（行业分析的核心算法）
 
@@ -138,7 +141,8 @@ Volume_Profile = 成交量分布异常度检测
 - **实时监控**：24小时监控算法表现，及时调整参数
 - **持续优化**：定期引入新的技术指标和机器学习模型
 
-<img width="1298" height="931" alt="asmc3-4" src="https://github.com/user-attachments/assets/f38cfe79-5d62-4f29-b66a-c2e6f78007ab" />
+<img width="1270" height="910" alt="aismc-34" src="https://github.com/user-attachments/assets/84f5435f-29e1-4370-84c3-a3af773a6741" />
+
 
 
 ### 3. MSCI - 市场情绪综合指数
