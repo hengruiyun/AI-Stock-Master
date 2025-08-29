@@ -1,0 +1,2430 @@
+{
+  "welcome_industry_count": {
+    "zh": "welcome行业计数",
+    "en": "Welcome Industry Count"
+  },
+  "medium_risk": {
+    "zh": "中等风险",
+    "en": "Medium Risk"
+  },
+  "welcome_professional_algo": {
+    "zh": "welcome专业算法",
+    "en": "Welcome Professional Algorithm"
+  },
+  "ai_not_configured": {
+    "zh": "失败否数字",
+    "en": "Failed No Figure"
+  },
+  "us_demo_desc": {
+    "zh": "行业demodesc",
+    "en": "Industry Demo Desc"
+  },
+  "close": {
+    "zh": "关闭",
+    "en": "Close"
+  },
+  "sorted_by_irsi_index": {
+    "zh": "排序byirsi等",
+    "en": "Sort By Irsi Index"
+  },
+  "请检查数据源": {
+    "zh": "请检查数据源",
+    "en": "请检查数据源"
+  },
+  "all_files": {
+    "zh": "回调文件",
+    "en": "Callback File"
+  },
+  "上看前高或新高": {
+    "zh": "上看前高或新高",
+    "en": "上看前高或新高"
+  },
+  "good": {
+    "zh": "良好",
+    "en": "Good"
+  },
+  "welcome_industry_query": {
+    "zh": "welcome行业查询",
+    "en": "Welcome Industry Query"
+  },
+  "search_label": {
+    "zh": "搜索标签",
+    "en": "Search Label"
+  },
+  "industry_rotation_title": {
+    "zh": "行业旋转标题",
+    "en": "Industry Rotation Title"
+  },
+  "config_load_success": {
+    "zh": "配置加载中成功",
+    "en": "Configuration Loading Success"
+  },
+  "confirm_cancel_analysis": {
+    "zh": "确认取消分析",
+    "en": "Confirm Cancel Analysis"
+  },
+  "app_version": {
+    "zh": "应用版本",
+    "en": "Apply Version"
+  },
+  "analysis_failed_title": {
+    "zh": "分析失败标题",
+    "en": "Analysis Failed Title"
+  },
+  "btn_export_analysis": {
+    "zh": "btn导出分析",
+    "en": "Btn Export Analysis"
+  },
+  "startup_data_support": {
+    "zh": "开始数据向上",
+    "en": "Start Data Up"
+  },
+  "loading_success": {
+    "zh": "加载中成功",
+    "en": "Loading Success"
+  },
+  "relative_strength_performance": {
+    "zh": "relativestrength性能",
+    "en": "Relative Strength Performance"
+  },
+  "数据已刷新": {
+    "zh": "数据已刷新",
+    "en": "数据已刷新"
+  },
+  "analysis_complete": {
+    "zh": "分析完成",
+    "en": "Analysis Complete"
+  },
+  "high_risk": {
+    "zh": "高风险",
+    "en": "High Risk"
+  },
+  "rating_big_bear": {
+    "zh": "评级big熊市",
+    "en": "Rating Big Bear"
+  },
+  "rating_micro_bear": {
+    "zh": "评级micro熊市",
+    "en": "Rating Micro Bear"
+  },
+  "技术面显示": {
+    "zh": "技术面显示",
+    "en": "技术面显示"
+  },
+  "data_date": {
+    "zh": "数据日期",
+    "en": "Data Date"
+  },
+  "ranking": {
+    "zh": "排名",
+    "en": "Ranking"
+  },
+  "行业数据加载失败": {
+    "zh": "行业数据加载失败",
+    "en": "行业数据加载失败"
+  },
+  "btn_cancel": {
+    "zh": "btn取消",
+    "en": "Btn Cancel"
+  },
+  "panic_selling": {
+    "zh": "panicselling",
+    "en": "Panic Selling"
+  },
+  "enable_cache": {
+    "zh": "启用缓存",
+    "en": "Enable Cache"
+  },
+  "trading_days_38": {
+    "zh": "trading天38",
+    "en": "Trading Day 38"
+  },
+  "quality_stocks_top5": {
+    "zh": "质量股票顶部",
+    "en": "Quality Stock Top"
+  },
+  "analysis_in_progress": {
+    "zh": "分析加载中progress",
+    "en": "Analysis Loading Progress"
+  },
+  "update_cancelled": {
+    "zh": "更新已取消",
+    "en": "Update Cancelled"
+  },
+  "market_analysis_report": {
+    "zh": "市场分析报告",
+    "en": "Market Analysis Report"
+  },
+  "btn_skip": {
+    "zh": "btn跳过",
+    "en": "Btn Skip"
+  },
+  "core_modules_available": {
+    "zh": "分数模块可用",
+    "en": "Score Module Available"
+  },
+  "股票名称": {
+    "zh": "股票名称",
+    "en": "股票名称"
+  },
+  "sharp_decline": {
+    "zh": "sharpdecline",
+    "en": "Sharp Decline"
+  },
+  "ai_intelligent_analysis": {
+    "zh": "失败智能分析",
+    "en": "Failed Intelligent Analysis"
+  },
+  "trend_strong_up": {
+    "zh": "趋势强向上",
+    "en": "Trend Strong Up"
+  },
+  "export_error": {
+    "zh": "导出错误",
+    "en": "Export Error"
+  },
+  "chart_waiting_analysis": {
+    "zh": "图表等待分析",
+    "en": "Chart Wait Analysis"
+  },
+  "active": {
+    "zh": "活跃",
+    "en": "Active"
+  },
+  "welcome_step3": {
+    "zh": "welcome步骤",
+    "en": "Welcome Step"
+  },
+  "cautiously_optimistic": {
+    "zh": "cautiously乐观",
+    "en": "Cautiously Optimistic"
+  },
+  "welcome_title": {
+    "zh": "welcome标题",
+    "en": "Welcome Title"
+  },
+  "等待止跌企稳信号": {
+    "zh": "等待止跌企稳信号",
+    "en": "等待止跌企稳信号"
+  },
+  "slope": {
+    "zh": "slope",
+    "en": "Slope"
+  },
+  "sorted_by_rtsi": {
+    "zh": "排序byrtsi",
+    "en": "Sort By Rtsi"
+  },
+  "moderate_bull_trend": {
+    "zh": "比率牛市趋势",
+    "en": "Rate Bull Trend"
+  },
+  "analysis_settings": {
+    "zh": "分析设置",
+    "en": "Analysis Settings"
+  },
+  "small_cap": {
+    "zh": "small容量",
+    "en": "Small Capacity"
+  },
+  "pay_attention_to_policy": {
+    "zh": "pay十股票等",
+    "en": "Pay Ten Stock Policy"
+  },
+  "open_settings_window_failed": {
+    "zh": "打开设置窗口等",
+    "en": "Open Settings Window Failed"
+  },
+  "menu_export_html": {
+    "zh": "菜单导出HTML",
+    "en": "Menu Export HTML"
+  },
+  "menu_data_validation": {
+    "zh": "菜单数据验证",
+    "en": "Menu Data Validation"
+  },
+  "current_msci_index": {
+    "zh": "currentmsci指数",
+    "en": "Current Msci Index"
+  },
+  "trend_chart": {
+    "zh": "趋势图表",
+    "en": "Trend Chart"
+  },
+  "status_weak_underperform": {
+    "zh": "状态弱underperform",
+    "en": "Status Weak Underperform"
+  },
+  "theme_windows_classic": {
+    "zh": "主题窗口经典",
+    "en": "Theme Window Classic"
+  },
+  "analysis_error": {
+    "zh": "分析错误",
+    "en": "Analysis Error"
+  },
+  "menu_start_analysis": {
+    "zh": "菜单开始分析",
+    "en": "Menu Start Analysis"
+  },
+  "filetype_data": {
+    "zh": "文件数据",
+    "en": "File Data"
+  },
+  "very_low_volatility": {
+    "zh": "very低波动性",
+    "en": "Very Low Volatility"
+  },
+  "cn_demo_desc": {
+    "zh": "cndemodesc",
+    "en": "Cn Demo Desc"
+  },
+  "welcome_step2": {
+    "zh": "welcome步骤",
+    "en": "Welcome Step"
+  },
+  "行业催化剂和量能变化": {
+    "zh": "行业催化剂和量能变化",
+    "en": "行业催化剂和量能变化"
+  },
+  "excel_files": {
+    "zh": "Excel文件",
+    "en": "Excel File"
+  },
+  "suggested_position": {
+    "zh": "suggested位置",
+    "en": "Suggested Position"
+  },
+  "super_strong_trend": {
+    "zh": "向上强趋势",
+    "en": "Up Strong Trend"
+  },
+  "column_name": {
+    "zh": "列名称",
+    "en": "Column Name"
+  },
+  "default_data_path": {
+    "zh": "默认数据路径",
+    "en": "Default Data Path"
+  },
+  "strong_uptrend": {
+    "zh": "强上升趋势",
+    "en": "Strong Uptrend"
+  },
+  "data_path_settings": {
+    "zh": "数据路径设置",
+    "en": "Data Path Settings"
+  },
+  "welcome_classic_ui": {
+    "zh": "welcome经典构建",
+    "en": "Welcome Classic Build"
+  },
+  "menu_user_guide": {
+    "zh": "菜单userguide",
+    "en": "Menu User Guide"
+  },
+  "chart_data_preparing": {
+    "zh": "图表数据preparing",
+    "en": "Chart Data Preparing"
+  },
+  "status_generating_report": {
+    "zh": "状态评级报告",
+    "en": "Status Rating Report"
+  },
+  "open_industry_analysis_window_failed": {
+    "zh": "打开行业分析等",
+    "en": "Open Industry Analysis Window Failed"
+  },
+  "menu_performance_monitor": {
+    "zh": "菜单性能监控",
+    "en": "Menu Performance Monitor"
+  },
+  "data_loading_validation": {
+    "zh": "数据加载中验证",
+    "en": "Data Loading Validation"
+  },
+  "outperform_market": {
+    "zh": "outperform市场",
+    "en": "Outperform Market"
+  },
+  "行业整体企稳后再考虑配置": {
+    "zh": "行业整体企稳后再考虑配置",
+    "en": "行业整体企稳后再考虑配置"
+  },
+  "analysis_completed_msg": {
+    "zh": "分析已完成msg",
+    "en": "Analysis Completed Msg"
+  },
+  "ai_analysis_startup_failed": {
+    "zh": "失败分析开始等",
+    "en": "Failed Analysis Start Failed"
+  },
+  "python_version_ok": {
+    "zh": "python版本确定",
+    "en": "Python Version OK"
+  },
+  "irsi_desc": {
+    "zh": "irsidesc",
+    "en": "Irsi Desc"
+  },
+  "version_info": {
+    "zh": "版本信息",
+    "en": "Version Information"
+  },
+  "theme_dark": {
+    "zh": "主题深色",
+    "en": "Theme Dark"
+  },
+  "index": {
+    "zh": "指数",
+    "en": "Index"
+  },
+  "five_day_trend": {
+    "zh": "五天趋势",
+    "en": "Five Day Trend"
+  },
+  "文本文件": {
+    "zh": "文本文件",
+    "en": "文本文件"
+  },
+  "check_analysis_data_format": {
+    "zh": "check分析数据等",
+    "en": "Check Analysis Data Format"
+  },
+  "optimistic": {
+    "zh": "乐观",
+    "en": "Optimistic"
+  },
+  "report_export_success": {
+    "zh": "报告导出成功",
+    "en": "Report Export Success"
+  },
+  "rtsi_description": {
+    "zh": "rtsidescription",
+    "en": "Rtsi Description"
+  },
+  "focus_strong_industry_leaders": {
+    "zh": "focus强行业等",
+    "en": "Focus Strong Industry Leaders"
+  },
+  "msci_settings": {
+    "zh": "msci设置",
+    "en": "Msci Settings"
+  },
+  "help_title": {
+    "zh": "帮助标题",
+    "en": "Help Title"
+  },
+  "data_overview": {
+    "zh": "数据overview",
+    "en": "Data Overview"
+  },
+  "msci_based_market_sentiment_analysis": {
+    "zh": "msci基础市场等",
+    "en": "Msci Base Market Time Analysis"
+  },
+  "strength_level": {
+    "zh": "strength级别",
+    "en": "Strength Level"
+  },
+  "initializing_analysis_engine": {
+    "zh": "initializing分析引擎",
+    "en": "Initializing Analysis Engine"
+  },
+  "industry_risk": {
+    "zh": "行业风险",
+    "en": "Industry Risk"
+  },
+  "core_modules_warning": {
+    "zh": "分数模块警告",
+    "en": "Score Module Warning"
+  },
+  "添加到关注列表": {
+    "zh": "添加到关注列表",
+    "en": "添加到关注列表"
+  },
+  "data_preparing": {
+    "zh": "数据preparing",
+    "en": "Data Preparing"
+  },
+  "enable_multithreading": {
+    "zh": "启用多线程",
+    "en": "Enable Multithreading"
+  },
+  "auto_load_last_file": {
+    "zh": "自动加载中最后等",
+    "en": "Auto Loading Last File"
+  },
+  "column_value": {
+    "zh": "列值",
+    "en": "Column Value"
+  },
+  "disclaimer": {
+    "zh": "disclaimer",
+    "en": "Disclaimer"
+  },
+  "high_volatility": {
+    "zh": "高波动性",
+    "en": "High Volatility"
+  },
+  "data_file": {
+    "zh": "数据文件",
+    "en": "Data File"
+  },
+  "error": {
+    "zh": "错误",
+    "en": "Error"
+  },
+  "filetype_excel": {
+    "zh": "文件Excel",
+    "en": "File Excel"
+  },
+  "app_icon": {
+    "zh": "应用icon",
+    "en": "Apply Icon"
+  },
+  "underperform_market": {
+    "zh": "underperform市场",
+    "en": "Underperform Market"
+  },
+  "rating_big_bull": {
+    "zh": "评级big牛市",
+    "en": "Rating Big Bull"
+  },
+  "chart_system_generating": {
+    "zh": "图表系统评级",
+    "en": "Chart System Rating"
+  },
+  "unknown": {
+    "zh": "未知",
+    "en": "Unknown"
+  },
+  "stock_analysis_capacity": {
+    "zh": "股票分析容量",
+    "en": "Stock Analysis Capacity"
+  },
+  "config_load_failed": {
+    "zh": "配置加载中失败",
+    "en": "Configuration Loading Failed"
+  },
+  "ai_analysis_error": {
+    "zh": "失败分析错误",
+    "en": "Failed Analysis Error"
+  },
+  "neutral_balanced": {
+    "zh": "中性平衡",
+    "en": "Neutral Balanced"
+  },
+  "hk_demo_desc": {
+    "zh": "hkdemodesc",
+    "en": "Hk Demo Desc"
+  },
+  "analysis_calculating_irsi": {
+    "zh": "分析calculatingirsi",
+    "en": "Analysis Calculating Irsi"
+  },
+  "export_report": {
+    "zh": "导出报告",
+    "en": "Export Report"
+  },
+  "data_quality": {
+    "zh": "数据质量",
+    "en": "Data Quality"
+  },
+  "stock_market_comprehensive_analysis": {
+    "zh": "股票市场综合等",
+    "en": "Stock Market Comprehensive Analysis"
+  },
+  "成功": {
+    "zh": "成功",
+    "en": "成功"
+  },
+  "no_data": {
+    "zh": "否数据",
+    "en": "No Data"
+  },
+  "超短线或暂不持有": {
+    "zh": "超短线或暂不持有",
+    "en": "超短线或暂不持有"
+  },
+  "industry_categories": {
+    "zh": "行业categories",
+    "en": "Industry Categories"
+  },
+  "strong_industries_top5": {
+    "zh": "强industries顶部",
+    "en": "Strong Industries Top"
+  },
+  "pessimistic": {
+    "zh": "悲观",
+    "en": "Pessimistic"
+  },
+  "status_strong_outperform": {
+    "zh": "状态强outperform",
+    "en": "Status Strong Outperform"
+  },
+  "update_failed": {
+    "zh": "更新失败",
+    "en": "Update Failed"
+  },
+  "所有文件": {
+    "zh": "所有文件",
+    "en": "所有文件"
+  },
+  "ai_stock_trend_analysis_system": {
+    "zh": "失败股票趋势等",
+    "en": "Failed Stock Trend Analysis System"
+  },
+  "选择有效股票": {
+    "zh": "选择有效股票",
+    "en": "选择有效股票"
+  },
+  "sync_with_market": {
+    "zh": "同步with市场",
+    "en": "Sync With Market"
+  },
+  "no_industry_analysis_data": {
+    "zh": "否行业分析等",
+    "en": "No Industry Analysis Data"
+  },
+  "load_data_and_complete_analysis_first": {
+    "zh": "加载中数据展开等",
+    "en": "Loading Data Expand Complete Analysis First"
+  },
+  "正在分析行业数据": {
+    "zh": "正在分析行业数据",
+    "en": "正在分析行业数据"
+  },
+  "focus_points": {
+    "zh": "focuspoints",
+    "en": "Focus Points"
+  },
+  "open_file": {
+    "zh": "打开文件",
+    "en": "Open File"
+  },
+  "neutral_strong": {
+    "zh": "中性强",
+    "en": "Neutral Strong"
+  },
+  "uncategorized": {
+    "zh": "uncategorized",
+    "en": "Uncategorized"
+  },
+  "tip_possible_reasons": {
+    "zh": "tippossiblereasons",
+    "en": "Tip Possible Reasons"
+  },
+  "数据加载失败": {
+    "zh": "数据加载失败",
+    "en": "数据加载失败"
+  },
+  "status_error": {
+    "zh": "状态错误",
+    "en": "Status Error"
+  },
+  "status_updating_data": {
+    "zh": "状态向上数据",
+    "en": "Status Up Data"
+  },
+  "生成时间": {
+    "zh": "生成时间",
+    "en": "生成时间"
+  },
+  "contact": {
+    "zh": "contact",
+    "en": "Contact"
+  },
+  "historical_data_analysis": {
+    "zh": "历史数据分析",
+    "en": "Historical Data Analysis"
+  },
+  "risk_level": {
+    "zh": "风险级别",
+    "en": "Risk Level"
+  },
+  "update_all_success": {
+    "zh": "更新回调成功",
+    "en": "Update Callback Success"
+  },
+  "open_stock_analysis_window_failed": {
+    "zh": "打开股票分析等",
+    "en": "Open Stock Analysis Window Failed"
+  },
+  "medium_volatility": {
+    "zh": "中等波动性",
+    "en": "Medium Volatility"
+  },
+  "bull_bear_balance": {
+    "zh": "牛市熊市平衡",
+    "en": "Bull Bear Balanced"
+  },
+  "rtsi_desc": {
+    "zh": "rtsidesc",
+    "en": "Rtsi Desc"
+  },
+  "stock_analysis": {
+    "zh": "股票分析",
+    "en": "Stock Analysis"
+  },
+  "target_price": {
+    "zh": "目标价格",
+    "en": "Target Price"
+  },
+  "industry_performance": {
+    "zh": "行业性能",
+    "en": "Industry Performance"
+  },
+  "welcome_note_desc": {
+    "zh": "welcome否desc",
+    "en": "Welcome No Desc"
+  },
+  "lagging": {
+    "zh": "lagging",
+    "en": "Lagging"
+  },
+  "update_title": {
+    "zh": "更新标题",
+    "en": "Update Title"
+  },
+  "status_strong_underperform": {
+    "zh": "状态强underperform",
+    "en": "Status Strong Underperform"
+  },
+  "short_term_strategy": {
+    "zh": "short期限策略",
+    "en": "Short Term Strategy"
+  },
+  "advanced_visualization": {
+    "zh": "高级可视化",
+    "en": "Advanced Visualization"
+  },
+  "menu_export_report": {
+    "zh": "菜单导出报告",
+    "en": "Menu Export Report"
+  },
+  "moderate_uptrend": {
+    "zh": "比率上升趋势",
+    "en": "Rate Uptrend"
+  },
+  "股票代码": {
+    "zh": "股票代码",
+    "en": "股票代码"
+  },
+  "gui_import_failed": {
+    "zh": "gui导入失败",
+    "en": "Gui Import Failed"
+  },
+  "请先选择股票": {
+    "zh": "请先选择股票",
+    "en": "请先选择股票"
+  },
+  "btn_analyze": {
+    "zh": "btnanalyze",
+    "en": "Btn Analyze"
+  },
+  "analysis_description": {
+    "zh": "分析description",
+    "en": "Analysis Description"
+  },
+  "moderate_downtrend": {
+    "zh": "比率下降趋势",
+    "en": "Rate Downtrend"
+  },
+  "Error": {
+    "zh": "错误",
+    "en": "Error"
+  },
+  "confirm_title": {
+    "zh": "确认标题",
+    "en": "Confirm Title"
+  },
+  "extremely_optimistic": {
+    "zh": "extremely乐观",
+    "en": "Extremely Optimistic"
+  },
+  "settings_saved": {
+    "zh": "设置保存",
+    "en": "Settings Save"
+  },
+  "market_data_parse_error": {
+    "zh": "市场数据解析器等",
+    "en": "Market Data Parser Error"
+  },
+  "data_processing_title": {
+    "zh": "数据处理中标题",
+    "en": "Data Processing Title"
+  },
+  "industry_analysis": {
+    "zh": "行业分析",
+    "en": "Industry Analysis"
+  },
+  "btn_stock": {
+    "zh": "btn股票",
+    "en": "Btn Stock"
+  },
+  "complete_analysis_first": {
+    "zh": "完成分析第一",
+    "en": "Complete Analysis First"
+  },
+  "about": {
+    "zh": "关于",
+    "en": "About"
+  },
+  "waiting_analysis": {
+    "zh": "等待分析",
+    "en": "Wait Analysis"
+  },
+  "industry_position": {
+    "zh": "行业位置",
+    "en": "Industry Position"
+  },
+  "导出失败": {
+    "zh": "导出失败",
+    "en": "导出失败"
+  },
+  "relative_strength": {
+    "zh": "relativestrength",
+    "en": "Relative Strength"
+  },
+  "trend_strong_down": {
+    "zh": "趋势强向下",
+    "en": "Trend Strong Down"
+  },
+  "hold": {
+    "zh": "阈值",
+    "en": "Threshold"
+  },
+  "btn_add_watch": {
+    "zh": "btn添加监视器",
+    "en": "Btn Add Watcher"
+  },
+  "best_entry_point": {
+    "zh": "bestentrypoint",
+    "en": "Best Entry Point"
+  },
+  "menu_industry_analysis": {
+    "zh": "菜单行业分析",
+    "en": "Menu Industry Analysis"
+  },
+  "average": {
+    "zh": "平均",
+    "en": "Average"
+  },
+  "available": {
+    "zh": "可用",
+    "en": "Available"
+  },
+  "market_sentiment_index": {
+    "zh": "市场时间指数",
+    "en": "Market Time Index"
+  },
+  "missing": {
+    "zh": "missing",
+    "en": "Missing"
+  },
+  "positive_optimistic": {
+    "zh": "正乐观",
+    "en": "Positive Optimistic"
+  },
+  "错误": {
+    "zh": "错误",
+    "en": "错误"
+  },
+  "welcome_stock_count": {
+    "zh": "welcome股票计数",
+    "en": "Welcome Stock Count"
+  },
+  "rating_mid_bear": {
+    "zh": "评级中间熊市",
+    "en": "Rating Middle Bear"
+  },
+  "update_partial_success": {
+    "zh": "更新部分成功",
+    "en": "Update Partial Success"
+  },
+  "future_outlook": {
+    "zh": "future确定",
+    "en": "Future OK"
+  },
+  "update_downloading_file": {
+    "zh": "更新加载中文件",
+    "en": "Update Loading File"
+  },
+  "detailed_data": {
+    "zh": "detailed数据",
+    "en": "Detailed Data"
+  },
+  "industry": {
+    "zh": "行业",
+    "en": "Industry"
+  },
+  "stage_detail_validation": {
+    "zh": "阶段detail验证",
+    "en": "Stage Detail Validation"
+  },
+  "rtsi_individual_trend_analysis": {
+    "zh": "rtsiindividual趋势等",
+    "en": "Rtsi Individual Trend Analysis"
+  },
+  "column_stock_count": {
+    "zh": "列股票计数",
+    "en": "Column Stock Count"
+  },
+  "cache_settings": {
+    "zh": "缓存设置",
+    "en": "Cache Settings"
+  },
+  "price": {
+    "zh": "价格",
+    "en": "Price"
+  },
+  "app_name": {
+    "zh": "应用名称",
+    "en": "Apply Name"
+  },
+  "data_analysis_ongoing": {
+    "zh": "数据分析ongoing",
+    "en": "Data Analysis Ongoing"
+  },
+  "startup_title": {
+    "zh": "开始标题",
+    "en": "Start Title"
+  },
+  "python_version_low": {
+    "zh": "python版本低",
+    "en": "Python Version Low"
+  },
+  "low_risk": {
+    "zh": "低风险",
+    "en": "Low Risk"
+  },
+  "暂不设定目标价": {
+    "zh": "暂不设定目标价",
+    "en": "暂不设定目标价"
+  },
+  "holding_period": {
+    "zh": "holding时期",
+    "en": "Holding Period"
+  },
+  "basic_info": {
+    "zh": "basic信息",
+    "en": "Basic Information"
+  },
+  "industry_detail_info": {
+    "zh": "行业detail信息",
+    "en": "Industry Detail Information"
+  },
+  "prevent_bubble_risk": {
+    "zh": "事件bubble风险",
+    "en": "Event Bubble Risk"
+  },
+  "filetype_csv": {
+    "zh": "文件CSV",
+    "en": "File CSV"
+  },
+  "data_processing": {
+    "zh": "数据处理中",
+    "en": "Data Processing"
+  },
+  "analysis_error_msg": {
+    "zh": "分析错误msg",
+    "en": "Analysis Error Msg"
+  },
+  "extremely_pessimistic": {
+    "zh": "extremely悲观",
+    "en": "Extremely Pessimistic"
+  },
+  "market_analysis_window_title": {
+    "zh": "市场分析窗口等",
+    "en": "Market Analysis Window Title"
+  },
+  "five_day_change": {
+    "zh": "五天更改",
+    "en": "Five Day Change"
+  },
+  "trading_days": {
+    "zh": "trading天",
+    "en": "Trading Day"
+  },
+  "添加关注失败": {
+    "zh": "添加关注失败",
+    "en": "添加关注失败"
+  },
+  "author": {
+    "zh": "author",
+    "en": "Author"
+  },
+  "industry_rotation_analysis": {
+    "zh": "行业旋转分析",
+    "en": "Industry Rotation Analysis"
+  },
+  "chart_generated_data": {
+    "zh": "图表生成数据",
+    "en": "Chart Generate Data"
+  },
+  "current_market_sentiment": {
+    "zh": "current市场时间",
+    "en": "Current Market Time"
+  },
+  "feature_unavailable": {
+    "zh": "特性不可用",
+    "en": "Feature Unavailable"
+  },
+  "strong_bull_trend": {
+    "zh": "强牛市趋势",
+    "en": "Strong Bull Trend"
+  },
+  "中性偏强": {
+    "zh": "中性偏强",
+    "en": "中性偏强"
+  },
+  "top_stocks_title": {
+    "zh": "顶部股票标题",
+    "en": "Top Stock Title"
+  },
+  "real": {
+    "zh": "实时",
+    "en": "Realtime"
+  },
+  "提示": {
+    "zh": "提示",
+    "en": "提示"
+  },
+  "rating_system": {
+    "zh": "评级系统",
+    "en": "Rating System"
+  },
+  "trend_direction": {
+    "zh": "趋势方向",
+    "en": "Trend Direction"
+  },
+  "ai_analyst_opinion": {
+    "zh": "失败analystopinion",
+    "en": "Failed Analyst Opinion"
+  },
+  "status_loading": {
+    "zh": "状态加载中",
+    "en": "Status Loading"
+  },
+  "module_available": {
+    "zh": "模块可用",
+    "en": "Module Available"
+  },
+  "seek_value_opportunities": {
+    "zh": "seek值单位",
+    "en": "Seek Value Unit"
+  },
+  "Success": {
+    "zh": "成功",
+    "en": "Success"
+  },
+  "stock_analysis_report": {
+    "zh": "股票分析报告",
+    "en": "Stock Analysis Report"
+  },
+  "theme_modern": {
+    "zh": "主题现代",
+    "en": "Theme Modern"
+  },
+  "ai_analysis_failed": {
+    "zh": "失败分析失败",
+    "en": "Failed Analysis Failed"
+  },
+  "status_loading_industry": {
+    "zh": "状态加载中行业",
+    "en": "Status Loading Industry"
+  },
+  "stock_name": {
+    "zh": "股票名称",
+    "en": "Stock Name"
+  },
+  "menu_help": {
+    "zh": "菜单帮助",
+    "en": "Menu Help"
+  },
+  "irsi_settings": {
+    "zh": "irsi设置",
+    "en": "Irsi Settings"
+  },
+  "very_weak": {
+    "zh": "very弱",
+    "en": "Very Weak"
+  },
+  "module_missing": {
+    "zh": "模块missing",
+    "en": "Module Missing"
+  },
+  "detail_analysis_complete": {
+    "zh": "detail分析完成",
+    "en": "Detail Analysis Complete"
+  },
+  "rtsi_analysis_result": {
+    "zh": "rtsi分析结果",
+    "en": "Rtsi Analysis Result"
+  },
+  "strongly_recommend": {
+    "zh": "强结束",
+    "en": "Strong End"
+  },
+  "status_weak_outperform": {
+    "zh": "状态弱outperform",
+    "en": "Status Weak Outperform"
+  },
+  "focus_rotation_opportunities": {
+    "zh": "focus旋转单位",
+    "en": "Focus Rotation Unit"
+  },
+  "data_update_error": {
+    "zh": "数据更新错误",
+    "en": "Data Update Error"
+  },
+  "stock_analysis_window_title": {
+    "zh": "股票分析窗口等",
+    "en": "Stock Analysis Window Title"
+  },
+  "blue_chip": {
+    "zh": "bluechip",
+    "en": "Blue Chip"
+  },
+  "strong": {
+    "zh": "强",
+    "en": "Strong"
+  },
+  "btn_export": {
+    "zh": "btn导出",
+    "en": "Btn Export"
+  },
+  "min_data_points": {
+    "zh": "最小化数据points",
+    "en": "Minimize Data Points"
+  },
+  "gui_limited_functionality": {
+    "zh": "gui限制函数",
+    "en": "Gui Limit Function"
+  },
+  "突破阻力位时": {
+    "zh": "突破阻力位时",
+    "en": "突破阻力位时"
+  },
+  "generation_time": {
+    "zh": "比率时间",
+    "en": "Ratio Time"
+  },
+  "market_sentiment_analysis": {
+    "zh": "市场时间分析",
+    "en": "Market Time Analysis"
+  },
+  "html_report_generation_failed": {
+    "zh": "HTML报告比率等",
+    "en": "HTML Report Ratio Failed"
+  },
+  "detail_data_validation": {
+    "zh": "detail数据验证",
+    "en": "Detail Data Validation"
+  },
+  "data_preparation_failed": {
+    "zh": "数据比率失败",
+    "en": "Data Ratio Failed"
+  },
+  "column_rank": {
+    "zh": "列排名",
+    "en": "Column Rank"
+  },
+  "analysis_progress_title": {
+    "zh": "分析progress标题",
+    "en": "Analysis Progress Title"
+  },
+  "strong_industries_ranking": {
+    "zh": "强industries排名",
+    "en": "Strong Industries Ranking"
+  },
+  "thread_count": {
+    "zh": "多线程计数",
+    "en": "Multithreading Count"
+  },
+  "excel_format": {
+    "zh": "Excel格式",
+    "en": "Excel Format"
+  },
+  "system_settings": {
+    "zh": "系统设置",
+    "en": "System Settings"
+  },
+  "update_success": {
+    "zh": "更新成功",
+    "en": "Update Success"
+  },
+  "刷新数据失败": {
+    "zh": "刷新数据失败",
+    "en": "刷新数据失败"
+  },
+  "investment_value": {
+    "zh": "investment值",
+    "en": "Investment Value"
+  },
+  "中长线持有(1-3个月)": {
+    "zh": "中长线持有(13个月)",
+    "en": "中长线持有(1 3个月)"
+  },
+  "btn_market": {
+    "zh": "btn市场",
+    "en": "Btn Market"
+  },
+  "btn_report": {
+    "zh": "btn报告",
+    "en": "Btn Report"
+  },
+  "balanced_allocation": {
+    "zh": "平衡位置",
+    "en": "Balanced Location"
+  },
+  "stock_detail_title": {
+    "zh": "股票detail标题",
+    "en": "Stock Detail Title"
+  },
+  "update_status_ready": {
+    "zh": "更新状态就绪",
+    "en": "Update Status Ready"
+  },
+  "font_size": {
+    "zh": "字体大小",
+    "en": "Font Size"
+  },
+  "realtime_analysis_engine": {
+    "zh": "实时分析引擎",
+    "en": "Realtime Analysis Engine"
+  },
+  "technical_risk": {
+    "zh": "technical风险",
+    "en": "Technical Risk"
+  },
+  "detailed_data_tip": {
+    "zh": "detailed数据tip",
+    "en": "Detailed Data Tip"
+  },
+  "calculation_time": {
+    "zh": "calculation时间",
+    "en": "Calculation Time"
+  },
+  "analysis_empty": {
+    "zh": "分析空",
+    "en": "Analysis Empty"
+  },
+  "技术面偏弱，建议等待": {
+    "zh": "技术面偏弱，建议等待",
+    "en": "技术面偏弱，建议等待"
+  },
+  "menu_tools": {
+    "zh": "菜单工具",
+    "en": "Menu Tool"
+  },
+  "status_ready": {
+    "zh": "状态就绪",
+    "en": "Status Ready"
+  },
+  "trend_weak_up": {
+    "zh": "趋势弱向上",
+    "en": "Trend Weak Up"
+  },
+  "detailed_analysis": {
+    "zh": "detailed分析",
+    "en": "Detailed Analysis"
+  },
+  "restart_required": {
+    "zh": "开始必需",
+    "en": "Start Required"
+  },
+  "save_analysis_report": {
+    "zh": "保存分析报告",
+    "en": "Save Analysis Report"
+  },
+  "set_stop_loss_risk_control": {
+    "zh": "设置停止loss等",
+    "en": "Settings Stop Loss Risk Controller"
+  },
+  "irsi_description": {
+    "zh": "irsidescription",
+    "en": "Irsi Description"
+  },
+  "excellent": {
+    "zh": "Excel",
+    "en": "Excel"
+  },
+  "update_skipped": {
+    "zh": "更新跳过",
+    "en": "Update Skip"
+  },
+  "ai_analysis_completed": {
+    "zh": "失败分析已完成",
+    "en": "Failed Analysis Completed"
+  },
+  "technical_strength": {
+    "zh": "technicalstrength",
+    "en": "Technical Strength"
+  },
+  "回调至支撑位时": {
+    "zh": "回调至支撑位时",
+    "en": "回调至支撑位时"
+  },
+  "open_market_analysis_window_failed": {
+    "zh": "打开市场分析等",
+    "en": "Open Market Analysis Window Failed"
+  },
+  "total_stocks": {
+    "zh": "总计股票",
+    "en": "Total Stock"
+  },
+  "irsi_based_industry_strength_analysis": {
+    "zh": "irsi基础行业等",
+    "en": "Irsi Base Industry Strength Analysis"
+  },
+  "medium": {
+    "zh": "中等",
+    "en": "Medium"
+  },
+  "update_complete_success": {
+    "zh": "更新完成成功",
+    "en": "Update Complete Success"
+  },
+  "estimated": {
+    "zh": "estimated",
+    "en": "Estimated"
+  },
+  "error_file_load_failed": {
+    "zh": "错误文件加载中等",
+    "en": "Error File Loading Failed"
+  },
+  "dialog_select_file": {
+    "zh": "对话框选择文件",
+    "en": "Dialog Select File"
+  },
+  "result_data_date": {
+    "zh": "结果数据日期",
+    "en": "Result Data Date"
+  },
+  "短中线操作(2-4周)": {
+    "zh": "短中线操作(24周)",
+    "en": "短中线操作(2 4周)"
+  },
+  "status_select_file": {
+    "zh": "状态选择文件",
+    "en": "Status Select File"
+  },
+  "market_cap_level": {
+    "zh": "市场容量级别",
+    "en": "Market Capacity Level"
+  },
+  "current_strongest_industry": {
+    "zh": "current强行业",
+    "en": "Current Strong Industry"
+  },
+  "status_neutral": {
+    "zh": "状态中性",
+    "en": "Status Neutral"
+  },
+  "extremely_high_volatility": {
+    "zh": "extremely高波动性",
+    "en": "Extremely High Volatility"
+  },
+  "completed": {
+    "zh": "已完成",
+    "en": "Completed"
+  },
+  "industry_analysis_report": {
+    "zh": "行业分析报告",
+    "en": "Industry Analysis Report"
+  },
+  "ai_analysis_skipped_incomplete_config": {
+    "zh": "失败分析跳过等",
+    "en": "Failed Analysis Skip Complete Configuration"
+  },
+  "industry_classification": {
+    "zh": "行业classification",
+    "en": "Industry Classification"
+  },
+  "confirm_reset_defaults": {
+    "zh": "确认重置默认",
+    "en": "Confirm Reset Default"
+  },
+  "export_analysis_report": {
+    "zh": "导出分析报告",
+    "en": "Export Analysis Report"
+  },
+  "units_industries": {
+    "zh": "单位industries",
+    "en": "Unit Industries"
+  },
+  "module_warning": {
+    "zh": "模块警告",
+    "en": "Module Warning"
+  },
+  "column_item": {
+    "zh": "列item",
+    "en": "Column Item"
+  },
+  "investment_advice": {
+    "zh": "investmentadvice",
+    "en": "Investment Advice"
+  },
+  "recent_rating": {
+    "zh": "recent评级",
+    "en": "Recent Rating"
+  },
+  "rating_range": {
+    "zh": "评级范围",
+    "en": "Rating Range"
+  },
+  "analysis_algorithm": {
+    "zh": "分析算法",
+    "en": "Analysis Algorithm"
+  },
+  "chart_rating_score": {
+    "zh": "图表评级分数",
+    "en": "Chart Rating Score"
+  },
+  "ai_analysis_execution_failed": {
+    "zh": "失败分析执行等",
+    "en": "Failed Analysis Execution Failed"
+  },
+  "个行业的IRSI数据": {
+    "zh": "个行业的irsi数据",
+    "en": "个行业的Irsi数据"
+  },
+  "ai_intelligent_analysis_in_progress": {
+    "zh": "失败智能分析等",
+    "en": "Failed Intelligent Analysis Loading Progress"
+  },
+  "update_downloading": {
+    "zh": "更新加载中",
+    "en": "Update Loading"
+  },
+  "rotation_signal": {
+    "zh": "旋转signal",
+    "en": "Rotation Signal"
+  },
+  "暂无行业分析数据": {
+    "zh": "暂无行业分析数据",
+    "en": "暂无行业分析数据"
+  },
+  "install_command": {
+    "zh": "安装command",
+    "en": "Installation Command"
+  },
+  "slightly_pessimistic": {
+    "zh": "浅色悲观",
+    "en": "Light Pessimistic"
+  },
+  "healthy_optimistic": {
+    "zh": "healthy乐观",
+    "en": "Healthy Optimistic"
+  },
+  "ai_analysis_failed_continue_traditional": {
+    "zh": "失败分析失败等",
+    "en": "Failed Analysis Failed Continue Traditional"
+  },
+  "pay_attention_to_market": {
+    "zh": "pay十股票等",
+    "en": "Pay Ten Stock Market"
+  },
+  "active_allocation": {
+    "zh": "活跃位置",
+    "en": "Active Location"
+  },
+  "overall_sentiment": {
+    "zh": "时代时间",
+    "en": "Era Time"
+  },
+  "rtsi_based_quality_stock_analysis": {
+    "zh": "rtsi基础质量等",
+    "en": "Rtsi Base Quality Stock Analysis"
+  },
+  "euphoric": {
+    "zh": "向上",
+    "en": "Up"
+  },
+  "status_data_validation": {
+    "zh": "状态数据验证",
+    "en": "Status Data Validation"
+  },
+  "error_insufficient_data": {
+    "zh": "错误insufficient数据",
+    "en": "Error Insufficient Data"
+  },
+  "ai_analysis_skipped_no_config": {
+    "zh": "失败分析跳过等",
+    "en": "Failed Analysis Skip No Configuration"
+  },
+  "已加载": {
+    "zh": "已加载",
+    "en": "已加载"
+  },
+  "trend_sideways": {
+    "zh": "趋势sideways",
+    "en": "Trend Sideways"
+  },
+  "all_rights_reserved": {
+    "zh": "回调右reserved",
+    "en": "Callback Right Reserved"
+  },
+  "update_error": {
+    "zh": "更新错误",
+    "en": "Update Error"
+  },
+  "filetype_all": {
+    "zh": "文件回调",
+    "en": "File Callback"
+  },
+  "core_indicators": {
+    "zh": "分数indicators",
+    "en": "Score Indicators"
+  },
+  "mildly_pessimistic": {
+    "zh": "mildly悲观",
+    "en": "Mildly Pessimistic"
+  },
+  "ai_assisted_development": {
+    "zh": "失败assisteddevelopment",
+    "en": "Failed Assisted Development"
+  },
+  "rising": {
+    "zh": "上升",
+    "en": "Rising"
+  },
+  "status_calculating_irsi": {
+    "zh": "状态calculatingirsi",
+    "en": "Status Calculating Irsi"
+  },
+  "liquidity": {
+    "zh": "liquidity",
+    "en": "Liquidity"
+  },
+  "rating_small_bull": {
+    "zh": "评级small牛市",
+    "en": "Rating Small Bull"
+  },
+  "rtsi_index": {
+    "zh": "rtsi指数",
+    "en": "Rtsi Index"
+  },
+  "support_resistance": {
+    "zh": "向上resistance",
+    "en": "Up Resistance"
+  },
+  "based_on_rating_analysis": {
+    "zh": "基础确认评级等",
+    "en": "Base Confirm Rating Analysis"
+  },
+  "stock_recommendations": {
+    "zh": "股票结束",
+    "en": "Stock End"
+  },
+  "menu_analysis": {
+    "zh": "菜单分析",
+    "en": "Menu Analysis"
+  },
+  "analysis_results": {
+    "zh": "分析结果",
+    "en": "Analysis Result"
+  },
+  "stocks_unit": {
+    "zh": "股票单位",
+    "en": "Stock Unit"
+  },
+  "windows_classic_ui": {
+    "zh": "窗口经典构建",
+    "en": "Window Classic Build"
+  },
+  "btn_msci_details": {
+    "zh": "btnmscidetails",
+    "en": "Btn Msci Details"
+  },
+  "完成数据分析": {
+    "zh": "完成数据分析",
+    "en": "完成数据分析"
+  },
+  "btn_start_analysis": {
+    "zh": "btn开始分析",
+    "en": "Btn Start Analysis"
+  },
+  "market_risk": {
+    "zh": "市场风险",
+    "en": "Market Risk"
+  },
+  "col_stock_name": {
+    "zh": "颜色股票名称",
+    "en": "Color Stock Name"
+  },
+  "analysis_result_title": {
+    "zh": "分析结果标题",
+    "en": "Analysis Result Title"
+  },
+  "btn_refresh": {
+    "zh": "btn刷新",
+    "en": "Btn Refresh"
+  },
+  "welcome_core_features": {
+    "zh": "welcome分数特性",
+    "en": "Welcome Score Feature"
+  },
+  "welcome_note": {
+    "zh": "welcome否",
+    "en": "Welcome No"
+  },
+  "result_calculation_time": {
+    "zh": "结果calculation时间",
+    "en": "Result Calculation Time"
+  },
+  "看至前期阻力位": {
+    "zh": "看至前期阻力位",
+    "en": "看至前期阻力位"
+  },
+  "btn_ai_model": {
+    "zh": "btn失败模型",
+    "en": "Btn Failed Model"
+  },
+  "column_status": {
+    "zh": "列状态",
+    "en": "Column Status"
+  },
+  "excel_export_failed": {
+    "zh": "Excel导出失败",
+    "en": "Excel Export Failed"
+  },
+  "msci_description": {
+    "zh": "mscidescription",
+    "en": "Msci Description"
+  },
+  "categories_unit": {
+    "zh": "categories单位",
+    "en": "Categories Unit"
+  },
+  "medium_term_strategy": {
+    "zh": "中等期限策略",
+    "en": "Medium Term Strategy"
+  },
+  "risk_warning": {
+    "zh": "风险警告",
+    "en": "Risk Warning"
+  },
+  "welcome_step1": {
+    "zh": "welcome步骤",
+    "en": "Welcome Step"
+  },
+  "market_judgment": {
+    "zh": "市场judgment",
+    "en": "Market Judgment"
+  },
+  "success": {
+    "zh": "成功",
+    "en": "Success"
+  },
+  "performance_analysis": {
+    "zh": "性能分析",
+    "en": "Performance Analysis"
+  },
+  "industry_name": {
+    "zh": "行业名称",
+    "en": "Industry Name"
+  },
+  "moderate_attention": {
+    "zh": "比率十",
+    "en": "Rate Ten"
+  },
+  "negative_pessimistic": {
+    "zh": "负悲观",
+    "en": "Negative Pessimistic"
+  },
+  "跌破近期支撑位": {
+    "zh": "跌破近期支撑位",
+    "en": "跌破近期支撑位"
+  },
+  "测试键": {
+    "zh": "测试键",
+    "en": "测试键"
+  },
+  "irsi_index_explanation": {
+    "zh": "irsi指数计划",
+    "en": "Irsi Index Plan"
+  },
+  "sentiment_interpretation": {
+    "zh": "时间interpretation",
+    "en": "Time Interpretation"
+  },
+  "status_calculating_rtsi": {
+    "zh": "状态calculatingrtsi",
+    "en": "Status Calculating Rtsi"
+  },
+  "menu_open_file": {
+    "zh": "菜单打开文件",
+    "en": "Menu Open File"
+  },
+  "report_saved_to": {
+    "zh": "报告保存股票",
+    "en": "Report Save Stock"
+  },
+  "key": {
+    "zh": "key",
+    "en": "Key"
+  },
+  "detail_calculating_msci": {
+    "zh": "detailcalculatingmsci",
+    "en": "Detail Calculating Msci"
+  },
+  "stage_detail_loading": {
+    "zh": "阶段detail加载中",
+    "en": "Stage Detail Loading"
+  },
+  "error_calculation_error": {
+    "zh": "错误calculation错误",
+    "en": "Error Calculation Error"
+  },
+  "请先选择并分析股票": {
+    "zh": "请先选择并分析股票",
+    "en": "请先选择并分析股票"
+  },
+  "neutral_weak": {
+    "zh": "中性弱",
+    "en": "Neutral Weak"
+  },
+  "remember_window_position": {
+    "zh": "remember窗口位置",
+    "en": "Remember Window Position"
+  },
+  "startup_shortcuts": {
+    "zh": "开始剪切",
+    "en": "Start Cut"
+  },
+  "menu_stock_analysis": {
+    "zh": "菜单股票分析",
+    "en": "Menu Stock Analysis"
+  },
+  "detailed_report_instruction": {
+    "zh": "detailed报告instruction",
+    "en": "Detailed Report Instruction"
+  },
+  "status_loading_data": {
+    "zh": "状态加载中数据",
+    "en": "Status Loading Data"
+  },
+  "build_date": {
+    "zh": "构建日期",
+    "en": "Build Date"
+  },
+  "analysis_failed": {
+    "zh": "分析失败",
+    "en": "Analysis Failed"
+  },
+  "rating_coverage": {
+    "zh": "评级时代",
+    "en": "Rating Era"
+  },
+  "chart_rating_trend": {
+    "zh": "图表评级趋势",
+    "en": "Chart Rating Trend"
+  },
+  "levels": {
+    "zh": "级别",
+    "en": "Level"
+  },
+  "strong_buy": {
+    "zh": "强buy",
+    "en": "Strong Buy"
+  },
+  "consolidation": {
+    "zh": "consolidation",
+    "en": "Consolidation"
+  },
+  "chart_time": {
+    "zh": "图表时间",
+    "en": "Chart Time"
+  },
+  "analysis_calculating_msci": {
+    "zh": "分析calculatingmsci",
+    "en": "Analysis Calculating Msci"
+  },
+  "update_some_failed": {
+    "zh": "更新some失败",
+    "en": "Update Some Failed"
+  },
+  "menu_settings": {
+    "zh": "菜单设置",
+    "en": "Menu Settings"
+  },
+  "analysis_result": {
+    "zh": "分析结果",
+    "en": "Analysis Result"
+  },
+  "welcome_getting_started": {
+    "zh": "welcomegetting开始",
+    "en": "Welcome Getting Start"
+  },
+  "very_strong": {
+    "zh": "very强",
+    "en": "Very Strong"
+  },
+  "gui_check_files": {
+    "zh": "guicheck文件",
+    "en": "Gui Check File"
+  },
+  "categories": {
+    "zh": "categories",
+    "en": "Categories"
+  },
+  "chart_select_stock": {
+    "zh": "图表选择股票",
+    "en": "Chart Select Stock"
+  },
+  "theme_settings": {
+    "zh": "主题设置",
+    "en": "Theme Settings"
+  },
+  "msci_desc": {
+    "zh": "mscidesc",
+    "en": "Msci Desc"
+  },
+  "python_version_recommend": {
+    "zh": "python版本结束",
+    "en": "Python Version End"
+  },
+  "ai_analysis_disclaimer": {
+    "zh": "失败分析disclaimer",
+    "en": "Failed Analysis Disclaimer"
+  },
+  "确认已加载数据文件": {
+    "zh": "确认已加载数据文件",
+    "en": "确认已加载数据文件"
+  },
+  "bull_market_threshold": {
+    "zh": "牛市市场阈值",
+    "en": "Bull Market Threshold"
+  },
+  "analysis_status": {
+    "zh": "分析状态",
+    "en": "Analysis Status"
+  },
+  "analysis_time": {
+    "zh": "分析时间",
+    "en": "Analysis Time"
+  },
+  "menu_update_data": {
+    "zh": "菜单更新数据",
+    "en": "Menu Update Data"
+  },
+  "app_title": {
+    "zh": "应用标题",
+    "en": "Apply Title"
+  },
+  "ai_analyzing": {
+    "zh": "失败analyzing",
+    "en": "Failed Analyzing"
+  },
+  "interface_settings": {
+    "zh": "界面设置",
+    "en": "Interface Settings"
+  },
+  "error_analysis_failed": {
+    "zh": "错误分析失败",
+    "en": "Error Analysis Failed"
+  },
+  "summary_generation_failed": {
+    "zh": "总和比率失败",
+    "en": "Sum Ratio Failed"
+  },
+  "sorted_by_irsi": {
+    "zh": "排序byirsi",
+    "en": "Sort By Irsi"
+  },
+  "data_analysis_in_progress": {
+    "zh": "数据分析加载中等",
+    "en": "Data Analysis Loading Progress"
+  },
+  "menu_exit": {
+    "zh": "菜单退出",
+    "en": "Menu Exit"
+  },
+  "font_settings": {
+    "zh": "字体设置",
+    "en": "Font Settings"
+  },
+  "btn_close": {
+    "zh": "btn关闭",
+    "en": "Btn Close"
+  },
+  "stocks": {
+    "zh": "股票",
+    "en": "Stock"
+  },
+  "dialog_test": {
+    "zh": "对话框测试",
+    "en": "Dialog Test"
+  },
+  "risk_assessment": {
+    "zh": "风险评估",
+    "en": "Risk Assessment"
+  },
+  "menu_file": {
+    "zh": "菜单文件",
+    "en": "Menu File"
+  },
+  "panic": {
+    "zh": "panic",
+    "en": "Panic"
+  },
+  "data_update_failed": {
+    "zh": "数据更新失败",
+    "en": "Data Update Failed"
+  },
+  "exported_excel_report": {
+    "zh": "导出Excel报告",
+    "en": "Export Excel Report"
+  },
+  "cache_size_limit": {
+    "zh": "缓存大小限制",
+    "en": "Cache Size Limit"
+  },
+  "cannot_find_industry_data": {
+    "zh": "否find行业等",
+    "en": "No Find Industry Data"
+  },
+  "core_metrics": {
+    "zh": "分数metrics",
+    "en": "Score Metrics"
+  },
+  "column_trend": {
+    "zh": "列趋势",
+    "en": "Column Trend"
+  },
+  "disclaimer_text": {
+    "zh": "disclaimer文本",
+    "en": "Disclaimer Text"
+  },
+  "core_features_title": {
+    "zh": "分数特性标题",
+    "en": "Score Feature Title"
+  },
+  "deep_analysis_report": {
+    "zh": "deep分析报告",
+    "en": "Deep Analysis Report"
+  },
+  "detail_generating_report": {
+    "zh": "detail评级报告",
+    "en": "Detail Rating Report"
+  },
+  "update_progress": {
+    "zh": "更新progress",
+    "en": "Update Progress"
+  },
+  "industry_category": {
+    "zh": "行业类别",
+    "en": "Industry Category"
+  },
+  "low_volatility": {
+    "zh": "低波动性",
+    "en": "Low Volatility"
+  },
+  "menu_market_analysis": {
+    "zh": "菜单市场分析",
+    "en": "Menu Market Analysis"
+  },
+  "technical_support": {
+    "zh": "technical向上",
+    "en": "Technical Up"
+  },
+  "已在关注列表中": {
+    "zh": "已在关注列表中",
+    "en": "已在关注列表中"
+  },
+  "seconds": {
+    "zh": "秒",
+    "en": "Second"
+  },
+  "status_analysis_complete": {
+    "zh": "状态分析完成",
+    "en": "Status Analysis Complete"
+  },
+  "中性": {
+    "zh": "中性",
+    "en": "中性"
+  },
+  "btn_refresh_data": {
+    "zh": "btn刷新数据",
+    "en": "Btn Refresh Data"
+  },
+  "data_reliability": {
+    "zh": "数据能力",
+    "en": "Data Ability"
+  },
+  "volume": {
+    "zh": "成交量",
+    "en": "Volume"
+  },
+  "core_metrics_label": {
+    "zh": "分数metrics标签",
+    "en": "Score Metrics Label"
+  },
+  "stop_loss_position": {
+    "zh": "停止loss位置",
+    "en": "Stop Loss Position"
+  },
+  "column_confidence": {
+    "zh": "列confidence",
+    "en": "Column Confidence"
+  },
+  "latest_rating": {
+    "zh": "测试评级",
+    "en": "Test Rating"
+  },
+  "status_calculating_msci": {
+    "zh": "状态calculatingmsci",
+    "en": "Status Calculating Msci"
+  },
+  "analysis_summary": {
+    "zh": "分析总和",
+    "en": "Analysis Sum"
+  },
+  "name": {
+    "zh": "名称",
+    "en": "Name"
+  },
+  "help_developing": {
+    "zh": "帮助developing",
+    "en": "Help Developing"
+  },
+  "rating_small_bear": {
+    "zh": "评级small熊市",
+    "en": "Rating Small Bear"
+  },
+  "error_info": {
+    "zh": "错误信息",
+    "en": "Error Information"
+  },
+  "Excel文件": {
+    "zh": "Excel",
+    "en": "Excel"
+  },
+  "technical_analysis": {
+    "zh": "technical分析",
+    "en": "Technical Analysis"
+  },
+  "ai_stock_trend_analysis_report": {
+    "zh": "失败股票趋势等",
+    "en": "Failed Stock Trend Analysis Report"
+  },
+  "data_updater_not_found": {
+    "zh": "数据日期否等",
+    "en": "Data Date No Foundation"
+  },
+  "analysis_disclaimer": {
+    "zh": "分析disclaimer",
+    "en": "Analysis Disclaimer"
+  },
+  "btn_load": {
+    "zh": "btn加载中",
+    "en": "Btn Loading"
+  },
+  "ai_config_error": {
+    "zh": "失败配置错误",
+    "en": "Failed Configuration Error"
+  },
+  "result_data_overview": {
+    "zh": "结果数据overview",
+    "en": "Result Data Overview"
+  },
+  "ai_analysis_error_continue_traditional": {
+    "zh": "失败分析错误等",
+    "en": "Failed Analysis Error Continue Traditional"
+  },
+  "focus_rtsi_above_60": {
+    "zh": "focusrtsiabove等",
+    "en": "Focus Rtsi Above 60"
+  },
+  "startup_settings": {
+    "zh": "开始设置",
+    "en": "Start Settings"
+  },
+  "menu_about": {
+    "zh": "菜单关于",
+    "en": "Menu About"
+  },
+  "trend_5d": {
+    "zh": "趋势5d",
+    "en": "Trend 5D"
+  },
+  "solution_suggestions": {
+    "zh": "solutionsuggestions",
+    "en": "Solution Suggestions"
+  },
+  "r_squared": {
+    "zh": "错误squared",
+    "en": "Error Squared"
+  },
+  "stock_count": {
+    "zh": "股票计数",
+    "en": "Stock Count"
+  },
+  "industry_comparison": {
+    "zh": "行业comparison",
+    "en": "Industry Comparison"
+  },
+  "设置8-10%止损位": {
+    "zh": "设置810%止损位",
+    "en": "设置8 10%止损位"
+  },
+  "weak_downtrend": {
+    "zh": "弱下降趋势",
+    "en": "Weak Downtrend"
+  },
+  "msci_index": {
+    "zh": "msci指数",
+    "en": "Msci Index"
+  },
+  "welcome_system_config": {
+    "zh": "welcome系统配置",
+    "en": "Welcome System Configuration"
+  },
+  "weak": {
+    "zh": "弱",
+    "en": "Weak"
+  },
+  "market_sentiment_title": {
+    "zh": "市场时间标题",
+    "en": "Market Time Title"
+  },
+  "intelligent_analysis": {
+    "zh": "智能分析",
+    "en": "Intelligent Analysis"
+  },
+  "stock_code": {
+    "zh": "股票代码",
+    "en": "Stock Code"
+  },
+  "rating_system_support": {
+    "zh": "评级系统向上",
+    "en": "Rating System Up"
+  },
+  "trend_weak_down": {
+    "zh": "趋势弱向下",
+    "en": "Trend Weak Down"
+  },
+  "detail_calculating_rtsi": {
+    "zh": "detailcalculatingrtsi",
+    "en": "Detail Calculating Rtsi"
+  },
+  "performance_settings": {
+    "zh": "性能设置",
+    "en": "Performance Settings"
+  },
+  "analysis_overview": {
+    "zh": "分析overview",
+    "en": "Analysis Overview"
+  },
+  "弱势": {
+    "zh": "弱势",
+    "en": "弱势"
+  },
+  "trend_status": {
+    "zh": "趋势状态",
+    "en": "Trend Status"
+  },
+  "watch": {
+    "zh": "监视器",
+    "en": "Watcher"
+  },
+  "recommendation_reason": {
+    "zh": "结束reason",
+    "en": "End Reason"
+  },
+  "data_format_error": {
+    "zh": "数据格式错误",
+    "en": "Data Format Error"
+  },
+  "ai_config_check_failed": {
+    "zh": "失败配置check等",
+    "en": "Failed Configuration Check Failed"
+  },
+  "industry_analysis_window_title": {
+    "zh": "行业分析窗口等",
+    "en": "Industry Analysis Window Title"
+  },
+  "强势": {
+    "zh": "强势",
+    "en": "强势"
+  },
+  "行业及该股仍有上涨空间，建议持续关注基本面变化": {
+    "zh": "行业及该股仍有上涨空间，建议持续关注基本面变化",
+    "en": "行业及该股仍有上涨空间，建议持续关注基本面变化"
+  },
+  "consistency_weight": {
+    "zh": "十权重",
+    "en": "Ten Weight"
+  },
+  "simulated": {
+    "zh": "simulated",
+    "en": "Simulated"
+  },
+  "calculation_period": {
+    "zh": "calculation时期",
+    "en": "Calculation Period"
+  },
+  "start_analysis": {
+    "zh": "开始分析",
+    "en": "Start Analysis"
+  },
+  "development_info_title": {
+    "zh": "development信息标题",
+    "en": "Development Information Title"
+  },
+  "checking_environment": {
+    "zh": "checkingenvironment",
+    "en": "Checking Environment"
+  },
+  "basic_excel_export_failed": {
+    "zh": "basicExcel导出等",
+    "en": "Basic Excel Export Failed"
+  },
+  "btn_industry": {
+    "zh": "btn行业",
+    "en": "Btn Industry"
+  },
+  "based_on_msci_index": {
+    "zh": "基础确认msci等",
+    "en": "Base Confirm Msci Index"
+  },
+  "sideways_consolidation": {
+    "zh": "sidewaysconsolidation",
+    "en": "Sideways Consolidation"
+  },
+  "missing_modules": {
+    "zh": "missing模块",
+    "en": "Missing Module"
+  },
+  "rtsi_settings": {
+    "zh": "rtsi设置",
+    "en": "Rtsi Settings"
+  },
+  "cautious": {
+    "zh": "cautious",
+    "en": "Cautious"
+  },
+  "optional": {
+    "zh": "可选",
+    "en": "Optional"
+  },
+  "sideways": {
+    "zh": "sideways",
+    "en": "Sideways"
+  },
+  "settings_saved_msg": {
+    "zh": "设置保存msg",
+    "en": "Settings Save Msg"
+  },
+  "welcome_dynamic_analysis": {
+    "zh": "welcomedynamic分析",
+    "en": "Welcome Dynamic Analysis"
+  },
+  "neutral": {
+    "zh": "中性",
+    "en": "Neutral"
+  },
+  "cautious_reduction": {
+    "zh": "cautiousreduction",
+    "en": "Cautious Reduction"
+  },
+  "data_scale": {
+    "zh": "数据比例",
+    "en": "Data Scale"
+  },
+  "industry_irsi_ranking": {
+    "zh": "行业irsi排名",
+    "en": "Industry Irsi Ranking"
+  },
+  "gui_import_success": {
+    "zh": "gui导入成功",
+    "en": "Gui Import Success"
+  },
+  "found_stocks_industries": {
+    "zh": "基础股票industries",
+    "en": "Foundation Stock Industries"
+  },
+  "irsi_index": {
+    "zh": "irsi指数",
+    "en": "Irsi Index"
+  },
+  "已将": {
+    "zh": "已将",
+    "en": "已将"
+  },
+  "stock_selector_label": {
+    "zh": "股票选择标签",
+    "en": "Stock Select Label"
+  },
+  "buy": {
+    "zh": "buy",
+    "en": "Buy"
+  },
+  "volatility_level": {
+    "zh": "波动性级别",
+    "en": "Volatility Level"
+  },
+  "建议": {
+    "zh": "建议",
+    "en": "建议"
+  },
+  "rating_micro_bull": {
+    "zh": "评级micro牛市",
+    "en": "Rating Micro Bull"
+  },
+  "display_industry_detail_failed": {
+    "zh": "display行业detail等",
+    "en": "Display Industry Detail Failed"
+  },
+  "wait_and_see": {
+    "zh": "等待展开see",
+    "en": "Wait Expand See"
+  },
+  "neutral_bearish": {
+    "zh": "中性熊市",
+    "en": "Neutral Bear"
+  },
+  "ai_config_incomplete": {
+    "zh": "失败配置完成",
+    "en": "Failed Configuration Complete"
+  },
+  "professional_stock_analysis_tool": {
+    "zh": "专业股票分析等",
+    "en": "Professional Stock Analysis Tool"
+  },
+  "calculation_settings": {
+    "zh": "calculation设置",
+    "en": "Calculation Settings"
+  },
+  "cautious_watch": {
+    "zh": "cautious监视器",
+    "en": "Cautious Watcher"
+  },
+  "column_industry": {
+    "zh": "列行业",
+    "en": "Column Industry"
+  },
+  "detail_loading_data": {
+    "zh": "detail加载中数据",
+    "en": "Detail Loading Data"
+  },
+  "weak_bull_pattern": {
+    "zh": "弱牛市模式",
+    "en": "Weak Bull Pattern"
+  },
+  "settings_module_not_found": {
+    "zh": "设置模块否等",
+    "en": "Settings Module No Foundation"
+  },
+  "slightly_optimistic": {
+    "zh": "浅色乐观",
+    "en": "Light Optimistic"
+  },
+  "update_preparing": {
+    "zh": "更新preparing",
+    "en": "Update Preparing"
+  },
+  "column_code": {
+    "zh": "列代码",
+    "en": "Column Code"
+  },
+  "data_source": {
+    "zh": "数据来源",
+    "en": "Data Source"
+  },
+  "not_available": {
+    "zh": "否可用",
+    "en": "No Available"
+  },
+  "short_term_trend": {
+    "zh": "short期限趋势",
+    "en": "Short Term Trend"
+  },
+  "deep_adjustment": {
+    "zh": "deepadjustment",
+    "en": "Deep Adjustment"
+  },
+  "detail_calculating_irsi": {
+    "zh": "detailcalculatingirsi",
+    "en": "Detail Calculating Irsi"
+  },
+  "html_report_generated_and_opened": {
+    "zh": "HTML报告生成等",
+    "en": "HTML Report Generate Expand Open"
+  },
+  "units_stocks": {
+    "zh": "单位股票",
+    "en": "Unit Stock"
+  },
+  "environment_check_complete": {
+    "zh": "environmentcheck完成",
+    "en": "Environment Check Complete"
+  },
+  "中性偏弱": {
+    "zh": "中性偏弱",
+    "en": "中性偏弱"
+  },
+  "rating_mid_bull": {
+    "zh": "评级中间牛市",
+    "en": "Rating Middle Bull"
+  },
+  "股价处于震荡期，需要观察": {
+    "zh": "股价处于震荡期，需要观察",
+    "en": "股价处于震荡期，需要观察"
+  },
+  "Test Value": {
+    "zh": "测试值",
+    "en": "Test Value"
+  },
+  "moderate_increase": {
+    "zh": "比率increase",
+    "en": "Rate Increase"
+  },
+  "tip": {
+    "zh": "tip",
+    "en": "Tip"
+  },
+  "operation_advice": {
+    "zh": "操作advice",
+    "en": "Operation Advice"
+  },
+  "leading": {
+    "zh": "leading",
+    "en": "Leading"
+  },
+  "startup_features": {
+    "zh": "开始特性",
+    "en": "Start Feature"
+  },
+  "chart_real_data": {
+    "zh": "图表实时数据",
+    "en": "Chart Realtime Data"
+  },
+  "welcome_tech_stack": {
+    "zh": "welcome技术stack",
+    "en": "Welcome Technique Stack"
+  },
+  "btn_market_alerts": {
+    "zh": "btn市场alerts",
+    "en": "Btn Market Alerts"
+  },
+  "market_state": {
+    "zh": "市场状态",
+    "en": "Market State"
+  },
+  "check_data_integrity": {
+    "zh": "check数据integrity",
+    "en": "Check Data Integrity"
+  },
+  "significantly_pessimistic": {
+    "zh": "significantly悲观",
+    "en": "Significantly Pessimistic"
+  },
+  "avoid": {
+    "zh": "avoid",
+    "en": "Avoid"
+  }
+}
