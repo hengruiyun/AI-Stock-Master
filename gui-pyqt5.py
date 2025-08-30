@@ -3930,15 +3930,20 @@ class AnalysisPage(QWidget):
     def get_data_date_range(self) -> str:
         """获取数据文件的日期范围 - 参考main_window.py实现"""
         try:
-            # 定义日期格式化函数
+            # 定义日期格式化函数 - 修复编码错误
             def format_date(date_str):
-                date_str = str(date_str)
-                if len(date_str) == 8:  # YYYYMMDD格式
-                    year = date_str[:4]
-                    month = date_str[4:6].lstrip('0') or '0'
-                    day = date_str[6:8].lstrip('0') or '0'
-                    return f"{year}年{month}月{day}日"
-                return date_str
+                try:
+                    date_str = str(date_str)
+                    if len(date_str) == 8:  # YYYYMMDD格式
+                        year = date_str[:4]
+                        month = date_str[4:6].lstrip('0') or '0'
+                        day = date_str[6:8].lstrip('0') or '0'
+                        # 使用安全的字符串格式化，避免locale编码错误
+                        return f"{year}-{month}-{day}"
+                    return date_str
+                except Exception as e:
+                    print(f"日期格式化错误: {e}")
+                    return str(date_str)
             
             # 方法1：从结果中的直接数据源引用获取（最新方式）
             if self.analysis_results and 'data_source' in self.analysis_results:
@@ -5594,13 +5599,17 @@ class AnalysisPage(QWidget):
             return '<span style="color: #28a745;">上涨空间有限</span>'
     
     def suggest_holding_period(self, rtsi_value):
-        """建议持仓周期 - 支持红涨绿跌颜色"""
-        if rtsi_value >= 60:
-            return '<span style="color: #dc3545;">中长期1-3个月</span>'
-        elif rtsi_value >= 40:
-            return '<span style="color: #fd7e14;">短期1-2周</span>'
-        else:
-            return '<span style="color: #28a745;">不建议持有</span>'
+        """建议持仓周期 - 支持红涨绿跌颜色 - 修复编码错误"""
+        try:
+            if rtsi_value >= 60:
+                return '<span style="color: #dc3545;">Medium-Long Term 1-3 months</span>'
+            elif rtsi_value >= 40:
+                return '<span style="color: #fd7e14;">Short Term 1-2 weeks</span>'
+            else:
+                return '<span style="color: #28a745;">Not Recommended</span>'
+        except Exception as e:
+            print(f"Holding period suggestion error: {e}")
+            return '<span style="color: #666;">Period suggestion unavailable</span>'
     
     def generate_outlook(self, rtsi_value, industry):
         """生成后市展望"""
@@ -6472,84 +6481,96 @@ class AnalysisPage(QWidget):
         return analysis_data
     
     def _format_rating_trend_for_prompt(self, rating_trend):
-        """格式化评级趋势数据用于提示词"""
-        if not rating_trend:
-            return "暂无评级趋势数据"
-        
-        trend_text = "最近评级变化：\n"
-        
-        # 处理不同数据格式
-        if isinstance(rating_trend, list):
-            # 如果是列表，直接处理
-            recent_trends = rating_trend[-10:] if len(rating_trend) > 10 else rating_trend
-            for i, item in enumerate(recent_trends):
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    date, rating = item[0], item[1]
-                    trend_text += f"  {date}: {rating:.2f}分\n"
-                elif isinstance(item, dict):
-                    date = item.get('date', f'第{i+1}天')
-                    rating = item.get('rating', 0)
-                    trend_text += f"  {date}: {rating:.2f}分\n"
-        elif isinstance(rating_trend, dict):
-            # 如果是字典，取最近的10个键值对
-            items = list(rating_trend.items())[-10:]
-            for date, rating in items:
-                trend_text += f"  {date}: {rating:.2f}分\n"
-        else:
-            trend_text += f"  数据格式: {type(rating_trend).__name__}\n"
-        
-        return trend_text
+        """格式化评级趋势数据用于提示词 - 修复编码错误"""
+        try:
+            if not rating_trend:
+                return "No rating trend data available"
+            
+            trend_text = "Recent rating changes:\n"
+            
+            # 处理不同数据格式
+            if isinstance(rating_trend, list):
+                # 如果是列表，直接处理
+                recent_trends = rating_trend[-10:] if len(rating_trend) > 10 else rating_trend
+                for i, item in enumerate(recent_trends):
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        date, rating = item[0], item[1]
+                        trend_text += f"  {date}: {rating:.2f}\n"
+                    elif isinstance(item, dict):
+                        date = item.get('date', f'Day{i+1}')
+                        rating = item.get('rating', 0)
+                        trend_text += f"  {date}: {rating:.2f}\n"
+            elif isinstance(rating_trend, dict):
+                # 如果是字典，取最近的10个键值对
+                items = list(rating_trend.items())[-10:]
+                for date, rating in items:
+                    trend_text += f"  {date}: {rating:.2f}\n"
+            else:
+                trend_text += f"  Data format: {type(rating_trend).__name__}\n"
+            
+            return trend_text
+        except Exception as e:
+            print(f"Rating trend formatting error: {e}")
+            return "Rating trend data formatting failed"
     
     def _format_volume_price_for_prompt(self, volume_price_data):
-        """格式化量价数据用于提示词"""
-        if not volume_price_data:
-            return "暂无量价数据"
-        
-        vp_text = "最近量价数据：\n"
-        
-        # 处理不同数据格式
-        if isinstance(volume_price_data, list):
-            # 如果是列表，取最近5个元素
-            recent_data = volume_price_data[-5:] if len(volume_price_data) > 5 else volume_price_data
-            for i, data in enumerate(recent_data):
-                if isinstance(data, dict):
-                    date = data.get('date', f'第{i+1}天')
-                    price = data.get('close', 0)
-                    volume = data.get('volume', 0)
-                    vp_text += f"  {date}: 收盘价 {price:.2f}, 成交量 {volume}\n"
-                else:
-                    vp_text += f"  第{i+1}天: {data}\n"
-        elif isinstance(volume_price_data, dict):
-            # 如果是字典，展示键值对
-            for key, value in list(volume_price_data.items())[-5:]:
-                vp_text += f"  {key}: {value}\n"
-        else:
-            vp_text += f"  数据格式: {type(volume_price_data).__name__}\n"
-        
-        return vp_text
+        """格式化量价数据用于提示词 - 修复编码错误"""
+        try:
+            if not volume_price_data:
+                return "No volume price data available"
+            
+            vp_text = "Recent volume price data:\n"
+            
+            # 处理不同数据格式
+            if isinstance(volume_price_data, list):
+                # 如果是列表，取最近5个元素
+                recent_data = volume_price_data[-5:] if len(volume_price_data) > 5 else volume_price_data
+                for i, data in enumerate(recent_data):
+                    if isinstance(data, dict):
+                        date = data.get('date', f'Day{i+1}')
+                        price = data.get('close', 0)
+                        volume = data.get('volume', 0)
+                        vp_text += f"  {date}: Close {price:.2f}, Volume {volume}\n"
+                    else:
+                        vp_text += f"  Day{i+1}: {data}\n"
+            elif isinstance(volume_price_data, dict):
+                # 如果是字典，展示键值对
+                for key, value in list(volume_price_data.items())[-5:]:
+                    vp_text += f"  {key}: {value}\n"
+            else:
+                vp_text += f"  Data format: {type(volume_price_data).__name__}\n"
+            
+            return vp_text
+        except Exception as e:
+            print(f"Volume price formatting error: {e}")
+            return "Volume price data formatting failed"
     
     def _format_indicators_for_prompt(self, indicators):
-        """格式化技术指标数据用于提示词"""
-        if not indicators:
-            return "暂无技术指标数据"
-        
-        indicator_text = ""
-        if 'current_price' in indicators:
-            indicator_text += f"- 当前价格: {indicators['current_price']:.2f}\n"
-        if 'price_change_pct' in indicators:
-            indicator_text += f"- 涨跌幅: {indicators['price_change_pct']:.2f}%\n"
-        if 'volatility' in indicators:
-            indicator_text += f"- 年化波动率: {indicators['volatility']:.2f}%\n"
-        if 'rsi' in indicators:
-            indicator_text += f"- RSI指标: {indicators['rsi']:.1f}\n"
-        if 'volume_ratio' in indicators:
-            indicator_text += f"- 成交量比率: {indicators['volume_ratio']:.2f}\n"
-        if 'ma5' in indicators:
-            indicator_text += f"- 5日均线: {indicators['ma5']:.2f}\n"
-        if 'ma20' in indicators:
-            indicator_text += f"- 20日均线: {indicators['ma20']:.2f}\n"
+        """格式化技术指标数据用于提示词 - 修复编码错误"""
+        try:
+            if not indicators:
+                return "No technical indicators data available"
             
-        return indicator_text if indicator_text else "暂无技术指标数据"
+            indicator_text = ""
+            if 'current_price' in indicators:
+                indicator_text += f"- Current Price: {indicators['current_price']:.2f}\n"
+            if 'price_change_pct' in indicators:
+                indicator_text += f"- Price Change: {indicators['price_change_pct']:.2f}%\n"
+            if 'volatility' in indicators:
+                indicator_text += f"- Volatility: {indicators['volatility']:.2f}%\n"
+            if 'rsi' in indicators:
+                indicator_text += f"- RSI: {indicators['rsi']:.1f}\n"
+            if 'volume_ratio' in indicators:
+                indicator_text += f"- Volume Ratio: {indicators['volume_ratio']:.2f}\n"
+            if 'ma5' in indicators:
+                indicator_text += f"- MA5: {indicators['ma5']:.2f}\n"
+            if 'ma20' in indicators:
+                indicator_text += f"- MA20: {indicators['ma20']:.2f}\n"
+                
+            return indicator_text if indicator_text else "No technical indicators data available"
+        except Exception as e:
+            print(f"Indicators formatting error: {e}")
+            return "Technical indicators data formatting failed"
     
     def _call_llm_for_analysis(self, prompt, analyst_type):
         """调用LLM进行分析"""
@@ -6667,7 +6688,7 @@ class AnalysisPage(QWidget):
             raise Exception(f"LLM API调用出错: {str(e)}")
     
     def get_stock_basic_info(self, stock_code):
-        """获取股票基本信息"""
+        """获取股票基本信息 - 修复编码错误"""
         try:
             if hasattr(self, 'analysis_results_obj') and self.analysis_results_obj:
                 stocks_data = getattr(self.analysis_results_obj, 'stocks', {})
@@ -6675,16 +6696,16 @@ class AnalysisPage(QWidget):
                     stock_info = stocks_data[stock_code]
                     return {
                         'stock_name': stock_info.get('name', stock_code),
-                        'industry': stock_info.get('industry', '未知行业'),
+                        'industry': stock_info.get('industry', 'Unknown Industry'),
                         'rtsi': stock_info.get('rtsi', {}).get('rtsi', 0) if isinstance(stock_info.get('rtsi'), dict) else stock_info.get('rtsi', 0)
                     }
         except Exception as e:
-            print(f"获取股票基本信息失败: {e}")
+            print(f"Get stock basic info failed: {e}")
         
         # 返回默认信息
         return {
             'stock_name': stock_code,
-            'industry': '未知行业',
+            'industry': 'Unknown Industry',
             'rtsi': 0
         }
 
