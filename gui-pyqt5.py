@@ -6794,7 +6794,7 @@ class AnalysisPage(QWidget):
                 <div class="header">
                     <h1>🔧 技术面分析报告</h1>
                     <div class="subtitle">{stock_name} ({stock_code})</div>
-                    <div class="subtitle">分析时间：{datetime.now().strftime("%Y年%m月%d日 %H:%M")}</div>
+                    <div class="subtitle">Analysis Time: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
                     <div class="subtitle" style="font-size: 14px; margin-top: 10px; opacity: 0.8;">作者：267278466@qq.com</div>
                 </div>
                 <div class="content">
@@ -6910,7 +6910,7 @@ class AnalysisPage(QWidget):
                 <div class="header">
                     <h1>🏆 投资大师分析报告</h1>
                     <div class="subtitle">{stock_name} ({stock_code})</div>
-                    <div class="subtitle">分析时间：{datetime.now().strftime("%Y年%m月%d日 %H:%M")}</div>
+                    <div class="subtitle">Analysis Time: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
                     <div class="subtitle" style="font-size: 14px; margin-top: 10px; opacity: 0.8;">作者：267278466@qq.com</div>
                 </div>
                 <div class="content">
@@ -8358,7 +8358,7 @@ Notes:
                 <div class="header">
                     <h1>🤖 AI股票分析报告</h1>
                         <div class="subtitle">{stock_info} - 智能投资建议</div>
-                        <div class="timestamp">分析时间: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}</div>
+                        <div class="timestamp">Analysis Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
                         <div class="timestamp" style="font-size: 14px; margin-top: 8px; opacity: 0.8;">作者：267278466@qq.com</div>
                 </div>
                 
