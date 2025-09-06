@@ -1,4 +1,5 @@
 # AI股票大师使用教程
+<img width="1298" height="973" alt="aismc-10" src="https://github.com/user-attachments/assets/3b4a2147-1f58-4fad-af7e-29dcd6e21981" />
 
 ---
 
@@ -31,7 +32,6 @@
    ```bash
    chmod +x *.sh
    ```
-
 ---
 
 ## 🎯 第一次使用
@@ -54,6 +54,7 @@
 #### 下载过程太慢
 
 下载如果觉得慢，特别是到85%以后，可关闭程序，重新启动会继续下载
+
 
 ### macOS 首次启动流程
 
@@ -81,6 +82,8 @@ cd /Applications/AI-Stock-Master
 ```
 
 ---
+<img width="1298" height="973" alt="aismc-11" src="https://github.com/user-attachments/assets/4fbff212-5f85-48b2-bff1-a7ba716939b9" />
+
 
 ## 🔧 核心功能介绍
 
@@ -104,7 +107,6 @@ cd /Applications/AI-Stock-Master
 - **风险评估**：AI驱动的风险识别
 - **投资建议**：基于多维度数据的投资建议
 
-
 ---
 
 ## 🤖 AI模型配置
@@ -112,7 +114,7 @@ cd /Applications/AI-Stock-Master
 ### 本地AI模型（推荐）
 
 #### Ollama管理
-
+```bash
 # 启动Ollama
 ollama serv
 
@@ -152,16 +154,21 @@ ollama rm gemma3:1b
 2. **市场选择**：选择要分析的市场（A股/港股/美股）
 3. **功能导航**：根据需求选择相应分析功能
 
+
 ### AI功能说明
 - **AI功能**：标题包含"AI"字样
 - **传统功能**：纯数学算法分析，不依赖AI
 - **软件默认不开启AI**：需要AI时手动运行，运行前必须保证已经正确安装AI大模型。
 - **AI模型的大小影响了AI的智力**：当你看到AI分析结果有异常，则表示当前AI模型不能满足你的要求，需要更换更强大的，甚至是商业版本的DeepSeek，这需要你自己支付AI的费用。
+  
+<img width="1298" height="973" alt="aismc-15" src="https://github.com/user-attachments/assets/20093fdb-514c-44a1-a029-2c4ed8f1f44f" />
+
 
 ### 评级系统说明（核心）
 - **8级评级系统**：此评级为本软件最重要的数据，一切算法和功能都以此展开。
 - **评级应用范围**：所有分析功能的基础数据，评级数据最直接体现在行业分析的趋势图表中，它可以和股价走势不一致。
 
+<img width="1298" height="973" alt="aismc-12" src="https://github.com/user-attachments/assets/1243c9a0-3207-4788-bd54-09e2fbff5f69" />
 
 ---
 
@@ -176,14 +183,14 @@ ollama rm gemma3:1b
 ## ❓ 常见问题解答
 
 ### Q1：数据下载失败
-**A3**：
+**A1**：
 1. 检查软件是否为最新版本
 2. 尝试安装git 客户端
 3. 首次使用git clone https://github.com/hengruiyun/AI-Stock-Master.git
     日后使用git pull 命令更新
 
 ### Q2：如何提高AI分析质量？
-**A4**：
+**A2**：
 1. 使用更大参数的AI模型
 2. 结合多个AI模型的结果
 3. 定期更新软件版本
@@ -214,3 +221,4 @@ ollama rm gemma3:1b
 ### 联系方式
 - **邮箱**：267278466@qq.com
 - **项目地址**：https://github.com/hengruiyun/AI-Stock-Master
+
