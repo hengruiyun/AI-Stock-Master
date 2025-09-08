@@ -1,4 +1,4 @@
-# AI股票大师
+# AI股票大师  [使用教程](https://github.com/hengruiyun/AI-Stock-Master/blob/main/usage.md)
 
 这是一个基于AI 的股票趋势分析平台，经过AI 大模型解读中国、香港、美国股票市场，融合多种核心算法：**RTSI个股趋势强度指数**、**MSCI市场情绪指数**和**核心强势分析器**，为投资者提供全方位的投资决策支持。
 
