@@ -71,9 +71,9 @@ class EnhancedRTSICalculator:
         self.last_interpolation_quality = 0.0
         self.last_interpolation_strategy = 'unknown'
         
-        print(f"🚀 增强RTSI计算器初始化完成")
-        print(f"📊 配置参数: RTSI阈值={self.rtsi_threshold}, 波动性阈值={self.volatility_threshold}")
-        print(f"🎯 AI增强={self.use_ai_enhancement}, 多维度={self.use_multi_dimensional}, 时间窗口={self.time_window}天")
+        print(f"rtsi 增强RTSI计算器初始化完成")
+        print(f"rtsi 配置参数: RTSI阈值={self.rtsi_threshold}, 波动性阈值={self.volatility_threshold}")
+        print(f"rtsi AI增强={self.use_ai_enhancement}, 多维度={self.use_multi_dimensional}, 时间窗口={self.time_window}天")
     
     def preprocess_stock_ratings(self, stock_data: pd.Series, date_columns: List[str]) -> List[float]:
         """

@@ -32,8 +32,8 @@ class OptimizedEnhancedRTSI:
                  use_multi_dimensional: bool = None,
                  time_window: int = None):
         
-        self.version = "1.0.0"
-        self.algorithm_name = "优化增强RTSI"
+        self.version = "2.3.0"
+        self.algorithm_name = "优化增强RTSI v2.3 (方案C)"
         
         # 继承原有配置
         self.rtsi_threshold = rtsi_threshold or 0.4
@@ -72,9 +72,9 @@ class OptimizedEnhancedRTSI:
         self.last_interpolation_quality = 0.0
         self.last_interpolation_strategy = 'unknown'
         
-        print(f"🚀 {self.algorithm_name}计算器初始化完成")
-        print(f"📊 配置参数: RTSI阈值={self.rtsi_threshold}, 波动性阈值={self.volatility_threshold}")
-        print(f"🎯 AI增强={self.use_ai_enhancement}, 多维度={self.use_multi_dimensional}, 时间窗口={self.time_window}天")
+        #print(f"ertsi {self.algorithm_name}计算器初始化完成")
+        #print(f"ertsi 配置参数: RTSI阈值={self.rtsi_threshold}, 波动性阈值={self.volatility_threshold}")
+        #print(f"ertsi AI增强={self.use_ai_enhancement}, 多维度={self.use_multi_dimensional}, 时间窗口={self.time_window}天")
     
     def calculate_optimized_enhanced_rtsi(self, 
                                         stock_data: pd.Series, 
@@ -270,9 +270,8 @@ class OptimizedEnhancedRTSI:
                                     ratings: List[float], 
                                     stock_code: str = "", 
                                     stock_name: str = "") -> Optional[float]:
-        """计算基础增强RTSI (保持0-1范围)"""
+        """计算基础增强RTSI (保持0-1范围) - 方案C：55%评级强度权重"""
         try:
-            # 使用原有的增强RTSI算法逻辑，但优化参数
             if len(ratings) < 3:
                 return None
                 
@@ -289,23 +288,19 @@ class OptimizedEnhancedRTSI:
             else:
                 slope, intercept, r_value, p_value, std_err = 0, 0, 0, 1, 0
             
-            # 计算各个组件
-            trend_strength = abs(slope) / 5.0  # 标准化到0-1
+            # ===== 方案C核心：重新分配权重（评级强度55%）=====
+            rating_strength = mean_rating / 5.0        # 评级强度，范围0-1
             consistency = r_value ** 2 if 'r_value' in locals() else 0
-            volatility = min(std_rating / 2.5, 1.0)  # 标准化波动性
+            volatility = min(std_rating / 2.5, 1.0)   # 标准化波动性
             
-            # 平均评级强度
-            rating_strength = mean_rating / 5.0
-            
-            # 综合计算 (保持0-1范围)
+            # 新的权重分配：评级强度占主导（55%），移除trend_strength
             base_score = (
-                trend_strength * 0.3 +
-                consistency * 0.25 +
-                rating_strength * 0.25 +
-                (1 - volatility) * 0.2  # 低波动性得高分
+                rating_strength * 0.55 +    # 从25%提高到55%
+                consistency * 0.25 +         # 保持25%
+                (1 - volatility) * 0.20     # 保持20%
             )
             
-            # AI增强 (如果启用)
+            # AI增强（适度增强）
             if self.use_ai_enhancement:
                 ai_factor = self._calculate_ai_enhancement_factor(ratings)
                 base_score = base_score * ai_factor
@@ -317,26 +312,23 @@ class OptimizedEnhancedRTSI:
             return None
     
     def _calculate_ai_enhancement_factor(self, ratings: List[float]) -> float:
-        """计算AI增强因子"""
+        """计算AI增强因子 - 方案C：适度增强"""
         try:
-            # 简化的AI增强逻辑
             ratings_array = np.array(ratings)
-            
-            # 检测模式识别
             pattern_score = 1.0
             
             # 上升趋势检测
             if len(ratings) >= 5:
                 recent_trend = np.mean(ratings[-3:]) - np.mean(ratings[:3])
                 if recent_trend > 0.5:
-                    pattern_score += 0.1
+                    pattern_score += 0.15  # 从0.1提高到0.15
             
             # 稳定性检测
             volatility = np.std(ratings_array)
             if volatility < 0.5:
-                pattern_score += 0.05
+                pattern_score += 0.08  # 从0.05提高到0.08
             
-            return min(pattern_score, 1.3)  # 最多30%增强
+            return min(pattern_score, 1.35)  # 从1.3提高到1.35，最多35%增强
             
         except:
             return 1.0
@@ -344,105 +336,138 @@ class OptimizedEnhancedRTSI:
     def _optimize_enhanced_score_range(self, 
                                      base_enhanced_rtsi: float,
                                      processed_ratings: List[float]) -> float:
-        """优化增强RTSI得分范围到0-100 (目标94+有效范围)"""
+        """方案C：优化增强RTSI得分范围到0-100（放宽条件+提高基础分）"""
         
-        # 1. 基础分数放大 (0-1 → 0-97) - 进一步提高基础上限
-        base_score = base_enhanced_rtsi * 97
+        # ===== 改进1: 基础分上限 85 → 88 =====
+        base_score = base_enhanced_rtsi * 88
         
-        # 2. 计算额外奖励 (总奖励提升到最多+50分)
         bonus_points = 0
         
-        # 数据丰富性奖励 (最多+15分) - 再次提升奖励
-        if len(processed_ratings) >= 20:
-            bonus_points += 15
-        elif len(processed_ratings) >= 15:
-            bonus_points += 13
-        elif len(processed_ratings) >= 10:
-            bonus_points += 10
-        elif len(processed_ratings) >= 7:
-            bonus_points += 7
-        elif len(processed_ratings) >= 5:
-            bonus_points += 4
-        
-        # 评级质量奖励 (最多+30分) - 大幅提升质量奖励
-        avg_rating = np.mean(processed_ratings)
-        if avg_rating >= 4.8:
-            bonus_points += 30  # 极优质量超高奖励
-        elif avg_rating >= 4.5:
-            bonus_points += 27
-        elif avg_rating >= 4.0:
-            bonus_points += 22
-        elif avg_rating >= 3.5:
-            bonus_points += 15
-        elif avg_rating >= 3.0:
-            bonus_points += 12  # 适度提升3.0分数奖励
-        elif avg_rating >= 2.5:
-            bonus_points += 8   # 为2.5-3.0增加奖励
-        elif avg_rating >= 2.0:
-            bonus_points += 4   # 为2.0-2.5增加奖励
-        elif avg_rating < 1.5:
-            bonus_points -= 8   # 极低评级重罚
-        
-        # 一致性奖励/惩罚 (最多+25分/-15分) - 进一步极化差异
-        rating_std = np.std(processed_ratings)
-        if rating_std <= 0.1:
-            bonus_points += 25  # 极高一致性超高奖励
-        elif rating_std <= 0.3:
-            bonus_points += 20
-        elif rating_std <= 0.6:
-            bonus_points += 15
-        elif rating_std <= 1.0:
+        # A. 数据丰富性奖励 (最多+8分)
+        if len(processed_ratings) >= 30:
             bonus_points += 8
-        elif rating_std <= 1.5:
+        elif len(processed_ratings) >= 20:
+            bonus_points += 6
+        elif len(processed_ratings) >= 15:
+            bonus_points += 5
+        elif len(processed_ratings) >= 10:
+            bonus_points += 4
+        elif len(processed_ratings) >= 7:
+            bonus_points += 3
+        elif len(processed_ratings) >= 5:
+            bonus_points += 2
+        
+        # ===== 改进2: 评级质量奖励条件放宽 (最多+15分) =====
+        avg_rating = np.mean(processed_ratings)
+        if avg_rating >= 4.5:           # 从4.8放宽到4.5 ✓
+            bonus_points += 15
+        elif avg_rating >= 4.2:         # 从4.5放宽到4.2 ✓
+            bonus_points += 13
+        elif avg_rating >= 3.8:         # 从4.0放宽到3.8 ✓
+            bonus_points += 11
+        elif avg_rating >= 3.3:         # 从3.5放宽到3.3 ✓
+            bonus_points += 8
+        elif avg_rating >= 2.8:         # 从3.0放宽到2.8 ✓
+            bonus_points += 5
+        elif avg_rating >= 2.3:         # 从2.5放宽到2.3 ✓
+            bonus_points += 2
+        elif avg_rating >= 1.8:         # 从2.0放宽到1.8 ✓
+            bonus_points += 0
+        elif avg_rating < 1.5:
+            bonus_points -= 5
+        
+        # ===== 改进3: 一致性奖励条件放宽 (最多+10分) =====
+        rating_std = np.std(processed_ratings)
+        if rating_std <= 0.15:          # 从0.1放宽到0.15 ✓
+            bonus_points += 10
+        elif rating_std <= 0.4:         # 从0.3放宽到0.4 ✓
+            bonus_points += 8
+        elif rating_std <= 0.7:         # 从0.6放宽到0.7 ✓
+            bonus_points += 6
+        elif rating_std <= 1.1:         # 从1.0放宽到1.1 ✓
+            bonus_points += 4
+        elif rating_std <= 1.6:         # 从1.5放宽到1.6 ✓
             bonus_points += 2
         elif rating_std >= 2.5:
-            bonus_points -= 15  # 极高波动重罚
+            bonus_points -= 3
         
-        # 趋势强度奖励 (最多+12分) - 新增趋势奖励
+        # ===== 改进4: 趋势强度奖励条件放宽 (最多+10分) =====
         if len(processed_ratings) >= 5:
-            # 计算趋势斜率
             x = np.arange(len(processed_ratings))
             try:
                 from scipy.stats import linregress
                 slope, _, r_value, _, _ = linregress(x, processed_ratings)
-                trend_strength = abs(slope) * (r_value ** 2)  # 趋势强度 × 一致性
                 
-                if trend_strength >= 0.5 and slope > 0:  # 强上升趋势
-                    bonus_points += 12
-                elif trend_strength >= 0.3 and slope > 0:  # 中等上升趋势
-                    bonus_points += 8
-                elif trend_strength >= 0.1 and slope > 0:  # 轻微上升趋势
-                    bonus_points += 5
+                # 使用绝对涨幅代替斜率
+                total_change = processed_ratings[-1] - processed_ratings[0]
+                trend_consistency = r_value ** 2
+                
+                if total_change > 0.8 and trend_consistency > 0.4:  # 从1.0/0.5放宽到0.8/0.4 ✓
+                    bonus_points += 10
+                elif total_change > 0.4 and trend_consistency > 0.3:  # 从0.5/0.4放宽到0.4/0.3 ✓
+                    bonus_points += 7
+                elif total_change > 0.15 and trend_consistency > 0.25:  # 从0.2/0.3放宽到0.15/0.25 ✓
+                    bonus_points += 4
             except:
                 pass
         
-        # 3. 最终得分
+        # E. 极端情况奖励 (最多+5分)
+        excellent_conditions = 0
+        
+        if avg_rating >= 4.3:           # 从4.5放宽到4.3 ✓
+            excellent_conditions += 1
+        if rating_std <= 0.5:           # 从0.4放宽到0.5 ✓
+            excellent_conditions += 1
+        if len(processed_ratings) >= 20:
+            excellent_conditions += 1
+        
+        # 检查趋势
+        if len(processed_ratings) >= 5:
+            try:
+                total_change = processed_ratings[-1] - processed_ratings[0]
+                if total_change > 0.4:  # 从0.5放宽到0.4 ✓
+                    excellent_conditions += 1
+            except:
+                pass
+        
+        if excellent_conditions >= 4:
+            bonus_points += 5
+        elif excellent_conditions >= 3:
+            bonus_points += 3
+        elif excellent_conditions >= 2:
+            bonus_points += 1
+        
+        # 最终得分
         final_score = base_score + bonus_points
         
-        return min(final_score, 100)
+        return max(0, min(final_score, 100))
     
     def _apply_quality_adjustment(self, 
                                 optimized_score: float,
                                 interpolation_quality: float) -> float:
-        """根据数据质量调整分值"""
+        """方案C：根据数据质量调整分值（进一步降低惩罚）"""
         
-        # 确定质量等级和调整因子
+        # ===== 改进5: 进一步降低质量惩罚 =====
         if interpolation_quality >= 0.9:
-            adjustment_factor = 1.0      # 无调整
+            adjustment_factor = 1.0
         elif interpolation_quality >= 0.75:
-            adjustment_factor = 0.95     # 5%调整
+            adjustment_factor = 0.98    # 从0.95提高到0.98 ✓
         elif interpolation_quality >= 0.6:
-            adjustment_factor = 0.9      # 10%调整
+            adjustment_factor = 0.96    # 从0.9提高到0.96 ✓
         elif interpolation_quality >= 0.4:
-            adjustment_factor = 0.8      # 20%调整
+            adjustment_factor = 0.94    # 从0.8提高到0.94 ✓
         else:
-            adjustment_factor = 0.7      # 30%调整
+            adjustment_factor = 0.90    # 从0.7提高到0.90 ✓
         
         # 应用调整
         adjusted_score = optimized_score * adjustment_factor
         
-        # 增强低分区间差异化 - 极致降低最低分数保障
-        min_score = max(optimized_score * 0.05, 0)  # 降低至5%或0分，允许极低分数
+        # 优化低分保障
+        if interpolation_quality >= 0.6:
+            min_score = max(optimized_score * 0.03, 0)  # 从5%降低到3% ✓
+        else:
+            min_score = 0
+        
         final_score = max(adjusted_score, min_score)
         
         return min(final_score, 100)
