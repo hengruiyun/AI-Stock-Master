@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import io
 
-
+# 修复 console=False 模式下 sys.stdout/stderr 为 None 的问题
+# 必须在最开始就设置，避免后续任何模块导入时出错
 if sys.stdout is None:
     sys.stdout = io.StringIO()
 if sys.stderr is None:
@@ -671,57 +672,137 @@ class AnalysisWorker(QThread):
             else:
                 print(f" [行业调试] 未找到行业数据，sector_count将为0")
             
-            # 提取股票数据
+            # 提取股票数据 - 按RTSI最高的20个股票，且所属行业TMA排名前20
             if hasattr(analysis_results, 'stocks') and analysis_results.stocks:
                 stocks_summary = {}
-                sorted_stocks = []
                 
-                for stock_code, stock_info in analysis_results.stocks.items():
-                    # 优化筛选逻辑：基于RTSI分数筛选优质股票，避免过度严格的大盘股限制
-                    stock_industry = stock_info.get('industry', '')
-                    
-                    # 指数行业的股票直接通过
-                    if stock_industry == t_gui("指数"):
-                        pass  # 指数股票直接通过
-                    else:
-                        # 对于其他股票，优先基于RTSI分数筛选，辅以大盘股判断
-                        rtsi_value = stock_info.get('rtsi', 0)
-                        if isinstance(rtsi_value, dict):
-                            rtsi_value = rtsi_value.get('rtsi', 0)
-                        
-                        # 放宽筛选条件：RTSI >= 45 或者是大盘股
-                        if float(rtsi_value) < 45 and not self._is_large_cap_stock(stock_code):
+                # 第一步：获取行业TMA值，并排序得到前20个行业
+                print(f"[AI分析数据准备-行业筛选] 开始按TMA排序行业...")
+                industry_tma = {}  # {行业名: TMA值}
+                industry_stocks_map = {}  # {行业名: [(股票代码, 股票名, RTSI), ...]}
+                
+                # 遍历所有行业
+                if hasattr(analysis_results, 'industries') and analysis_results.industries:
+                    for industry_name, industry_info in analysis_results.industries.items():
+                        if industry_name == "指数":  # 跳过指数行业
                             continue
-                    
-                    rtsi_value = stock_info.get('rtsi', 0)
-                    if isinstance(rtsi_value, dict):
-                        rtsi_value = rtsi_value.get('rtsi', 0)
-                    sorted_stocks.append((stock_code, stock_info.get('name', stock_code), float(rtsi_value)))
+                        
+                        if isinstance(industry_info, dict):
+                            # 获取行业TMA值
+                            tma_value = industry_info.get('irsi', 0)
+                            if isinstance(tma_value, dict):
+                                tma_value = tma_value.get('irsi', 0)
+                            if not isinstance(tma_value, (int, float)):
+                                tma_value = 0
+                            industry_tma[industry_name] = float(tma_value)
+                            
+                        # 收集该行业所有股票
+                        stocks = industry_info.get('stocks', [])
+                        stock_details = []
+                        
+                        # 【修复】正确处理stocks为列表的情况
+                        # stocks格式: [{'code': '000001', 'name': '平安银行', 'rtsi': 95.5}, ...]
+                        if isinstance(stocks, list):
+                            print(f"[股票收集] 行业={industry_name}, stocks类型=list, stocks数量={len(stocks)}")
+                            
+                            # 【调试】打印该行业前3个股票的详细信息
+                            debug_count = 0
+                            for stock_item in stocks:
+                                if isinstance(stock_item, dict):
+                                    stock_code = stock_item.get('code', '')
+                                    stock_name = stock_item.get('name', stock_code)
+                                    rtsi = stock_item.get('rtsi', 0)
+                                    
+                                    # 【调试】打印前3个股票的详细RTSI信息
+                                    if debug_count < 3:
+                                        print(f"[股票筛选-调试] 行业={industry_name}, 股票={stock_code} {stock_name}: RTSI={rtsi} (类型={type(rtsi)})")
+                                        debug_count += 1
+                                    
+                                    # 筛选RTSI > 0的股票
+                                    if isinstance(rtsi, (int, float, np.number)) and rtsi > 0:
+                                        stock_details.append((stock_code, stock_name, float(rtsi)))
+                        
+                        elif isinstance(stocks, dict):
+                            # 兼容旧格式：stocks是字典 {股票代码: {name: xxx, rtsi: xxx}}
+                            print(f"[股票收集] 行业={industry_name}, stocks类型=dict, stocks数量={len(stocks)}")
+                            
+                            debug_count = 0
+                            for stock_code, stock_info in stocks.items():
+                                if isinstance(stock_info, dict):
+                                    rtsi = stock_info.get('rtsi', 0)
+                                    
+                                    # 处理RTSI可能是字典的情况
+                                    if isinstance(rtsi, dict):
+                                        rtsi = rtsi.get('rtsi', 0)
+                                    
+                                    # 【调试】打印前3个股票的详细RTSI信息
+                                    if debug_count < 3:
+                                        stock_name = stock_info.get('name', stock_code)
+                                        print(f"[股票筛选-调试] 行业={industry_name}, 股票={stock_code} {stock_name}: RTSI={rtsi} (类型={type(rtsi)})")
+                                        debug_count += 1
+                                    
+                                    if isinstance(rtsi, (int, float, np.number)) and rtsi > 0:
+                                        stock_name = stock_info.get('name', stock_code)
+                                        stock_details.append((stock_code, stock_name, float(rtsi)))
+                        
+                        # 按RTSI排序该行业的股票
+                        if stock_details:
+                            stock_details.sort(key=lambda x: x[2], reverse=True)
+                            industry_stocks_map[industry_name] = stock_details
+                            print(f"[行业筛选] {industry_name}: TMA={tma_value:.2f}, 股票数={len(stock_details)}, 前3股={[f'{s[0]}({s[2]:.1f})' for s in stock_details[:3]]}")
+                        else:
+                            print(f"[行业筛选-警告] {industry_name}: TMA={tma_value:.2f}, 股票数=0 (原始stocks={len(stocks)})")
                 
-                sorted_stocks.sort(key=lambda x: x[2], reverse=True)
+                # 按TMA排序行业，取前20个
+                top20_industries = sorted(industry_tma.items(), key=lambda x: x[1], reverse=True)[:20]
+                top20_industry_names = [name for name, _ in top20_industries]
                 
-                # 取前40只优质股票（原来是20只，现增加到40只）
-                top_stocks = sorted_stocks[:40]
+                print(f"[AI分析数据准备-行业筛选] TMA排名前20的行业:")
+                for i, (name, tma) in enumerate(top20_industries):
+                    print(f"  {i+1}. {name}: TMA={tma:.2f}")
+                
+                # 第二步：从前20个行业中筛选RTSI最高的20个股票
+                print(f"[AI分析数据准备-股票筛选] 从TMA前20行业中筛选RTSI最高的20个股票...")
+                candidate_stocks = []
+                
+                for industry_name in top20_industry_names:
+                    if industry_name in industry_stocks_map:
+                        for stock_code, stock_name, rtsi in industry_stocks_map[industry_name]:
+                            candidate_stocks.append((stock_code, stock_name, rtsi, industry_name))
+                
+                # 按RTSI排序，取前20个
+                candidate_stocks.sort(key=lambda x: x[2], reverse=True)
+                top20_stocks = candidate_stocks[:20]
+                
+                # 转换为输出格式
+                top_stocks = [(code, name, rtsi) for code, name, rtsi, _ in top20_stocks]
                 stocks_summary["top_performers"] = top_stocks
                 stocks_summary["total_count"] = len(analysis_results.stocks)
                 
-                # 添加调试日志：确认传递给LLM的股票数量
-                print(f"[AI分析数据准备] 原始股票总数: {len(analysis_results.stocks)}")
-                print(f"[AI分析数据准备] 筛选后股票数量: {len(sorted_stocks)}")
-                print(f"[AI分析数据准备] 传递给LLM的前{len(top_stocks)}只股票:")
-                for i, (code, name, rtsi) in enumerate(top_stocks[:10]):
-                    print(f"  {i+1}. {code} {name}: RTSI {rtsi:.2f}")
-                if len(top_stocks) > 10:
-                    print(f"  ... 还有{len(top_stocks) - 10}只股票")
+                # 添加调试日志
+                print(f"[AI分析数据准备-股票筛选] 筛选完成:")
+                print(f"  原始股票总数: {len(analysis_results.stocks)}")
+                print(f"  候选股票数（来自TMA前20行业）: {len(candidate_stocks)}")
+                print(f"  最终推荐股票数: {len(top20_stocks)}")
+                print(f"  传递给AI的推荐股票:")
+                for i, (code, name, rtsi, industry) in enumerate(top20_stocks):
+                    print(f"    {i+1}. {code} {name} [{industry}]: RTSI={rtsi:.2f}")
                 
                 # 数据质量验证
                 if len(top_stocks) == 0:
                     print(f" [AI分析警告] 没有股票数据传递给LLM，可能导致AI编造股票")
-                elif len(top_stocks) < 5:
+                elif len(top_stocks) < 10:
                     print(f" [AI分析警告] 传递给LLM的股票数量较少({len(top_stocks)}只)，可能影响分析质量")
                 
-                # 计算分布统计
-                rtsi_values = [x[2] for x in sorted_stocks]
+                # 计算分布统计（使用所有股票的RTSI）
+                all_stocks_rtsi = []
+                for stock_code, stock_info in analysis_results.stocks.items():
+                    rtsi_value = stock_info.get('rtsi', 0)
+                    if isinstance(rtsi_value, dict):
+                        rtsi_value = rtsi_value.get('rtsi', 0)
+                    if isinstance(rtsi_value, (int, float)):
+                        all_stocks_rtsi.append(float(rtsi_value))
+                rtsi_values = all_stocks_rtsi
                 # 基于优化增强RTSI 0-100分制的分类（方案C v2.3）
                 stocks_summary["statistics"] = {
                     "average_rtsi": np.mean(rtsi_values) if rtsi_values else 0,
@@ -5553,30 +5634,13 @@ class AnalysisPage(QWidget):
             index_industry = None
             
             for industry_name, industry_info in industries_data.items():
-                # 获取行业内所有股票的RTSI值
-                max_rtsi = 0
                 tma_value = 0
                 
                 if isinstance(industry_info, dict):
-                    # 获取TMA值用于显示
+                    # 获取TMA值用于显示和排序
                     tma_value = industry_info.get('irsi', 0)
                     if isinstance(tma_value, dict):
                         tma_value = tma_value.get('irsi', 0)
-                    
-                    # 获取行业内最高RTSI值用于排序
-                    stocks = industry_info.get('stocks', {})
-                    if isinstance(stocks, dict):
-                        for stock_code, stock_info in stocks.items():
-                            if isinstance(stock_info, dict):
-                                rtsi = stock_info.get('rtsi', 0)
-                                if isinstance(rtsi, (int, float)):
-                                    max_rtsi = max(max_rtsi, float(rtsi))
-                    elif isinstance(stocks, list):
-                        for stock in stocks:
-                            if isinstance(stock, dict):
-                                rtsi = stock.get('rtsi', 0)
-                                if isinstance(rtsi, (int, float)):
-                                    max_rtsi = max(max_rtsi, float(rtsi))
                 
                 # 确保tma_value是数字
                 if not isinstance(tma_value, (int, float)):
@@ -5584,12 +5648,12 @@ class AnalysisPage(QWidget):
                 
                 # 检查是否是指数行业
                 if industry_name == "指数":
-                    index_industry = (industry_name, float(tma_value), float(max_rtsi))
+                    index_industry = (industry_name, float(tma_value))
                 else:
-                    sorted_industries.append((industry_name, float(tma_value), float(max_rtsi)))
+                    sorted_industries.append((industry_name, float(tma_value)))
             
-            # 按行业内最高RTSI排序其他行业（从高到低）
-            sorted_industries.sort(key=lambda x: x[2], reverse=True)
+            # 按TMA值排序（从高到低）
+            sorted_industries.sort(key=lambda x: x[1], reverse=True)
             
             # 指数固定在第一位
             if index_industry:
@@ -5597,8 +5661,8 @@ class AnalysisPage(QWidget):
             else:
                 final_industries = sorted_industries
             
-            for industry_name, tma_value, max_rtsi in final_industries:  # 显示所有行业
-                child_item = QTreeWidgetItem([f"🏢 {industry_name} (TMA: {tma_value:.1f}, 最高RTSI: {max_rtsi:.1f})"])
+            for industry_name, tma_value in final_industries:  # 显示所有行业
+                child_item = QTreeWidgetItem([f"🏢 {industry_name} (TMA: {tma_value:.1f})"])
                 child_item.setData(0, Qt.UserRole, f"industry_{industry_name}")
                 self.industry_item.addChild(child_item)
         
@@ -6859,8 +6923,16 @@ class AnalysisPage(QWidget):
             stocks_with_volume = []
             
             for stock in industry_stocks_raw:
-                stock_code = stock.get('code', '')
-                stock_name = stock.get('name', stock_code)
+                # 【修复】处理 stock 可能是字典的情况
+                if isinstance(stock, dict):
+                    stock_code = stock.get('code', '')
+                    stock_name = stock.get('name', stock_code)
+                    stock_rtsi = stock.get('rtsi', {})
+                    stock_data = stock.get('data', {})
+                else:
+                    # 如果不是字典，尝试作为其他格式处理（兜底）
+                    print(f"[WARNING] 股票数据格式异常，类型为 {type(stock)}")
+                    continue
                 
                 # 尝试获取当天成交金额
                 current_volume = self.get_stock_current_volume(stock_code)
@@ -6868,8 +6940,8 @@ class AnalysisPage(QWidget):
                 stocks_with_volume.append({
                     'code': stock_code,
                     'name': stock_name,
-                    'rtsi': stock.get('rtsi', {}),
-                    'data': stock.get('data', {}),
+                    'rtsi': stock_rtsi,
+                    'data': stock_data,
                     'current_volume': current_volume
                 })
                 
@@ -10927,9 +10999,9 @@ class AnalysisPage(QWidget):
     
     def _on_ai_progress_updated(self, value, text):
         """AI分析进度更新"""
-        # 更新按钮显示进度
+        # 更新按钮显示进度 - 只显示数字，不显示文字
         if value >= 70:  # AI分析阶段
-            self.ai_analysis_btn.setText(f"AI分析中...{value}%")
+            self.ai_analysis_btn.setText(f"{value}")
     
     def _on_ai_analysis_completed(self, results):
         """AI分析完成"""
@@ -13842,6 +13914,7 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
     def ensure_stock_server_running(self):
         """确保本地股票服务器正在运行（仅中文+CN市场）"""
         if self.server_started:
+            print(f"[服务器管理] 服务器已标记为启动，跳过检查 (server_started_by_us={self.server_started_by_us})")
             return
         
         # 检查语言和市场条件
@@ -13850,37 +13923,46 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
         detected_market = getattr(main_window, 'detected_market', 'cn') if main_window else 'cn'
         
         if not current_lang.startswith('zh') or detected_market.lower() != 'cn':
-            print("Skipping server startup: Not in Chinese A-share market.")
+            print("[服务器管理] 跳过服务器启动: 非中文A股市场")
             return
         
+        print("[服务器管理] 开始检查服务器状态...")
         server_names = ["stockhost.exe", "大师服务器.exe"]
         server_running = False
+        detected_pid = None
         
         # 使用psutil检查进程
         if psutil:
-            for proc in psutil.process_iter(["name", "exe"]):
+            print("[服务器管理] 使用psutil检查运行中的服务器进程...")
+            for proc in psutil.process_iter(["name", "exe", "pid"]):
                 try:
                     proc_name = proc.info['name']
                     proc_exe = proc.info['exe']
                     for name in server_names:
                         if name.lower() == proc_name.lower() or (proc_exe and name.lower() in proc_exe.lower()):
-                            print(f"服务器 {name} 已经在运行 (PID: {proc.pid})")
+                            detected_pid = proc.info['pid']
+                            print(f"[服务器管理] ✓ 检测到服务器 {name} 已在运行 (PID: {detected_pid})")
                             server_running = True
                             break
                     if server_running:
                         break
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
+            
+            if not server_running:
+                print("[服务器管理] 未检测到运行中的服务器进程")
         else:
-            print("psutil module not available, cannot check running processes. Attempting to start server.")
+            print("[服务器管理] ⚠️ psutil模块不可用，无法检测运行中的进程")
         
         if server_running:
             self.server_started = True
-            self.server_started_by_us = False  # 不是本软件启动的
+            self.server_started_by_us = False  # 不是本软件启动的（可能是托盘启动或用户手动启动）
+            print(f"[服务器管理] 服务器状态: server_started=True, server_started_by_us=False")
+            print(f"[服务器管理] → 此服务器不是本软件启动，退出时将不会自动关闭")
             return
         
         # 尝试启动服务器
-        print("尝试启动服务器...")
+        print("[服务器管理] 未检测到运行中的服务器，尝试启动新服务器...")
         from utils.path_helper import get_base_path
         base_path = Path(get_base_path())
         candidate_dirs = [base_path, project_root]
@@ -13890,17 +13972,21 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                 exe_path = directory / exe_name
                 if exe_path.exists():
                     try:
-                        print(f"正在启动服务器: {exe_name} (路径: {exe_path})")
+                        print(f"[服务器管理] 正在启动服务器: {exe_name}")
+                        print(f"[服务器管理]   路径: {exe_path}")
+                        print(f"[服务器管理]   工作目录: {directory}")
                         import subprocess
                         subprocess.Popen([str(exe_path), "--server"], cwd=str(directory))
                         self.server_started = True
                         self.server_started_by_us = True  # 是本软件启动的
-                        print(f"已启动服务器: {exe_name} (路径: {exe_path})")
+                        print(f"[服务器管理] ✓ 服务器启动成功: {exe_name}")
+                        print(f"[服务器管理] 服务器状态: server_started=True, server_started_by_us=True")
+                        print(f"[服务器管理] → 此服务器由本软件启动，退出时将自动关闭")
                         return
                     except Exception as e:
-                        print(f"启动服务器 {exe_name} 失败: {e}")
+                        print(f"[服务器管理] ✗ 启动服务器 {exe_name} 失败: {e}")
         
-        print("未能找到并启动任何服务器可执行文件。")
+        print("[服务器管理] ✗ 未能找到并启动任何服务器可执行文件")
     
     def get_current_rating_level(self, rtsi_value):
         """根据RTSI值获取当前评级等级"""
@@ -15988,67 +16074,167 @@ class NewPyQt5Interface(QMainWindow):
             os._exit(0)
     
     def _shutdown_server_if_started_by_us(self):
-        """如果服务器是本软件启动的，则关闭服务器"""
+        """无条件关闭大师服务器 (http://localhost:16888) - 使用API+进程管理双保险"""
         try:
-            # 检查是否有 analysis_page 且服务器是本软件启动的
-            if hasattr(self, 'analysis_page') and self.analysis_page:
-                if hasattr(self.analysis_page, 'server_started_by_us') and self.analysis_page.server_started_by_us:
-                    print("检测到服务器是本软件启动的，正在关闭服务器...")
-                    
-                    # 调用 shutdown API（改进版：参考shutdown_server.py）
-                    try:
-                        import requests
-                        import time
-                        
-                        url = "http://localhost:16888/api/shutdown"
-                        max_retries = 1
-                        timeout = 5
-                        
-                        for attempt in range(1, max_retries + 1):
-                            try:
-                                print(f"[尝试 {attempt}/{max_retries}] 发送关闭指令")
-                                
-                                response = requests.post(url, timeout=timeout)
-                                
-                                if response.status_code == 200:
-                                    result = response.json()
-                                    if result.get('success'):
-                                        print(f"✅ 成功！服务器关闭指令已发送")
-                                        print(f"   消息: {result.get('message')}")
-                                        time.sleep(1)
-                                        return
-                                    else:
-                                        print(f"❌ 关闭失败: {result.get('error')}")
-                                        if attempt < max_retries:
-                                            time.sleep(2)
-                                else:
-                                    print(f"❌ HTTP 错误: {response.status_code}")
-                                    if attempt < max_retries:
-                                        time.sleep(2)
-                                        
-                            except requests.exceptions.Timeout:
-                                print("⚠️ 请求超时（服务器可能已开始关闭）")
-                                return
-                                
-                            except requests.exceptions.ConnectionError:
-                                print("⚠️ 无法连接到服务器（服务器可能已关闭）")
-                                return
-                        
-                        print("❌ 所有尝试均失败，但将继续退出")
-                        
-                    except ImportError:
-                        print("[WARN] requests模块不可用，无法关闭服务器")
-                    except Exception as e:
-                        print(f"[WARN] 关闭服务器时出错: {e}")
+            print("[服务器管理] 准备关闭大师服务器...")
+            
+            # 方法1: 尝试通过API优雅关闭
+            api_success = self._try_api_shutdown()
+            
+            # 等待并验证
+            if api_success:
+                import time
+                time.sleep(1)  # 等待服务器关闭
+                
+                # 验证服务器是否真的关闭了
+                if not self._check_server_running():
+                    print("[服务器管理] ✅ 服务器已通过API成功关闭")
+                    return
                 else:
-                    print("服务器不是本软件启动的，跳过关闭操作")
+                    print("[服务器管理] ⚠️ API关闭后服务器仍在运行，尝试进程终止")
+            
+            # 方法2: 如果API失败，使用进程管理强制关闭
+            print("[服务器管理] 使用进程管理强制关闭服务器...")
+            process_success = self._try_process_shutdown()
+            
+            if process_success:
+                print("[服务器管理] ✅ 服务器已通过进程管理成功关闭")
             else:
-                print("未检测到分析页面或服务器状态，跳过服务器关闭")
+                print("[服务器管理] ⚠️ 无法关闭服务器，可能需要手动关闭")
                 
         except Exception as e:
-            print(f"[ERROR] 检查并关闭服务器时出错: {e}")
+            print(f"[ERROR] 关闭大师服务器时出错: {e}")
             import traceback
             traceback.print_exc()
+    
+    def _try_api_shutdown(self):
+        """方法1: 尝试通过API优雅关闭服务器"""
+        try:
+            import requests
+            import time
+            
+            url = "http://localhost:16888/api/shutdown"
+            timeout = 3
+            
+            print(f"[服务器管理] 方法1: 向 {url} 发送关闭指令")
+            
+            try:
+                response = requests.post(url, timeout=timeout)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('success'):
+                        print(f"[服务器管理] ✅ API关闭指令已发送")
+                        print(f"[服务器管理]    消息: {result.get('message')}")
+                        return True
+                    else:
+                        print(f"[服务器管理] ⚠️ API返回失败: {result.get('error', 'Unknown error')}")
+                        return False
+                else:
+                    print(f"[服务器管理] ⚠️ HTTP 状态码: {response.status_code}")
+                    return False
+                    
+            except requests.exceptions.Timeout:
+                print("[服务器管理] ⚠️ API请求超时")
+                return True  # 超时可能意味着服务器已开始关闭
+                
+            except requests.exceptions.ConnectionError:
+                print("[服务器管理] ℹ️ 无法连接到服务器（可能已关闭）")
+                return True  # 连接失败可能意味着已关闭
+            
+        except ImportError:
+            print("[服务器管理] ⚠️ requests模块不可用")
+            return False
+        except Exception as e:
+            print(f"[服务器管理] ⚠️ API关闭出错: {e}")
+            return False
+    
+    def _try_process_shutdown(self):
+        """方法2: 通过进程管理强制关闭服务器"""
+        try:
+            import psutil
+            import time
+            
+            # 查找 stockhost.exe 进程
+            found_processes = []
+            target_port = 16888
+            
+            for proc in psutil.process_iter(['pid', 'name']):
+                try:
+                    if proc.info['name'] and 'stockhost' in proc.info['name'].lower():
+                        # 检查端口
+                        try:
+                            connections = proc.connections()
+                            for conn in connections:
+                                if conn.status == 'LISTEN' and conn.laddr.port == target_port:
+                                    found_processes.append(proc)
+                                    print(f"[服务器管理] 找到进程: PID={proc.pid}, 名称={proc.info['name']}, 端口={target_port}")
+                                    break
+                        except (psutil.AccessDenied, psutil.NoSuchProcess):
+                            # 如果无法获取端口信息，但名称匹配，也加入列表
+                            found_processes.append(proc)
+                            print(f"[服务器管理] 找到进程: PID={proc.pid}, 名称={proc.info['name']} (无法确认端口)")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            if not found_processes:
+                print("[服务器管理] 未找到 stockhost.exe 进程")
+                return True  # 没有进程就认为成功
+            
+            # 终止所有找到的进程
+            killed_count = 0
+            for proc in found_processes:
+                try:
+                    print(f"[服务器管理] 尝试终止进程 PID={proc.pid}...")
+                    
+                    # 先尝试优雅终止
+                    proc.terminate()
+                    
+                    # 等待最多3秒
+                    try:
+                        proc.wait(timeout=3)
+                        print(f"[服务器管理] ✅ 进程 PID={proc.pid} 已优雅终止")
+                        killed_count += 1
+                    except psutil.TimeoutExpired:
+                        # 如果3秒后还没退出，强制杀死
+                        print(f"[服务器管理] ⚠️ 进程 PID={proc.pid} 未响应，强制终止...")
+                        proc.kill()
+                        proc.wait(timeout=3)
+                        print(f"[服务器管理] ✅ 进程 PID={proc.pid} 已强制终止")
+                        killed_count += 1
+                        
+                except psutil.NoSuchProcess:
+                    print(f"[服务器管理] ℹ️ 进程 PID={proc.pid} 已不存在")
+                    killed_count += 1
+                except psutil.AccessDenied:
+                    print(f"[服务器管理] ❌ 没有权限终止进程 PID={proc.pid} (需要管理员权限)")
+                except Exception as e:
+                    print(f"[服务器管理] ❌ 终止进程 PID={proc.pid} 失败: {e}")
+            
+            if killed_count > 0:
+                print(f"[服务器管理] ✅ 成功终止 {killed_count} 个进程")
+                return True
+            else:
+                print(f"[服务器管理] ❌ 未能终止任何进程")
+                return False
+                
+        except ImportError:
+            print("[服务器管理] ⚠️ psutil模块不可用，无法使用进程管理")
+            return False
+        except Exception as e:
+            print(f"[服务器管理] ❌ 进程终止出错: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _check_server_running(self):
+        """检查服务器是否仍在运行"""
+        try:
+            import requests
+            response = requests.get("http://localhost:16888", timeout=2)
+            return True  # 能连接就是在运行
+        except:
+            return False  # 连接失败就是已关闭
     
     def _cleanup_temporary_files(self):
         """清理临时文件"""
