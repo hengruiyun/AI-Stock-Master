@@ -10,21 +10,67 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from config_manager import ConfigManager
 from i18n import get_i18n, t, Language
 
 
+def get_base_dir():
+    """获取基础目录（支持打包环境）"""
+    if getattr(sys, 'frozen', False):
+        # 打包环境：使用 EXE 所在目录
+        exe_dir = os.path.dirname(sys.executable)
+        
+        # 确保 config 子目录存在
+        config_dir = os.path.join(exe_dir, "config")
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+        
+        # 确保 prompts 子目录存在
+        prompts_dir = os.path.join(exe_dir, "prompts")
+        if not os.path.exists(prompts_dir):
+            os.makedirs(prompts_dir, exist_ok=True)
+            
+        return Path(exe_dir)
+    else:
+        # 开发环境：返回当前文件所在目录
+        return Path(__file__).parent
+
+
 class SettingsWindow:
     """设置窗口类"""
+    
+    # 提供商显示名称映射（中文）
+    PROVIDER_DISPLAY_NAMES = {
+        'OpenAI': 'OpenAI',
+        'Anthropic': 'Anthropic',
+        'Gemini': 'Gemini (Google)',
+        'Groq': 'Groq',
+        'DeepSeek': 'DeepSeek (深度求索)',
+        'SiliconFlow': 'SiliconFlow (硅基流动)',
+        'Volcengine': 'Volcengine (火山引擎)',
+        'Bailian': 'Bailian (阿里云百炼)',
+        'Ollama': 'Ollama (本地)',
+        'LMStudio': 'LM Studio (本地)'
+    }
     
     def __init__(self):
         self.root = tk.Tk()
         self.config_manager = ConfigManager()
-        self.config_file_path = Path(__file__).parent / "config" / "user_settings.json"
+        self.base_dir = get_base_dir()
+        self.config_file_path = self.base_dir / "config" / "user_settings.json"
         self.providers_models = self._load_models_config()
         self.current_config = {}
+        
+        # 创建提供商显示名称到实际名称的映射
+        self.provider_display_to_actual = {}
+        self.provider_actual_to_display = {}
+        for actual_name in self.providers_models.keys():
+            display_name = self.PROVIDER_DISPLAY_NAMES.get(actual_name, actual_name)
+            self.provider_display_to_actual[display_name] = actual_name
+            self.provider_actual_to_display[actual_name] = display_name
         
         # 初始化国际化
         self.i18n = get_i18n()
@@ -101,6 +147,7 @@ class SettingsWindow:
         self.timeout_label.config(text=self._t("timeout", "Request Timeout (seconds):", "请求超时 (秒):"))
         self.cancel_btn.config(text=self._t("cancel", "Cancel", "取消"))
         self.save_btn.config(text=self._t("save", "Save", "保存"))
+        self.register_link_btn.config(text=self._t("register_siliconflow", "Register SiliconFlow", "注册硅基流动"))
         
         # 更新智能体默认值
         current_agent = self.agent_var.get()
@@ -123,14 +170,20 @@ class SettingsWindow:
                 'Anthropic': 'Anthropic API Key:',
                 'DeepSeek': 'DeepSeek API Key:',
                 'Groq': 'Groq API Key:',
-                'Gemini': 'Google API Key:'
+                'Gemini': 'Google API Key:',
+                'SiliconFlow': 'SiliconFlow API Key:',
+                'Volcengine': 'Volcengine API Key:',
+                'Bailian': 'Bailian API Key:'
             }
             api_key_labels_zh = {
                 'OpenAI': 'OpenAI API Key:',
                 'Anthropic': 'Anthropic API Key:',
                 'DeepSeek': 'DeepSeek API Key:',
                 'Groq': 'Groq API Key:',
-                'Gemini': 'Google API Key:'
+                'Gemini': 'Google API Key:',
+                'SiliconFlow': 'SiliconFlow API Key:',
+                'Volcengine': 'Volcengine API Key:',
+                'Bailian': 'Bailian API Key:'
             }
             en_text = api_key_labels_en.get(provider, 'API Key:')
             zh_text = api_key_labels_zh.get(provider, 'API Key:')
@@ -139,7 +192,7 @@ class SettingsWindow:
         
     def _load_models_config(self) -> Dict[str, List[Dict]]:
         """加载模型配置"""
-        config_path = Path(__file__).parent / "config" / "api_models.json"
+        config_path = self.base_dir / "config" / "api_models.json"
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 models = json.load(f)
@@ -162,7 +215,7 @@ class SettingsWindow:
         agents = ["不使用"]  # 默认选项
         
         # 从prompts目录读取所有可用的智能体
-        prompts_dir = Path(__file__).parent / "prompts"
+        prompts_dir = self.base_dir / "prompts"
         if prompts_dir.exists():
             # 扫描prompts目录下的json文件
             for json_file in prompts_dir.glob("*.json"):
@@ -218,8 +271,10 @@ class SettingsWindow:
         self.provider_label.pack(anchor='w')
         
         self.provider_var = tk.StringVar()
+        # 使用显示名称作为下拉框选项
+        display_names = [self.provider_actual_to_display[name] for name in self.providers_models.keys()]
         self.provider_combo = ttk.Combobox(provider_frame, textvariable=self.provider_var,
-                                          values=list(self.providers_models.keys()),
+                                          values=display_names,
                                           state='readonly', width=40, font=self.font_normal)
         self.provider_combo.pack(fill='x', pady=(5, 0))
         self.provider_combo.bind('<<ComboboxSelected>>', self._on_provider_changed)
@@ -309,6 +364,18 @@ class SettingsWindow:
         button_frame = tk.Frame(main_frame, bg='#f0f0f0')
         button_frame.pack(fill='x', pady=(20, 0))
         
+        # 左侧：注册硅基流动链接
+        self.register_link_btn = tk.Button(button_frame, 
+                                          text=self._t("register_siliconflow", "Register SiliconFlow", "注册硅基流动"),
+                                          font=self.font_normal,
+                                          fg='#0066cc',
+                                          bg='#f0f0f0',
+                                          bd=0,
+                                          cursor='hand2',
+                                          command=self._open_siliconflow_register)
+        self.register_link_btn.pack(side='left')
+        
+        # 右侧：取消和保存按钮
         # 取消按钮
         self.cancel_btn = tk.Button(button_frame, text=self._t("cancel", "Cancel", "取消"), width=10, height=1,
                                    font=self.font_normal,
@@ -323,7 +390,9 @@ class SettingsWindow:
         
     def _on_provider_changed(self, event=None):
         """供应商改变时的处理"""
-        provider = self.provider_var.get()
+        provider_display = self.provider_var.get()
+        # 将显示名称转换为实际名称
+        provider = self.provider_display_to_actual.get(provider_display, provider_display)
         
         # 所有供应商都显示模型输入框，同时也显示下拉选择（如果有预定义模型）
         self.model_label.config(text="模型名称:")
@@ -362,7 +431,10 @@ class SettingsWindow:
                 'Anthropic': 'Anthropic API Key:',
                 'DeepSeek': 'DeepSeek API Key:',
                 'Groq': 'Groq API Key:',
-                'Gemini': 'Google API Key:'
+                'Gemini': 'Google API Key:',
+                'SiliconFlow': 'SiliconFlow API Key:',
+                'Volcengine': 'Volcengine API Key:',
+                'Bailian': 'Bailian API Key:'
             }
             self.api_key_label.config(text=api_key_labels.get(provider, 'API Key:'))
             self.api_key_entry.config(state='normal')  # 启用状态
@@ -384,7 +456,10 @@ class SettingsWindow:
             'Anthropic': 'ANTHROPIC_API_KEY', 
             'DeepSeek': 'DEEPSEEK_API_KEY',
             'Groq': 'GROQ_API_KEY',
-            'Gemini': 'GOOGLE_API_KEY'
+            'Gemini': 'GOOGLE_API_KEY',
+            'SiliconFlow': 'SILICONFLOW_API_KEY',
+            'Volcengine': 'VOLCENGINE_API_KEY',
+            'Bailian': 'BAILIAN_API_KEY'
         }
         
         env_key = api_key_mapping.get(provider)
@@ -406,6 +481,9 @@ class SettingsWindow:
             'DeepSeek': ('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
             'Groq': ('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
             'Gemini': ('GOOGLE_BASE_URL', 'https://generativelanguage.googleapis.com'),
+            'SiliconFlow': ('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1'),
+            'Volcengine': ('VOLCENGINE_BASE_URL', 'https://ark.cn-beijing.volces.com/api/v3'),
+            'Bailian': ('BAILIAN_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
             'Ollama': ('OLLAMA_BASE_URL', 'http://localhost:11434'),
             'LMStudio': ('LMSTUDIO_BASE_URL', 'http://localhost:1234/v1')
         }
@@ -435,7 +513,9 @@ class SettingsWindow:
         # 设置界面值
         provider = self.current_config.get('default_provider', 'OpenAI')
         if provider in self.providers_models or provider in ['Ollama', 'LMStudio']:
-            self.provider_var.set(provider)
+            # 将实际名称转换为显示名称
+            provider_display = self.provider_actual_to_display.get(provider, provider)
+            self.provider_var.set(provider_display)
             self._on_provider_changed()
             
             # 设置模型
@@ -454,8 +534,15 @@ class SettingsWindow:
                                 found_in_predefined = True
                                 break
                     
-                    # 如果在预定义模型中没找到，说明是自定义模型，设置到输入框
+                    # 如果在预定义模型中没找到，说明是自定义模型
                     if not found_in_predefined:
+                        # 尝试在下拉框中选择 "custom" 选项
+                        if provider in self.providers_models:
+                            for model in self.providers_models[provider]:
+                                if model['display_name'].lower().endswith('custom') or model['model_name'] == '-':
+                                    self.model_var.set(model['display_name'])
+                                    break
+                        # 在输入框中显示自定义模型名称
                         self.model_name_var.set(model_name)
         
         # 设置API Key
@@ -492,16 +579,26 @@ class SettingsWindow:
             # 确保配置目录存在
             self.config_file_path.parent.mkdir(parents=True, exist_ok=True)
             
+            # 调试信息
+            print(f"[DEBUG] 正在保存配置到: {self.config_file_path}")
+            print(f"[DEBUG] 配置内容: {json.dumps(config, indent=2, ensure_ascii=False)}")
+            
             with open(self.config_file_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            print(f"[DEBUG] 配置保存成功！")
             return True
         except Exception as e:
-            messagebox.showerror("错误", f"保存配置失败: {e}")
+            error_msg = f"保存配置失败: {e}\n路径: {self.config_file_path}"
+            print(f"[ERROR] {error_msg}")
+            messagebox.showerror("错误", error_msg)
             return False
     
     def _get_selected_model_info(self):
         """获取选中的模型信息"""
-        provider = self.provider_var.get()
+        provider_display = self.provider_var.get()
+        # 将显示名称转换为实际名称
+        provider = self.provider_display_to_actual.get(provider_display, provider_display)
         
         # 优先检查用户是否在输入框中输入了自定义模型名称
         custom_model_name = self.model_name_var.get().strip()
@@ -525,10 +622,13 @@ class SettingsWindow:
     def _validate_settings(self) -> bool:
         """验证设置"""
         # 检查供应商
-        provider = self.provider_var.get()
-        if not provider:
+        provider_display = self.provider_var.get()
+        if not provider_display:
             messagebox.showerror("错误", "请选择模型供应商")
             return False
+        
+        # 将显示名称转换为实际名称
+        provider = self.provider_display_to_actual.get(provider_display, provider_display)
         
         # 检查模型（所有供应商都需要模型名称）
         custom_model_name = self.model_name_var.get().strip()
@@ -541,7 +641,7 @@ class SettingsWindow:
         # 检查API Key（仅对需要API Key的供应商）
         if provider not in ['Ollama', 'LMStudio']:
             if not self.api_key_var.get().strip():
-                messagebox.showerror("错误", f"请输入{provider} API Key")
+                messagebox.showerror("错误", f"请输入{provider_display} API Key")
                 return False
         
         # 检查超时设置
@@ -567,7 +667,9 @@ class SettingsWindow:
                 messagebox.showerror("错误", "无法获取模型信息")
                 return
             
-            provider = self.provider_var.get()
+            # 将显示名称转换为实际名称
+            provider_display = self.provider_var.get()
+            provider = self.provider_display_to_actual.get(provider_display, provider_display)
             
             # 构建配置
             config = {
@@ -576,6 +678,8 @@ class SettingsWindow:
                 'default_structured_model': model_info['model_name'],
                 'request_timeout': int(self.timeout_var.get()),
                 'agent_role': self.agent_var.get(),
+                # 保留 dont_show_api_dialog 设置（如果存在），否则默认为 false
+                'dont_show_api_dialog': self.current_config.get('dont_show_api_dialog', False),
             }
             
             # 添加API Key（仅对需要API Key的供应商）
@@ -587,7 +691,10 @@ class SettingsWindow:
                         'Anthropic': 'ANTHROPIC_API_KEY',
                         'DeepSeek': 'DEEPSEEK_API_KEY',
                         'Groq': 'GROQ_API_KEY',
-                        'Gemini': 'GOOGLE_API_KEY'
+                        'Gemini': 'GOOGLE_API_KEY',
+                        'SiliconFlow': 'SILICONFLOW_API_KEY',
+                        'Volcengine': 'VOLCENGINE_API_KEY',
+                        'Bailian': 'BAILIAN_API_KEY'
                     }
                     if provider in api_key_mapping:
                         config[api_key_mapping[provider]] = api_key
@@ -601,6 +708,9 @@ class SettingsWindow:
                     'Groq': 'GROQ_BASE_URL',
                     'DeepSeek': 'DEEPSEEK_BASE_URL',
                     'Gemini': 'GOOGLE_BASE_URL',
+                    'SiliconFlow': 'SILICONFLOW_BASE_URL',
+                    'Volcengine': 'VOLCENGINE_BASE_URL',
+                    'Bailian': 'BAILIAN_BASE_URL',
                     'Ollama': 'OLLAMA_BASE_URL',
                     'LMStudio': 'LMSTUDIO_BASE_URL'
                 }
@@ -619,6 +729,15 @@ class SettingsWindow:
     def _on_cancel(self):
         """取消设置"""
         self.root.destroy()
+    
+    def _open_siliconflow_register(self):
+        """打开硅基流动注册页面"""
+        import webbrowser
+        url = "https://cloud.siliconflow.cn/i/GvCcTpzt"
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法打开浏览器: {e}")
     
     def run(self):
         """运行设置窗口"""

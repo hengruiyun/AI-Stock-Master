@@ -105,5 +105,150 @@
     "provider": "LMStudio",
     "supports_json_mode": true,
     "supports_streaming": true
+  },
+  {
+    "display_name": "[siliconflow] Qwen3-8B",
+    "model_name": "Qwen/Qwen3-8B",
+    "provider": "SiliconFlow",
+    "supports_json_mode": true,
+    "supports_streaming": true
+  },
+  {
+    "display_name": "[siliconflow] DeepSeek-R1-0528-Qwen3-8B",
+    "model_name": "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+    "provider": "SiliconFlow",
+    "supports_json_mode": true,
+    "supports_streaming": true
+  },
+  {
+    "display_name": "[siliconflow] 智谱 glm-4-9b-chat",
+    "model_name": "THUDM/glm-4-9b-chat",
+    "provider": "SiliconFlow",
+    "supports_json_mode": true,
+    "supports_streaming": true
+  },
+  {
+    "display_name": "[siliconflow] Tencent Hunyuan-MT-7B",
+    "model_name": "tencent/Hunyuan-MT-7B",
+    "provider": "SiliconFlow",
+    "supports_json_mode": true,
+    "supports_streaming": true
+  },
+  {
+    "display_name": "[siliconflow] custom",
+    "model_name": "-",
+    "provider": "SiliconFlow",
+    "supports_json_mode": true,
+    "supports_streaming": true
+  },
+  {
+    "display_name": "[volcengine] Doubao-pro-32k",
+    "model_name": "ep-20241226105759-xwcxz",
+    "provider": "Volcengine",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 32768
+  },
+  {
+    "display_name": "[volcengine] Doubao-pro-128k",
+    "model_name": "ep-20241226105820-wlqvd",
+    "provider": "Volcengine",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[volcengine] Doubao-lite-32k",
+    "model_name": "ep-20241226105842-6qfwl",
+    "provider": "Volcengine",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 32768
+  },
+  {
+    "display_name": "[volcengine] Doubao-lite-128k",
+    "model_name": "ep-20241226105901-mzqjh",
+    "provider": "Volcengine",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[volcengine] custom",
+    "model_name": "-",
+    "provider": "Volcengine",
+    "supports_json_mode": true,
+    "supports_streaming": true
+  },
+  {
+    "display_name": "[bailian] Qwen-Max",
+    "model_name": "qwen-max",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 30720
+  },
+  {
+    "display_name": "[bailian] Qwen-Plus",
+    "model_name": "qwen-plus",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[bailian] Qwen-Turbo",
+    "model_name": "qwen-turbo",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[bailian] Qwen-Long",
+    "model_name": "qwen-long",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 1000000
+  },
+  {
+    "display_name": "[bailian] Qwen2.5-72B-Instruct",
+    "model_name": "qwen2.5-72b-instruct",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[bailian] Qwen2.5-32B-Instruct",
+    "model_name": "qwen2.5-32b-instruct",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[bailian] Qwen2.5-14B-Instruct",
+    "model_name": "qwen2.5-14b-instruct",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[bailian] Qwen2.5-7B-Instruct",
+    "model_name": "qwen2.5-7b-instruct",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true,
+    "context_window": 131072
+  },
+  {
+    "display_name": "[bailian] custom",
+    "model_name": "-",
+    "provider": "Bailian",
+    "supports_json_mode": true,
+    "supports_streaming": true
   }
 ]

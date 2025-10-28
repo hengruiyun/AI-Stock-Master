@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>逐笔分析 （大师版）</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .control-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .input-group label {
+            font-weight: bold;
+            min-width: 100px;
+        }
+        
+        .input-group input {
+            padding: 10px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .input-group input#stockCode {
+            width: 120px;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .custom-thresholds {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .threshold-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .threshold-item label {
+            font-weight: bold;
+            min-width: 80px;
+        }
+        
+        .threshold-item input {
+            padding: 8px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 100px;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .analysis-summary, .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        
+        .summary-item {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .summary-item .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .summary-item .label {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .data-table-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+        
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .data-table tr:hover {
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        .order-type {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .order-type.small {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .order-type.medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .order-type.large {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .order-type.super {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .progress-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            text-align: center;
+            display: none;
+        }
+
+        .progress-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar-container {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 20px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            font-size: 12px;
+        }
+
+        .progress-step {
+            color: #999;
+            padding: 5px 10px;
+            border-radius: 15px;
+            background: #f5f5f5;
+            transition: all 0.3s ease;
+        }
+
+        .progress-step.active {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            font-weight: bold;
+        }
+
+        .progress-step.completed {
+            color: #28a745;
+            background: rgba(40, 167, 69, 0.1);
+        }
+        
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .success {
+            color: #155724;
+            background: #d4edda;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .pagination button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .pagination button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .pagination span {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .results-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .custom-thresholds {
+                grid-template-columns: 1fr;
+            }
+            
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .risk-warning {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 1400px;
+            text-align: center;
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .risk-warning strong {
+            color: #dc3545;
+            font-size: 16px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>逐笔分析（大师版）</h1>
+            <div>股票历史分笔数据分析</div>
+            <div style="font-size: 14px; margin-top: 5px;">作者：267278466@qq.com</div>
+        </div>
+        
+        <div class="control-panel">
+            <div class="input-group">
+                <label for="stockCode"><i class="fas fa-search"></i> 股票代码:</label>
+                <input type="text" id="stockCode" placeholder="例如: 000001, 600000" maxlength="10">
+                
+                <label for="tradeDate"><i class="fas fa-calendar"></i> 交易日期:</label>
+                <input type="date" id="tradeDate">
+                
+                <button class="btn" onclick="analyzeStock()">
+                    <i class="fas fa-chart-line"></i> 开始分析
+                </button>
+                
+                <button class="btn" onclick="openBattleAnalysis()" style="margin-left: 10px; background: linear-gradient(135deg, #6f42c1, #e83e8c); border: none;">
+                    <i class="fas fa-balance-scale"></i> 多空分析
+                </button>
+            </div>
+            
+            <h3><i class="fas fa-cog"></i> 自定义分析标准 (单位: 万元)</h3>
+            <div class="custom-thresholds">
+                <div class="threshold-item">
+                    <label>小单上限:</label>
+                    <input type="number" id="smallThreshold" value="5" step="0.1" min="0">
+                </div>
+                <div class="threshold-item">
+                    <label>中单上限:</label>
+                    <input type="number" id="mediumThreshold" value="20" step="0.1" min="0">
+                </div>
+                <div class="threshold-item">
+                    <label>大单上限:</label>
+                    <input type="number" id="largeThreshold" value="100" step="0.1" min="0">
+                </div>
+                <div class="threshold-item">
+                    <label>特大单下限:</label>
+                    <input type="number" id="superThreshold" value="1000" step="1" min="100" readonly style="background-color: #f5f5f5; cursor: not-allowed;">
+                    <small style="color: #666; font-size: 12px;">自动设置为 > 大单上限</small>
+                </div>
+            </div>
+            
+        </div>
+        
+        <div id="loadingDiv" class="loading" style="display: none;">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p>正在获取数据，请稍候...</p>
+        </div>
+
+        <div id="progressContainer" class="progress-container">
+            <div class="progress-title">
+                <i class="fas fa-chart-line"></i> 分析中...
+            </div>
+            <div class="progress-bar-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+            <div id="progressText" class="progress-text">正在初始化...</div>
+            <div class="progress-steps">
+                <div id="step1" class="progress-step">获取分笔数据</div>
+                <div id="step2" class="progress-step">分析买卖方向</div>
+                <div id="step3" class="progress-step">统计订单分类</div>
+                <div id="step4" class="progress-step">获取历史数据</div>
+                <div id="step5" class="progress-step">生成图表</div>
+            </div>
+        </div>
+        
+        <div id="errorDiv" class="error" style="display: none;"></div>
+        <div id="successDiv" class="success" style="display: none;"></div>
+        
+        <div id="resultsContainer" style="display: none;">
+            <div class="analysis-summary" style="margin-bottom: 30px;">
+                <h3><i class="fas fa-chart-pie"></i> 分析汇总</h3>
+                <div class="summary-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
+                    <div class="summary-item">
+                        <div class="value" id="totalTrades">-</div>
+                        <div class="label">总笔数</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="value" id="totalAmount">-</div>
+                        <div class="label">总成交额(万)</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="value" id="avgAmount">-</div>
+                        <div class="label">平均成交额(万)</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="value" id="maxAmount">-</div>
+                        <div class="label">最大成交额(万)</div>
+                    </div>
+                </div>
+
+                <h4><i class="fas fa-arrow-up" style="color: #F44336;"></i> 买入汇总</h4>
+                <div class="summary-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
+                    <div class="summary-item" style="border-left-color: #F44336;">
+                        <div class="value" style="color: #F44336;">
+                            <div><span id="buySuperOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="buySuperAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">买入特大单</div>
+                    </div>
+                    <div class="summary-item" style="border-left-color: #F44336;">
+                        <div class="value" style="color: #F44336;">
+                            <div><span id="buyLargeOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="buyLargeAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">买入大单</div>
+                    </div>
+                    <div class="summary-item" style="border-left-color: #F44336;">
+                        <div class="value" style="color: #F44336;">
+                            <div><span id="buyMediumOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="buyMediumAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">买入中单</div>
+                    </div>
+                    <div class="summary-item" style="border-left-color: #F44336;">
+                        <div class="value" style="color: #F44336;">
+                            <div><span id="buySmallOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="buySmallAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">买入小单</div>
+                    </div>
+                </div>
+                
+                <h4><i class="fas fa-arrow-down" style="color: #4CAF50;"></i> 卖出汇总</h4>
+                <div class="summary-grid" style="grid-template-columns: repeat(4, 1fr);">
+                    <div class="summary-item" style="border-left-color: #4CAF50;">
+                        <div class="value" style="color: #4CAF50;">
+                            <div><span id="sellSuperOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="sellSuperAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">卖出特大单</div>
+                    </div>
+                    <div class="summary-item" style="border-left-color: #4CAF50;">
+                        <div class="value" style="color: #4CAF50;">
+                            <div><span id="sellLargeOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="sellLargeAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">卖出大单</div>
+                    </div>
+                    <div class="summary-item" style="border-left-color: #4CAF50;">
+                        <div class="value" style="color: #4CAF50;">
+                            <div><span id="sellMediumOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="sellMediumAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">卖出中单</div>
+                    </div>
+                    <div class="summary-item" style="border-left-color: #4CAF50;">
+                        <div class="value" style="color: #4CAF50;">
+                            <div><span id="sellSmallOrders">-</span></div>
+                            <div style="font-size: 0.8em; margin-top: 5px;"><span id="sellSmallAmount">-</span>万元</div>
+                        </div>
+                        <div class="label">卖出小单</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-container" style="margin-bottom: 30px;">
+                <h3><i class="fas fa-balance-scale"></i> 买卖金额对比图</h3>
+                <div id="buySellChart" style="width: 100%; height: 500px; min-height: 500px;"></div>
+            </div>
+            
+            <!-- 重复分析栏目 -->
+            <div class="data-table-container" style="margin-bottom: 30px;">
+                <h3 style="text-align: center; margin-bottom: 25px; font-size: 1.5rem;"><i class="fas fa-repeat"></i> 重复分析 - 相同成交量统计</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+                    <!-- 买入重复分析表格 -->
+                    <div style="background: linear-gradient(135deg, #ffebee, #fce4ec); border-radius: 15px; padding: 20px; border-left: 5px solid #F44336; box-shadow: 0 4px 15px rgba(244, 67, 54, 0.1);">
+                        <h4 style="color: #F44336; margin-bottom: 20px; text-align: center; font-size: 1.2rem; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
+                            <i class="fas fa-arrow-up" style="margin-right: 8px; font-size: 1.1em;"></i> 
+                            买入相同成交量前5名
+                        </h4>
+                        <table class="data-table" style="margin-top: 0; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <thead style="background: linear-gradient(135deg, #F44336, #E53935);">
+                                <tr>
+                                    <th style="color: #F44336; font-weight: bold;">排名</th>
+                                    <th style="color: #F44336; font-weight: bold;">成交量(手)</th>
+                                    <th style="color: #F44336; font-weight: bold;">重复次数</th>
+                                    <th style="color: #F44336; font-weight: bold;">占比</th>
+                                </tr>
+                            </thead>
+                            <tbody id="buyRepeatTable">
+                                <tr><td colspan="4" style="text-align: center; color: #999; padding: 20px;">暂无数据</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- 卖出重复分析表格 -->
+                    <div style="background: linear-gradient(135deg, #e8f5e8, #f1f8e9); border-radius: 15px; padding: 20px; border-left: 5px solid #4CAF50; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.1);">
+                        <h4 style="color: #4CAF50; margin-bottom: 20px; text-align: center; font-size: 1.2rem; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
+                            <i class="fas fa-arrow-down" style="margin-right: 8px; font-size: 1.1em;"></i> 
+                            卖出相同成交量前5名
+                        </h4>
+                        <table class="data-table" style="margin-top: 0; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <thead style="background: linear-gradient(135deg, #4CAF50, #43A047);">
+                                <tr>
+                                    <th style="color: #4CAF50; font-weight: bold;">排名</th>
+                                    <th style="color: #4CAF50; font-weight: bold;">成交量(手)</th>
+                                    <th style="color: #4CAF50; font-weight: bold;">重复次数</th>
+                                    <th style="color: #4CAF50; font-weight: bold;">占比</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sellRepeatTable">
+                                <tr><td colspan="4" style="text-align: center; color: #999; padding: 20px;">暂无数据</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-container" style="margin-bottom: 30px; height: 100vh;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3><i class="fas fa-chart-bar"></i> 历史成交量/金额图</h3>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label for="dayRange" style="font-weight: bold;">选择周期:</label>
+                        <select id="dayRange" onchange="updateVolumeChartRange()" style="padding: 8px 12px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 14px;">
+                            <option value="1">1日</option>
+                            <option value="5">5日</option>
+                            <option value="10" selected>10日</option>
+                            <option value="20">20日</option>
+                            <option value="30">30日</option>
+                            <option value="60">60日</option>
+                            <option value="90">90日</option>
+                        </select>
+                        <label for="chartType" style="font-weight: bold;">显示类型:</label>
+                        <select id="chartType" onchange="updateVolumeChartType()" style="padding: 8px 12px; border: 2px solid #e1e5e9; border-radius: 6px; font-size: 14px;">
+                            <option value="volume">成交量</option>
+                            <option value="amount">成交金额</option>
+                        </select>
+                    </div>
+                </div>
+                
+                
+                <div id="volumeChart" style="width: 100%; height: calc(100% - 120px);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 风险警告 -->
+    <div class="risk-warning">
+        <strong>风险提示：</strong>本页面分笔数据仅供参考，不做为投资推荐及建议。投资有风险，入市需谨慎。<br>
+        股票投资存在价格波动风险，分笔数据分析不能预测未来走势，请根据自身风险承受能力谨慎投资。
+    </div>
+
+    <!-- GitHub链接 -->
+    <div style="text-align: center; margin: 30px auto; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 15px;">
+        <p style="color: #b0c4de; margin-bottom: 10px;">开源项目</p>
+        <a href="https://github.com/hengruiyun" target="_blank" style="color: #4CAF50; text-decoration: none; font-weight: bold; font-size: 16px;">
+            <i class="fab fa-github"></i> 访问GitHub @hengruiyun
+        </a>
+    </div>
+
+    <script>
+        // 自定义图表类
+        class CustomChart {
+            constructor(containerId) {
+                this.container = document.getElementById(containerId);
+                this.svg = null;
+                this.width = 0;
+                this.height = 0;
+            }
+
+            destroy() {
+                if (this.svg) {
+                    this.svg.remove();
+                    this.svg = null;
+                }
+            }
+
+            init() {
+                this.destroy();
+                this.width = this.container.clientWidth || 800;
+                this.height = this.container.clientHeight || 400;
+                
+                console.log('🎨 SVG 初始化:', { width: this.width, height: this.height, container: this.container });
+                
+                this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                this.svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                this.svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+                this.svg.setAttribute('width', '100%');
+                this.svg.setAttribute('height', '100%');
+                this.svg.setAttribute('viewBox', `0 0 ${this.width} ${this.height}`);
+                this.svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+                this.svg.style.border = '1px solid #ddd'; // 临时边框，便于调试
+                this.svg.style.backgroundColor = '#f9f9f9'; // 某些环境下需使用 background-color
+                this.container.appendChild(this.svg);
+                
+                console.log('✅ SVG 创建完成:', this.svg);
+                
+                return this;
+            }
+
+            drawBarChart(data, options = {}) {
+                console.log('🎨 CustomChart.drawBarChart 开始绘制:', data);
+                console.log('📏 容器尺寸:', { width: this.width, height: this.height });
+                
+                const margin = { top: 20, right: 30, bottom: 60, left: 80 };
+                const chartWidth = this.width - margin.left - margin.right;
+                const chartHeight = this.height - margin.top - margin.bottom;
+
+                console.log('📊 计算后的图表尺寸:', { chartWidth, chartHeight });
+
+                // 清空SVG
+                this.svg.innerHTML = '';
+
+                if (!data || !data.datasets || data.datasets.length === 0) {
+                    console.error('🚫 数据无效或为空:', data);
+                    return;
+                }
+
+                // 创建图表组
+                const chartGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                chartGroup.setAttribute('transform', `translate(${margin.left}, ${margin.top})`);
+                this.svg.appendChild(chartGroup);
+
+                const labels = data.labels || [];
+                const datasets = data.datasets;
+                
+                // 计算数据范围，添加数据验证
+                const allValues = datasets.flatMap(d => d.data || []);
+                const validValues = allValues.filter(v => !isNaN(v) && isFinite(v));
+                const maxValue = validValues.length > 0 ? Math.max(...validValues.map(v => Math.abs(v))) : 1;
+                
+                const barWidth = chartWidth / labels.length * 0.8;
+                const barSpacing = chartWidth / labels.length * 0.2;
+                
+                // 如果没有有效数据，显示提示
+                if (validValues.length === 0) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', chartWidth / 2);
+                    text.setAttribute('y', chartHeight / 2);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '16');
+                    text.setAttribute('fill', '#999');
+                    text.textContent = '暂无数据';
+                    chartGroup.appendChild(text);
+                    return;
+                }
+
+                // 绘制Y轴网格线和标签
+                const gridLines = 5;
+                for (let i = 0; i <= gridLines; i++) {
+                    const y = (chartHeight / gridLines) * i;
+                    const value = maxValue - (maxValue / gridLines) * i;
+                    
+                    // 网格线
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', 0);
+                    line.setAttribute('y1', y);
+                    line.setAttribute('x2', chartWidth);
+                    line.setAttribute('y2', y);
+                    line.setAttribute('stroke', '#e0e0e0');
+                    line.setAttribute('stroke-width', 1);
+                    chartGroup.appendChild(line);
+
+                    // Y轴标签
+                    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    label.setAttribute('x', -10);
+                    label.setAttribute('y', y + 5);
+                    label.setAttribute('text-anchor', 'end');
+                    label.setAttribute('font-size', '12');
+                    label.setAttribute('fill', '#666');
+                    label.textContent = value.toFixed(0);
+                    chartGroup.appendChild(label);
+                }
+
+                // 绘制柱子
+                console.log('🎯 开始绘制柱子:', { labels, datasets, barWidth, barSpacing, maxValue });
+                
+                labels.forEach((label, i) => {
+                    const x = i * (barWidth + barSpacing);
+                    
+                    datasets.forEach((dataset, datasetIndex) => {
+                        const value = dataset.data[i] || 0;
+                        
+                        console.log(`📊 绘制柱子 [${i}][${datasetIndex}]:`, { label, value, dataset: dataset.label });
+                        
+                        // 确保数值有效
+                        if (isNaN(value) || !isFinite(value)) {
+                            console.warn(`⚠️ 无效数值跳过: ${value}`);
+                            return;
+                        }
+                        
+                        const barHeight = (Math.abs(value) / maxValue) * chartHeight;
+                        const y = chartHeight - barHeight;
+                        
+                        console.log(`📏 柱子计算:`, { value, maxValue, barHeight, y, chartHeight });
+                        
+                        // 确保计算结果有效
+                        if (isNaN(barHeight) || isNaN(y) || !isFinite(barHeight) || !isFinite(y)) {
+                            console.warn(`⚠️ 计算结果无效跳过:`, { barHeight, y });
+                            return;
+                        }
+                        
+                        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        rect.setAttribute('x', x + (datasetIndex * barWidth / datasets.length));
+                        rect.setAttribute('y', y);
+                        rect.setAttribute('width', barWidth / datasets.length);
+                        rect.setAttribute('height', barHeight);
+                        
+                        // 支持每个柱子不同的颜色
+                        let fillColor = dataset.backgroundColor || '#4ecdc4';
+                        if (Array.isArray(dataset.backgroundColor) && dataset.backgroundColor[i]) {
+                            fillColor = dataset.backgroundColor[i];
+                        }
+                        
+                        // 兼容部分环境下 SVG 对 rgba() 支持不完整的问题
+                        if (typeof fillColor === 'string' && fillColor.startsWith('rgba')) {
+                            const match = fillColor.match(/rgba\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9]*\.?[0-9]+)\)/);
+                            if (match) {
+                                const r = match[1];
+                                const g = match[2];
+                                const b = match[3];
+                                const a = match[4];
+                                rect.setAttribute('fill', `rgb(${r}, ${g}, ${b})`);
+                                rect.setAttribute('fill-opacity', a);
+                            } else {
+                                rect.setAttribute('fill', '#4ecdc4');
+                                rect.setAttribute('fill-opacity', '0.8');
+                            }
+                        } else {
+                            rect.setAttribute('fill', fillColor);
+                            rect.setAttribute('fill-opacity', '0.8');
+                        }
+                        chartGroup.appendChild(rect);
+                        
+                        console.log(`✅ 柱子创建成功:`, { 
+                            x: x + (datasetIndex * barWidth / datasets.length), 
+                            y, 
+                            width: barWidth / datasets.length, 
+                            height: barHeight, 
+                            color: fillColor 
+                        });
+                    });
+
+                    // X轴标签
+                    const labelElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    labelElement.setAttribute('x', x + barWidth / 2);
+                    labelElement.setAttribute('y', chartHeight + 20);
+                    labelElement.setAttribute('text-anchor', 'middle');
+                    labelElement.setAttribute('font-size', '12');
+                    labelElement.setAttribute('fill', '#666');
+                    labelElement.textContent = label;
+                    chartGroup.appendChild(labelElement);
+                });
+                
+                // 绘制坐标轴
+                const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                xAxis.setAttribute('x1', 0);
+                xAxis.setAttribute('y1', chartHeight);
+                xAxis.setAttribute('x2', chartWidth);
+                xAxis.setAttribute('y2', chartHeight);
+                xAxis.setAttribute('stroke', '#333');
+                xAxis.setAttribute('stroke-width', 2);
+                chartGroup.appendChild(xAxis);
+                
+                const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                yAxis.setAttribute('x1', 0);
+                yAxis.setAttribute('y1', 0);
+                yAxis.setAttribute('x2', 0);
+                yAxis.setAttribute('y2', chartHeight);
+                yAxis.setAttribute('stroke', '#333');
+                yAxis.setAttribute('stroke-width', 2);
+                chartGroup.appendChild(yAxis);
+                
+                console.log('✅ 图表绘制完成，包含坐标轴');
+            }
+        }
+
+        let currentData = [];
+        let analyzedData = [];
+        let buySellChart = null;
+        let volumeChart = null;
+        let currentStockCode = '';
+        let currentVolumeData = [];
+        let currentStockName = '';
+        let isAnalyzing = false; // 防止重复分析
+        
+        // 全局变量保存当前分析的股票信息
+        let globalCurrentStockCode = '';
+        let globalCurrentStockName = '';
+
+        // 统一的服务器地址获取函数
+        function getServerUrl() {
+            const protocol = window.location.protocol;
+            
+            // 如果是通过HTTP/HTTPS访问（从服务器加载的），直接使用当前地址的域名和端口
+            if (protocol === 'http:' || protocol === 'https:') {
+                return window.location.origin;
+            }
+            
+            // 如果是file协议，回退到localhost:16888
+            return 'http://localhost:16888';
+        }
+        
+        const SERVER_URL = getServerUrl();
+
+        // 设置默认日期为最新交易日
+        setDefaultTradeDate();
+
+        // URL参数解析函数
+        function getUrlParams() {
+            const params = {};
+            
+            // 首先尝试解析标准URL参数
+            const urlParams = new URLSearchParams(window.location.search);
+            for (const [key, value] of urlParams) {
+                params[key] = value;
+            }
+            
+            // 然后尝试解析##格式的参数 (支持格式: ##代码##名称##、##代码##、##代码)
+            const hash = window.location.hash;
+            if (hash) {
+                // 移除开头的#符号
+                let hashContent = hash;
+                while (hashContent.startsWith('#')) {
+                    hashContent = hashContent.substring(1);
+                }
+                
+                // URL解码（处理%23等编码字符）
+                console.log('解码前的hashContent:', hashContent);
+                try {
+                    hashContent = decodeURIComponent(hashContent);
+                    console.log('解码后的hashContent:', hashContent);
+                } catch (e) {
+                    console.error('URL解码失败:', e);
+                }
+                
+                // 解码后可能还有前导#，再次移除
+                while (hashContent.startsWith('#')) {
+                    hashContent = hashContent.substring(1);
+                }
+                console.log('移除前导#后的hashContent:', hashContent);
+                
+                if (hashContent) {
+                    // 按##分割
+                    const parts = hashContent.split('##');
+                    
+                    if (parts.length >= 1 && parts[0]) {
+                        const code = parts[0].trim();
+                        // 验证是否为6位数字的股票代码
+                        if (/^\d{6}$/.test(code)) {
+                            params.code = code;
+                            // 如果有第二部分，使用它作为名称（可能为空）
+                            if (parts.length >= 2) {
+                                params.name = decodeURIComponent(parts[1] || '');
+                            }
+                            console.log(`从URL hash解析参数: 代码=${params.code}, 名称=${params.name || '(未提供)'}`);
+                        }
+                    }
+                }
+            }
+            
+            return params;
+        }
+
+        // 获取股票基本信息
+        async function fetchStockBasic(code) {
+            try {
+                // 添加多重参数避免缓存
+                const timestamp = new Date().getTime();
+                const randomId = Math.random().toString(36).substring(2, 15);
+                const cacheBreaker = `${timestamp}_${randomId}`;
+                const response = await fetch(`${SERVER_URL}/api/stock/basic?source=akshare&_t=${cacheBreaker}&nocache=1`, {
+                    cache: 'no-cache'
+                });
+                if (!response.ok) throw new Error('获取基本信息失败');
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.message || '获取基本信息失败');
+                
+                const stockInfo = data.data.find(item => item.code === code || item.symbol === code);
+                return stockInfo || { code: code, name: code, industry: '未知' };
+            } catch (error) {
+                return { code: code, name: code, industry: '未知' };
+            }
+        }
+
+        // 检查URL参数并自动分析
+        async function checkUrlParams() {
+            const params = getUrlParams();
+            
+            if (params.code && /^\d{6}$/.test(params.code)) {
+                // 如果有有效的URL参数，自动设置股票代码并分析
+                document.getElementById('stockCode').value = params.code;
+                // 保存到全局变量
+                globalCurrentStockCode = params.code;
+                
+                // 获取股票名称
+                if (params.name) {
+                    currentStockName = params.name;
+                    globalCurrentStockName = params.name;
+                } else {
+                    const stockInfo = await fetchStockBasic(params.code);
+                    currentStockName = stockInfo.name;
+                    globalCurrentStockName = stockInfo.name;
+                }
+                
+                // 确保日期已设置，然后延迟分析
+                await setDefaultTradeDate();
+                setTimeout(() => {
+                    analyzeStock();
+                }, 1000);
+            } else {
+                // 没有有效参数，保持输入框为空
+                document.getElementById('stockCode').value = '';
+                }
+        }
+
+        // 页面加载完成后检查URL参数
+        checkUrlParams();
+
+        async function setDefaultTradeDate() {
+            try {
+                // 使用服务器的"当天"函数获取交易日期
+                const response = await fetch(`${SERVER_URL}/api/current_trading_date`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data && result.data.date) {
+                        document.getElementById('tradeDate').value = result.data.date;
+                        return;
+                    }
+                } else if (response.status === 404) {
+                    }
+                
+                // 降级处理：使用本地逻辑
+                const now = new Date();
+                const hour = now.getHours();
+                
+                // 17:00之前使用昨天，17:00之后使用当天
+                let targetDate = new Date(now);
+                if (hour < 17) {
+                    targetDate.setDate(now.getDate() - 1);
+                }
+                
+                const dateString = targetDate.toISOString().split('T')[0];
+                document.getElementById('tradeDate').value = dateString;
+                } catch (error) {
+                // 最终降级处理，使用今天
+                document.getElementById('tradeDate').value = new Date().toISOString().split('T')[0];
+            }
+        }
+
+        // 清除缓存和重置数据
+        function clearCacheAndReset() {
+            
+            // 清除全局变量
+            currentData = [];
+            analyzedData = [];
+            currentStockCode = '';
+            currentStockName = '';
+            currentVolumeData = [];
+            
+            // 清除图表数据缓存
+            if (window.chartAmountData) {
+                delete window.chartAmountData;
+            }
+            
+            // 销毁现有图表
+            if (buySellChart) {
+                buySellChart.destroy();
+                buySellChart = null;
+            }
+            if (volumeChart) {
+                volumeChart.destroy();
+                volumeChart = null;
+            }
+            
+            // 重置显示元素
+            resetDisplayElements();
+            
+            // 隐藏结果区域
+            hideResults();
+            hideSuccess();
+            hideError();
+        }
+
+        // 重置显示元素
+        function resetDisplayElements() {
+            // 重置分析汇总
+            document.getElementById('totalTrades').textContent = '-';
+            document.getElementById('totalAmount').textContent = '-';
+            document.getElementById('avgAmount').textContent = '-';
+            document.getElementById('maxAmount').textContent = '-';
+            
+            // 重置买入汇总
+            document.getElementById('buySmallOrders').textContent = '-';
+            document.getElementById('buyMediumOrders').textContent = '-';
+            document.getElementById('buyLargeOrders').textContent = '-';
+            document.getElementById('buySuperOrders').textContent = '-';
+            document.getElementById('buySmallAmount').textContent = '-';
+            document.getElementById('buyMediumAmount').textContent = '-';
+            document.getElementById('buyLargeAmount').textContent = '-';
+            document.getElementById('buySuperAmount').textContent = '-';
+            
+            // 重置卖出汇总
+            document.getElementById('sellSmallOrders').textContent = '-';
+            document.getElementById('sellMediumOrders').textContent = '-';
+            document.getElementById('sellLargeOrders').textContent = '-';
+            document.getElementById('sellSuperOrders').textContent = '-';
+            document.getElementById('sellSmallAmount').textContent = '-';
+            document.getElementById('sellMediumAmount').textContent = '-';
+            document.getElementById('sellLargeAmount').textContent = '-';
+            document.getElementById('sellSuperAmount').textContent = '-';
+            
+            // 重置重复分析表格
+            document.getElementById('buyRepeatTable').innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">暂无数据</td></tr>';
+            document.getElementById('sellRepeatTable').innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">暂无数据</td></tr>';
+        }
+
+        // 打开多空分析页面
+        function openBattleAnalysis() {
+            // 优先取代码输入框的值，如果为空则取全局变量
+            let code = document.getElementById('stockCode').value.trim();
+            let name = '';
+            
+            if (!code) {
+                code = globalCurrentStockCode || '';
+                name = globalCurrentStockName || '';
+            }
+            
+            if (code && /^\d{6}$/.test(code)) {
+                const url = `${window.location.origin}/多空博弈大师版.html##${code}##${encodeURIComponent(name)}##`;
+                window.location.href = url;
+            } else {
+                alert('请先输入或分析股票代码');
+            }
+        }
+
+        // 通达信广播功能 - 通用函数
+        async function broadcastToTdx(stockCode) {
+            try {
+                console.log('正在广播股票代码到通达信:', stockCode);
+                const serverUrl = getServerUrl();
+                console.log('使用服务器地址:', serverUrl);
+                
+                const response = await fetch(`${serverUrl}/api/broadcast`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        stock_code: stockCode
+                    })
+                });
+                
+                console.log('广播响应状态:', response.status);
+                const result = await response.json();
+                console.log('广播响应结果:', result);
+                
+                if (result.success) {
+                    console.log('✓ 成功广播股票代码到通达信:', stockCode);
+                } else {
+                    console.warn('✗ 广播股票代码到通达信失败:', result.error);
+                }
+            } catch (error) {
+                console.error('✗ 广播股票代码到通达信时发生错误:', error);
+            }
+        }
+        
+        // 显示提示信息
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                font-size: 14px;
+                max-width: 300px;
+                word-wrap: break-word;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 3000);
+        }
+        
+        async function analyzeStock() {
+            // 防止重复分析
+            if (isAnalyzing) {
+                return;
+            }
+            
+            // 清除缓存数据，重新获取股票信息
+            clearCacheAndReset();
+            
+            const stockCode = document.getElementById('stockCode').value.trim();
+            window.currentAnalyzedCode = stockCode; // 保存到全局变量供多空分析按钮使用
+            
+            // 广播到通达信
+            broadcastToTdx(stockCode);
+            const tradeDate = document.getElementById('tradeDate').value;
+            
+            if (!stockCode) {
+                showError('请输入股票代码');
+                return;
+            }
+            
+            if (!tradeDate) {
+                showError('请选择交易日期');
+                return;
+            }
+
+            // 验证订单上限设置并自动设置特大单下限
+            const smallLimit = parseFloat(document.getElementById('smallThreshold').value);
+            const mediumLimit = parseFloat(document.getElementById('mediumThreshold').value);
+            const largeLimit = parseFloat(document.getElementById('largeThreshold').value);
+            
+            // 自动设置特大单下限为大单上限
+            const superLimit = largeLimit;
+            document.getElementById('superThreshold').value = superLimit;
+            
+            if (!(smallLimit < mediumLimit && mediumLimit < largeLimit)) {
+                showError('订单上限设置错误：必须满足 小单上限 < 中单上限 < 大单上限');
+                return;
+            }
+
+            isAnalyzing = true; // 设置分析状态
+            
+            // 隐藏结果和错误信息，显示进度条
+            hideResults();
+            hideError();
+            hideSuccess();
+            showProgress(true);
+            
+            try {
+                // 步骤1: 获取分笔数据
+                updateProgress(1, 20, '正在获取分笔数据...');
+                await new Promise(resolve => setTimeout(resolve, 500)); // 短暂延迟让用户看到进度
+                
+                // 添加多重参数避免缓存
+                const timestamp = new Date().getTime();
+                const randomId = Math.random().toString(36).substring(2, 15);
+                const cacheBreaker = `${timestamp}_${randomId}`;
+                const apiUrl = `${SERVER_URL}/api/stock/tick_analysis?code=${stockCode}&date=${tradeDate.replace(/-/g, '')}&_t=${cacheBreaker}&nocache=1`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || `HTTP ${response.status}`);
+                }
+
+                if (result.success) {
+                    currentData = result.data.tick_data || [];
+                    currentStockCode = stockCode;
+                    
+                    // 检查日期是否匹配 - 只在获取到当天数据但请求历史数据时提示
+                    if (result.data.requested_date && result.data.actual_date && 
+                        result.data.requested_date !== result.data.actual_date) {
+                        const requestedDate = result.data.requested_date;
+                        const actualDate = result.data.actual_date;
+                        
+                        // 格式化日期显示
+                        const formatDate = (dateStr) => {
+                            if (dateStr.length === 8) {
+                                return dateStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+                            }
+                            return dateStr;
+                        };
+                        
+                        // 检查数据源，如果是历史数据源则不显示警告
+                        const dataSource = result.data.data_source || '';
+                        const isHistoricalData = dataSource.includes('历史数据') || dataSource.includes('新浪');
+                        
+                        if (!isHistoricalData) {
+                            // 只有在没有获取到历史数据时才显示警告
+                            showError(`📅 日期提示：请求的日期是 ${formatDate(requestedDate)}，但获取到的是当天数据 ${formatDate(actualDate)}\n\n` +
+                                     `💡 说明：该日期可能无分笔数据或非交易日，已自动切换到最近交易日数据`);
+                            
+                            // 更新日期输入框为实际数据日期
+                            if (actualDate && actualDate.length === 8) {
+                                const formattedDate = actualDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+                                document.getElementById('tradeDate').value = formattedDate;
+                            }
+                        } else {
+                            // 如果是历史数据，显示成功获取的提示
+                            showSuccess(`✅ 成功获取 ${formatDate(requestedDate)} 的历史分笔数据 (数据源: ${dataSource})`);
+                        }
+                    }
+                    
+                    // 保存到全局变量
+                    globalCurrentStockCode = stockCode;
+                    
+                    // 步骤2: 获取股票基本信息（每次都重新获取）
+                    updateProgress(2, 40, '正在获取股票信息...');
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    // 强制重新获取股票名称，不使用缓存
+                    const stockInfo = await fetchStockBasic(stockCode);
+                    currentStockName = stockInfo.name;
+                    globalCurrentStockName = stockInfo.name;
+                    
+                    // 步骤3: 分析买卖方向和统计订单
+                    updateProgress(3, 60, '正在分析买卖方向和订单分类...');
+                    await new Promise(resolve => setTimeout(resolve, 400));
+                    analyzeTickData();
+                    
+                    // 步骤4: 获取历史成交量数据
+                    updateProgress(4, 80, '正在获取历史成交量数据...');
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    await loadVolumeData(stockCode, 10);
+                    
+                    // 步骤5: 生成图表
+                    updateProgress(5, 100, '正在生成图表...');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // 分析完成，显示结果
+                    showProgress(false);
+                    showSuccess(`成功分析 ${currentStockName} (${stockCode}) 的 ${currentData.length} 条分笔数据`);
+                    showResults();
+                    isAnalyzing = false; // 重置分析状态
+                } else {
+                    // 处理特殊的历史数据错误
+                    if (result.is_historical_request && result.data_limitation) {
+                        const errorMsg = result.error || '获取历史分笔数据失败';
+                        // 检查是否支持历史数据
+                        if (result.data_limitation.includes('已支持')) {
+                            throw new Error(`${errorMsg}\n\n💡 ${result.data_limitation}`);
+                        } else {
+                            throw new Error(`${errorMsg}\n\n💡 ${result.data_limitation}`);
+                        }
+                    } else {
+                        throw new Error(result.error || '获取数据失败');
+                    }
+                }
+            } catch (error) {
+                showProgress(false);
+                showError(error.message || '错误，检查网络连接和大师服务器状态');
+                isAnalyzing = false; // 重置分析状态
+            }
+        }
+
+        function analyzeTickData() {
+            if (currentData.length === 0) {
+                showError('没有数据可分析');
+                return;
+            }
+
+            const smallThreshold = parseFloat(document.getElementById('smallThreshold').value) * 10000;
+            const mediumThreshold = parseFloat(document.getElementById('mediumThreshold').value) * 10000;
+            const largeThreshold = parseFloat(document.getElementById('largeThreshold').value) * 10000;
+            // 特大单下限就是大单上限
+            const superThreshold = largeThreshold;
+
+            analyzedData = currentData.map(item => {
+                const amount = parseFloat(item.amount || 0);
+                let orderType = 'small';
+                let orderLabel = '小单';
+
+                if (amount <= smallThreshold) {
+                    orderType = 'small';
+                    orderLabel = '小单';
+                } else if (amount <= mediumThreshold) {
+                    orderType = 'medium';
+                    orderLabel = '中单';
+                } else if (amount <= largeThreshold) {
+                    orderType = 'large';
+                    orderLabel = '大单';
+                } else {
+                    // 大于大单上限的都是特大单
+                    orderType = 'super';
+                    orderLabel = '特大单';
+                }
+
+                return {
+                    ...item,
+                    orderType,
+                    orderLabel,
+                    amountWan: (amount / 10000).toFixed(2)
+                };
+            });
+
+            updateSummary();
+            updateChart();
+        }
+
+        // 获取股票行情数据 - 根据指定天数计算日期范围
+        async function getStockMarketData(stockCode, days) {
+            try {
+                // 计算日期范围：为了确保获得足够的交易日数据，多取一些天数
+                const endDate = new Date();
+                const startDate = new Date();
+                
+                // 根据天数计算开始日期，考虑周末和节假日，多取一些天数
+                const extraDays = Math.ceil(days * 1.5); // 多取50%的天数确保有足够的交易日
+                startDate.setDate(endDate.getDate() - extraDays);
+                
+                const startDateStr = startDate.toISOString().split('T')[0];
+                const endDateStr = endDate.toISOString().split('T')[0];
+                
+                const timestamp = new Date().getTime();
+                const randomId = Math.random().toString(36).substring(2, 15);
+                const cacheBreaker = `${timestamp}_${randomId}`;
+                
+                const params = new URLSearchParams({
+                    code: stockCode,
+                    source: 'akshare',
+                    start_date: startDateStr,
+                    end_date: endDateStr,
+                    _t: cacheBreaker,
+                    nocache: '1'
+                });
+                
+                const response = await fetch(`${SERVER_URL}/api/stock/market?${params}`, {
+                    cache: 'no-cache'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    return data;
+                } else {
+                    return null;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        async function loadVolumeData(stockCode, days) {
+            try {
+                const data = await getStockMarketData(stockCode, days);
+                
+                if (data && data.success && data.data) {
+                    const marketData = data.data || [];
+                    // 确保数据按日期排序（升序）
+                    const sortedData = marketData.sort((a, b) => {
+                        const dateA = a.date || a.trading_date || '';
+                        const dateB = b.date || b.trading_date || '';
+                        return dateA.localeCompare(dateB);
+                    });
+                    
+                    // 取最近指定天数的交易日
+                    const recentDays = sortedData.slice(-days);
+                    currentVolumeData = recentDays;
+                    updateVolumeChart(recentDays);
+                } else {
+                    currentVolumeData = [];
+                    updateVolumeChart([]);
+                }
+            } catch (error) {
+                currentVolumeData = [];
+                updateVolumeChart([]);
+            }
+        }
+
+        async function updateVolumeChartRange() {
+            const days = parseInt(document.getElementById('dayRange').value);
+            if (currentStockCode) {
+                await loadVolumeData(currentStockCode, days);
+            }
+        }
+
+        function updateVolumeChartType() {
+            if (currentVolumeData.length > 0) {
+                updateVolumeChart(currentVolumeData);
+            }
+        }
+
+        function updateSummary() {
+            const totalTrades = analyzedData.length;
+            const totalAmount = analyzedData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const avgAmount = totalAmount / totalTrades;
+            const maxAmount = Math.max(...analyzedData.map(item => parseFloat(item.amount || 0)));
+
+            // 买入统计
+            const buyData = analyzedData.filter(item => {
+                const direction = item.direction || '';
+                return direction.includes('买') || direction.includes('主买');
+            });
+            
+            const buySmallOrders = buyData.filter(item => item.orderType === 'small').length;
+            const buyMediumOrders = buyData.filter(item => item.orderType === 'medium').length;
+            const buyLargeOrders = buyData.filter(item => item.orderType === 'large').length;
+            const buySuperOrders = buyData.filter(item => item.orderType === 'super').length;
+
+            // 买入金额统计
+            const buySmallAmount = buyData.filter(item => item.orderType === 'small').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const buyMediumAmount = buyData.filter(item => item.orderType === 'medium').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const buyLargeAmount = buyData.filter(item => item.orderType === 'large').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const buySuperAmount = buyData.filter(item => item.orderType === 'super').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+
+            // 卖出统计
+            const sellData = analyzedData.filter(item => {
+                const direction = item.direction || '';
+                return !(direction.includes('买') || direction.includes('主买'));
+            });
+            
+            const sellSmallOrders = sellData.filter(item => item.orderType === 'small').length;
+            const sellMediumOrders = sellData.filter(item => item.orderType === 'medium').length;
+            const sellLargeOrders = sellData.filter(item => item.orderType === 'large').length;
+            const sellSuperOrders = sellData.filter(item => item.orderType === 'super').length;
+
+            // 卖出金额统计
+            const sellSmallAmount = sellData.filter(item => item.orderType === 'small').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const sellMediumAmount = sellData.filter(item => item.orderType === 'medium').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const sellLargeAmount = sellData.filter(item => item.orderType === 'large').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const sellSuperAmount = sellData.filter(item => item.orderType === 'super').reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+
+            // 重复分析 - 找出最多相同成交量的手数
+            const buyRepeatAnalysis = analyzeRepeatVolumeTop5(buyData);
+            const sellRepeatAnalysis = analyzeRepeatVolumeTop5(sellData);
+
+            // 更新显示
+            document.getElementById('totalTrades').textContent = totalTrades.toLocaleString();
+            document.getElementById('totalAmount').textContent = (totalAmount / 10000).toFixed(2);
+            document.getElementById('avgAmount').textContent = (avgAmount / 10000).toFixed(2);
+            document.getElementById('maxAmount').textContent = (maxAmount / 10000).toFixed(2);
+
+            // 买入汇总 - 笔数和金额
+            document.getElementById('buySmallOrders').textContent = buySmallOrders.toLocaleString();
+            document.getElementById('buyMediumOrders').textContent = buyMediumOrders.toLocaleString();
+            document.getElementById('buyLargeOrders').textContent = buyLargeOrders.toLocaleString();
+            document.getElementById('buySuperOrders').textContent = buySuperOrders.toLocaleString();
+
+            document.getElementById('buySmallAmount').textContent = (buySmallAmount / 10000).toFixed(1);
+            document.getElementById('buyMediumAmount').textContent = (buyMediumAmount / 10000).toFixed(1);
+            document.getElementById('buyLargeAmount').textContent = (buyLargeAmount / 10000).toFixed(1);
+            document.getElementById('buySuperAmount').textContent = (buySuperAmount / 10000).toFixed(1);
+
+            // 卖出汇总 - 笔数和金额
+            document.getElementById('sellSmallOrders').textContent = sellSmallOrders.toLocaleString();
+            document.getElementById('sellMediumOrders').textContent = sellMediumOrders.toLocaleString();
+            document.getElementById('sellLargeOrders').textContent = sellLargeOrders.toLocaleString();
+            document.getElementById('sellSuperOrders').textContent = sellSuperOrders.toLocaleString();
+
+            document.getElementById('sellSmallAmount').textContent = (sellSmallAmount / 10000).toFixed(1);
+            document.getElementById('sellMediumAmount').textContent = (sellMediumAmount / 10000).toFixed(1);
+            document.getElementById('sellLargeAmount').textContent = (sellLargeAmount / 10000).toFixed(1);
+            document.getElementById('sellSuperAmount').textContent = (sellSuperAmount / 10000).toFixed(1);
+
+            // 重复分析表格显示
+            updateRepeatAnalysisTable('buyRepeatTable', buyRepeatAnalysis);
+            updateRepeatAnalysisTable('sellRepeatTable', sellRepeatAnalysis);
+
+            // 保存金额数据供图表使用
+            window.chartAmountData = {
+                buy: [buySuperAmount, buyLargeAmount, buyMediumAmount, buySmallAmount],
+                sell: [sellSuperAmount, sellLargeAmount, sellMediumAmount, sellSmallAmount]
+            };
+        }
+
+        // 重复分析函数 - 分析相同成交量的手数（返回前5名）
+        function analyzeRepeatVolumeTop5(data) {
+            if (!data || data.length === 0) {
+                return [];
+            }
+            
+            // 统计每个成交量的出现次数
+            const volumeCount = {};
+            data.forEach(item => {
+                const volume = parseInt(item.volume || 0);
+                if (volume > 0) {
+                    volumeCount[volume] = (volumeCount[volume] || 0) + 1;
+                }
+            });
+            
+            // 将统计结果转换为数组并按次数排序，取前5名（不要求>=5）
+            const sortedVolumes = Object.entries(volumeCount)
+                .map(([volume, count]) => ({ volume: parseInt(volume), count: count }))
+                .sort((a, b) => b.count - a.count) // 按次数降序排序
+                .slice(0, 5); // 取前5名
+            
+            // 计算占比
+            const totalCount = data.length;
+            return sortedVolumes.map(item => ({
+                ...item,
+                percentage: ((item.count / totalCount) * 100).toFixed(1)
+            }));
+        }
+
+        // 更新重复分析表格
+        function updateRepeatAnalysisTable(tableId, data) {
+            const tbody = document.getElementById(tableId);
+            const isBuyTable = tableId === 'buyRepeatTable';
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999; padding: 20px;">暂无数据</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            data.forEach((item, index) => {
+                // 根据买入/卖出表格使用不同的颜色主题
+                const rowColor = isBuyTable ? 
+                    (index % 2 === 0 ? '#fff5f5' : '#ffffff') : 
+                    (index % 2 === 0 ? '#f0fff4' : '#ffffff');
+                const accentColor = isBuyTable ? '#F44336' : '#4CAF50';
+                const lightAccentColor = isBuyTable ? '#ffcdd2' : '#c8e6c9';
+                
+                html += `
+                    <tr style="background-color: ${rowColor}; transition: all 0.3s ease;" 
+                        onmouseover="this.style.backgroundColor='${lightAccentColor}'" 
+                        onmouseout="this.style.backgroundColor='${rowColor}'">
+                        <td style="text-align: center; font-weight: bold; color: ${accentColor}; font-size: 1.1em;">${index + 1}</td>
+                        <td style="text-align: center; font-weight: bold;">${item.volume.toLocaleString()}</td>
+                        <td style="text-align: center; color: ${accentColor}; font-weight: bold; font-size: 1.1em;">${item.count}</td>
+                        <td style="text-align: center; color: ${accentColor}; font-weight: bold; font-size: 1.1em;">${item.percentage}%</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+
+        function updateChart() {
+            const chartContainer = document.getElementById('buySellChart');
+            
+            // 检查容器是否可见，如果不可见则延迟执行
+            if (chartContainer.offsetWidth === 0 || chartContainer.offsetHeight === 0) {
+                setTimeout(() => updateChart(), 100);
+                return;
+            }
+            
+            if (buySellChart) {
+                buySellChart.destroy();
+            }
+            
+            // 创建自定义图表
+            buySellChart = new CustomChart('buySellChart').init();
+
+            // 使用预先计算的金额数据
+            const amountData = window.chartAmountData || {
+                buy: [0, 0, 0, 0],
+                sell: [0, 0, 0, 0]
+            };
+            
+            // 调试信息
+            console.log('📊 买卖金额对比图数据:', amountData);
+            console.log('📊 分析数据长度:', analyzedData ? analyzedData.length : 0);
+            
+            // 转换为万元单位（保持数值类型）
+            const buySuper = parseFloat((amountData.buy[0] / 10000).toFixed(1));
+            const buyLarge = parseFloat((amountData.buy[1] / 10000).toFixed(1));
+            const buyMedium = parseFloat((amountData.buy[2] / 10000).toFixed(1));
+            const buySmall = parseFloat((amountData.buy[3] / 10000).toFixed(1));
+            
+            const sellSuper = parseFloat((amountData.sell[0] / 10000).toFixed(1));
+            const sellLarge = parseFloat((amountData.sell[1] / 10000).toFixed(1));
+            const sellMedium = parseFloat((amountData.sell[2] / 10000).toFixed(1));
+            const sellSmall = parseFloat((amountData.sell[3] / 10000).toFixed(1));
+
+            console.log('📊 转换后的买入数据:', [buySuper, buyLarge, buyMedium, buySmall]);
+            console.log('📊 转换后的卖出数据:', [sellSuper, sellLarge, sellMedium, sellSmall]);
+
+            // 创建买卖力量对比柱状图数据
+            const chartData = {
+                labels: ['特大单', '大单', '中单', '小单'],
+                datasets: [
+                    {
+                        label: '买入金额(万元)',
+                        data: [buySuper, buyLarge, buyMedium, buySmall],
+                        backgroundColor: 'rgba(244, 67, 54, 0.8)'
+                    },
+                    {
+                        label: '卖出金额(万元)',
+                        data: [sellSuper, sellLarge, sellMedium, sellSmall],
+                        backgroundColor: 'rgba(76, 175, 80, 0.8)'
+                    }
+                ]
+            };
+            
+            // 绘制自定义柱状图
+            buySellChart.drawBarChart(chartData);
+        }
+
+        // 获取颜色级别函数
+        function getColorLevels(data) {
+            const colorLevels = [
+                'rgba(139, 0, 0, 0.8)',     // 深红色 0-10%
+                'rgba(178, 34, 34, 0.8)',   // 火砖红 10-20%
+                'rgba(220, 20, 60, 0.8)',   // 深粉红 20-30%
+                'rgba(255, 69, 0, 0.8)',    // 橙红色 30-40%
+                'rgba(255, 140, 0, 0.8)',   // 深橙色 40-50%
+                'rgba(255, 165, 0, 0.8)',   // 橙色 50-60%
+                'rgba(255, 215, 0, 0.8)',   // 金色 60-70%
+                'rgba(154, 205, 50, 0.8)',  // 黄绿色 70-80%
+                'rgba(50, 205, 50, 0.8)',   // 酸橙绿 80-90%
+                'rgba(0, 128, 0, 0.8)'      // 绿色 90-100%
+            ];
+            
+            return data.map(item => {
+                const percentage = item.percentage;
+                let colorIndex = 0;
+                
+                if (percentage <= 10) colorIndex = 0;
+                else if (percentage <= 20) colorIndex = 1;
+                else if (percentage <= 30) colorIndex = 2;
+                else if (percentage <= 40) colorIndex = 3;
+                else if (percentage <= 50) colorIndex = 4;
+                else if (percentage <= 60) colorIndex = 5;
+                else if (percentage <= 70) colorIndex = 6;
+                else if (percentage <= 80) colorIndex = 7;
+                else if (percentage <= 90) colorIndex = 8;
+                else colorIndex = 9;
+                
+                return colorLevels[colorIndex];
+            });
+        }
+
+        // 更新成交量图表函数（简化版）
+        function updateVolumeChart(marketData) {
+            const chartContainer = document.getElementById('volumeChart');
+            if (!chartContainer) return;
+            
+            if (volumeChart) {
+                volumeChart.destroy();
+            }
+            
+            // 创建自定义图表
+            volumeChart = new CustomChart('volumeChart').init();
+            
+            if (!marketData || marketData.length === 0) {
+                chartContainer.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">暂无数据</div>';
+                return;
+            }
+            
+            // 准备图表数据
+            const chartType = document.getElementById('chartType').value;
+            
+            // 获取数据值
+            const dataValues = marketData.map(item => {
+                let value = 0;
+                if (chartType === 'volume') {
+                    // 支持多种成交量字段
+                    value = item.成交量 || item.volume || item.vol || item.交易量 || 0;
+                } else {
+                    // 支持多种成交金额字段
+                    value = item.成交金额 || item.amount || item.turnover || item.成交额 || 0;
+                }
+                return parseFloat(value) || 0;
+            });
+            
+            // 计算数值范围用于颜色分级
+            const maxValue = Math.max(...dataValues);
+            const minValue = Math.min(...dataValues);
+            
+            // 根据数值生成颜色
+            const generateColors = (values) => {
+                return values.map(value => {
+                    if (maxValue === minValue) {
+                        return 'rgba(54, 162, 235, 0.8)'; // 默认颜色
+                    }
+                    
+                    // 计算相对位置 (0-1)
+                    const ratio = (value - minValue) / (maxValue - minValue);
+                    
+                    // 根据比例分配颜色（从红色到绿色）
+                    if (ratio <= 0.2) {
+                        return 'rgba(220, 53, 69, 0.8)';   // 深红色 (低值)
+                    } else if (ratio <= 0.4) {
+                        return 'rgba(255, 193, 7, 0.8)';   // 黄色
+                    } else if (ratio <= 0.6) {
+                        return 'rgba(54, 162, 235, 0.8)';  // 蓝色
+                    } else if (ratio <= 0.8) {
+                        return 'rgba(40, 167, 69, 0.8)';   // 绿色
+                    } else {
+                        return 'rgba(25, 135, 84, 0.8)';   // 深绿色 (高值)
+                    }
+                });
+            };
+            
+            const chartData = {
+                labels: marketData.map(item => {
+                    // 支持多种日期字段格式
+                    const dateStr = item.日期 || item.date || item.trading_date || item.交易日期 || '';
+                    if (!dateStr) return '未知日期';
+                    
+                    const date = new Date(dateStr);
+                    if (isNaN(date.getTime())) {
+                        // 如果日期解析失败，尝试其他格式
+                        return dateStr.length >= 8 ? dateStr.substring(4, 6) + '/' + dateStr.substring(6, 8) : dateStr;
+                    }
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                }),
+                datasets: [{
+                    label: chartType === 'volume' ? '成交量' : '成交金额',
+                    data: dataValues,
+                    backgroundColor: generateColors(dataValues)
+                }]
+            };
+            
+            // 绘制柱状图
+            volumeChart.drawBarChart(chartData);
+        }
+
+
+        // 显示错误信息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorDiv');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorDiv').style.display = 'none';
+        }
+
+        function showResults() {
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+
+        function hideResults() {
+            document.getElementById('resultsContainer').style.display = 'none';
+        }
+
+        function hideSuccess() {
+            const successDiv = document.getElementById('successDiv');
+            if (successDiv) {
+                successDiv.style.display = 'none';
+            }
+        }
+
+        function showProgress(show) {
+            const progressDiv = document.getElementById('progressDiv');
+            if (progressDiv) {
+                progressDiv.style.display = show ? 'block' : 'none';
+            }
+        }
+        
+        // 更新进度条
+        function updateProgress(step, percentage, message) {
+            const progressDiv = document.getElementById('progressDiv');
+            if (progressDiv) {
+                // 更新进度条文本
+                progressDiv.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="margin-bottom: 10px;">步骤${step}: ${message}</div>
+                        <div style="width: 100%; background-color: #f0f0f0; border-radius: 10px; overflow: hidden;">
+                            <div style="width: ${percentage}%; height: 20px; background-color: #4CAF50; transition: width 0.3s ease;"></div>
+                        </div>
+                        <div style="margin-top: 5px; font-size: 12px; color: #666;">${percentage}%</div>
+                    </div>
+                `;
+            }
+            
+            console.log(`进度更新: 步骤${step} - ${message} - ${percentage}%`);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successDiv');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            
+            // 3秒后自动隐藏成功消息
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查URL参数并自动加载股票
+            const params = getUrlParams();
+            if (params.code && /^\d{6}$/.test(params.code)) {
+                console.log('从URL参数加载股票:', params.code);
+                const stockInput = document.getElementById('stockCode');
+                if (stockInput) {
+                    stockInput.value = params.code;
+                    // 自动触发分析
+                    setTimeout(function() {
+                        analyzeStock();
+                    }, 500);
+                }
+            }
+            
+            // 添加大单上限变化监听器，自动更新特大单下限
+            document.getElementById('largeThreshold').addEventListener('input', function() {
+                const largeLimit = parseFloat(this.value);
+                document.getElementById('superThreshold').value = largeLimit;
+            });
+            
+            // 初始化特大单下限
+            const initialLargeLimit = parseFloat(document.getElementById('largeThreshold').value);
+            document.getElementById('superThreshold').value = initialLargeLimit;
+        });
+        
+        // 监听URL hash变化
+        window.addEventListener('hashchange', function() {
+            const params = getUrlParams();
+            if (params.code && /^\d{6}$/.test(params.code)) {
+                console.log('URL参数变化，重新加载股票:', params.code);
+                const stockInput = document.getElementById('stockCode');
+                if (stockInput) {
+                    stockInput.value = params.code;
+                    setTimeout(function() {
+                        analyzeStock();
+                    }, 500);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

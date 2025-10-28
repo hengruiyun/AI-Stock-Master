@@ -14,6 +14,18 @@ import threading
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+import io
+
+
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+
+# 过滤警告信息
+import warnings
+warnings.filterwarnings('ignore', message='.*pkg_resources is deprecated.*')
+warnings.filterwarnings('ignore', category=UserWarning, module='.*pkg_resources.*')
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
@@ -22,6 +34,22 @@ sys.path.insert(0, str(project_root))
 # 全局变量：跟踪本次运行的解压状态
 DECOMPRESSED_FILES_THIS_RUN = set()  # 记录本次运行已解压的文件
 
+# 跨平台字体配置
+def get_cross_platform_font():
+    """获取跨平台兼容的字体名称"""
+    import platform
+    system = platform.system()
+    
+    if system == "Darwin":  # macOS
+        return "PingFang SC"
+    elif system == "Windows":
+        return "Microsoft YaHei"
+    else:  # Linux
+        return "Arial"
+
+def get_cross_platform_font_family():
+    """获取跨平台兼容的字体族"""
+    return "Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif"
 
 # =====================================
 
@@ -37,29 +65,65 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt5.QtGui import QFont, QPixmap, QPalette, QColor, QIcon
 
-
-
-# 可选导入 WebEngine
 try:
-    from PyQt5.QtWebEngineWidgets import QWebEngineView
-    WEBENGINE_AVAILABLE = True
+    import psutil
 except ImportError:
-    print(t_gui('webengine_unavailable'))
-    QWebEngineView = None
-    WEBENGINE_AVAILABLE = False
+    psutil = None
 
-# 备用翻译函数（在导入失败时使用）
+
+# 备用翻译函数（在导入失败时使用）- 必须在任何使用前定义
 def t_gui_fallback(key, **kwargs):
     return key
 
 def t_common_fallback(key, **kwargs):
     return key
 
+# 可选导入 WebEngine
+try:
+    from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
+    WEBENGINE_AVAILABLE = True
+except ImportError:
+    print("WebEngine unavailable")  # 暂时不使用t_gui
+    QWebEngineView = None
+    QWebEngineSettings = None
+    WEBENGINE_AVAILABLE = False
+
 # 项目模块导入
 try:
     from data.stock_dataset import StockDataSet
     from algorithms.realtime_engine import RealtimeAnalysisEngine
     from utils.report_generator import ReportGenerator
+    try:
+        from utils.path_helper import (
+            get_base_path, get_resource_path, get_data_path, get_data_file_path,
+            get_reports_dir, get_cache_dir, get_logs_dir,
+            is_frozen, print_path_info
+        )
+    except ImportError as e:
+        print(f"[ERROR] 导入path_helper失败: {e}")
+        # 提供备用实现
+        import sys
+        from pathlib import Path
+        def get_base_path():
+            if getattr(sys, 'frozen', False):
+                return Path(sys.executable).parent
+            return Path(__file__).parent
+        def get_resource_path(relative_path):
+            return get_base_path() / relative_path
+        def get_data_path():
+            return get_base_path()
+        def get_data_file_path(filename):
+            return get_base_path() / filename
+        def get_reports_dir():
+            return get_base_path() / 'reports'
+        def get_cache_dir():
+            return get_base_path() / 'cache'
+        def get_logs_dir():
+            return get_base_path() / 'logs'
+        def is_frozen():
+            return getattr(sys, 'frozen', False)
+        def print_path_info():
+            print(f"Base path: {get_base_path()}")
     # 移除不存在的config.i18n导入
     # from config.i18n import t_common
     from config.gui_i18n import t_gui, set_language, get_system_language
@@ -73,12 +137,38 @@ try:
         return key
     
     MODULES_AVAILABLE = True
+    
+    # 打印路径信息（调试用）
+    # if is_frozen():
+    #     print("\n" + "="*60)
+    #     print("检测到打包环境，打印路径信息...")
+    #     print_path_info()
+    #     print("="*60 + "\n")
+        
 except ImportError as e:
-    print(t_gui("模块导入失败").format(error=str(e)))
+    print(f"模块导入失败 / Module import failed: {str(e)}")
     MODULES_AVAILABLE = False
     # 使用备用翻译函数
     t_gui = t_gui_fallback
     t_common = t_common_fallback
+    # 如果导入失败，提供备用路径函数
+    def get_reports_dir():
+        return Path("analysis_reports")
+    def get_cache_dir():
+        return Path("cache")
+    def is_frozen():
+        return getattr(sys, 'frozen', False)
+    # 提供备用的语言检测函数
+    def get_system_language():
+        """备用语言检测函数"""
+        import locale
+        try:
+            lang = locale.getdefaultlocale()[0]
+            if lang and lang.startswith('zh'):
+                return 'zh'
+            return 'en'
+        except:
+            return 'zh'  # 默认中文
 
 
 class AnalysisWorker(QThread):
@@ -86,6 +176,12 @@ class AnalysisWorker(QThread):
     progress_updated = pyqtSignal(int, str)  # 进度，状态文本
     analysis_completed = pyqtSignal(dict)    # 分析完成，结果数据
     analysis_failed = pyqtSignal(str)        # 分析失败，错误信息
+    
+    # 类级别的配置缓存，所有实例共享
+    _ai_config_cache = None
+    _ai_config_cache_time = 0
+    _ai_config_cache_ttl = 300  # 缓存5分钟
+    _is_trial_mode = False  # 试用模式标记
     
     def __init__(self, data_file_path: str, enable_ai_analysis: bool = True):
         super().__init__()
@@ -138,6 +234,21 @@ class AnalysisWorker(QThread):
             self.progress_updated.emit(45, t_gui('计算技术指标...'))
             
             analysis_results = analysis_engine.calculate_all_metrics()
+            
+            # 【关键调试】检查分析结果
+            print(f"🚨 [分析引擎调试] analysis_results 类型: {type(analysis_results)}")
+            print(f"🚨 [分析引擎调试] analysis_results 是否为None: {analysis_results is None}")
+            if analysis_results is not None:
+                print(f"🚨 [分析引擎调试] 是否有market属性: {hasattr(analysis_results, 'market')}")
+                print(f"🚨 [分析引擎调试] 是否有industries属性: {hasattr(analysis_results, 'industries')}")
+                print(f"🚨 [分析引擎调试] 是否有stocks属性: {hasattr(analysis_results, 'stocks')}")
+                
+                if hasattr(analysis_results, 'market'):
+                    print(f"🚨 [分析引擎调试] market数据内容: {analysis_results.market}")
+                if hasattr(analysis_results, 'industries'):
+                    print(f"🚨 [分析引擎调试] industries数据长度: {len(analysis_results.industries) if analysis_results.industries else 0}")
+                if hasattr(analysis_results, 'stocks'):
+                    print(f"🚨 [分析引擎调试] stocks数据长度: {len(analysis_results.stocks) if analysis_results.stocks else 0}")
             
             # 第5阶段：分析完成 - 55%
             self.progress_updated.emit(55, t_gui('generating_basic_report'))
@@ -230,16 +341,140 @@ class AnalysisWorker(QThread):
             traceback.print_exc()
             self.analysis_failed.emit(error_msg)
     
+    def _ai_analysis_before(self, analysis_type="AI分析"):
+        """AI分析执行前的统一处理
+        
+        Args:
+            analysis_type: 分析类型名称（用于日志）
+            
+        Returns:
+            bool: True表示可以继续执行，False表示应该终止
+        """
+        try:
+            print(f"[{analysis_type}] 执行前检查...")
+            
+            # 1. 检查LLM配置文件是否存在
+            if not self._check_llm_config():
+                print(f"[{analysis_type}] LLM配置文件不存在")
+                return False
+            
+            # 2. 重新加载AI配置（确保使用最新配置）
+            try:
+                import json
+                import time
+                from pathlib import Path
+                from utils.path_helper import get_base_path
+                
+                base_path = get_base_path()
+                config_path = base_path / "llm-api" / "config" / "user_settings.json"
+                
+                if config_path.exists():
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                        # 更新缓存
+                        AnalysisWorker._ai_config_cache = config
+                        AnalysisWorker._ai_config_cache_time = time.time()
+                        print(f"[{analysis_type}] 已重新加载AI配置")
+                else:
+                    print(f"[{analysis_type}] 配置文件不存在")
+                    return False
+            except Exception as e:
+                print(f"[{analysis_type}] 加载配置失败: {e}")
+                return False
+            
+            # 3. 试用功能检查（必须在API Key检查之前）
+            try:
+                from utils.ai_usage_counter import get_ai_usage_count
+                
+                provider = config.get('default_provider', '').lower()
+                api_key = config.get('SILICONFLOW_API_KEY', '').strip()
+                current_count = get_ai_usage_count()
+                
+                # 检查是否符合试用条件：SiliconFlow + 无API Key + 计数<20
+                if provider == 'siliconflow' and not api_key and current_count < 20:
+                    print(f"[试用模式] 符合试用条件（{current_count}/20次）")
+                    print(f"[试用模式] 使用预设试用配置")
+                    
+                    # 使用硬编码的试用配置
+                    trial_config = {
+                        "default_provider": "SiliconFlow",
+                        "default_chat_model": "Qwen/Qwen3-8B",
+                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "request_timeout": 600,
+                        "agent_role": "不使用",
+                        "SILICONFLOW_API_KEY": "",
+                        "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
+                        "dont_show_api_dialog": True
+                    }
+                    
+                    # 更新缓存为试用配置
+                    AnalysisWorker._ai_config_cache = trial_config
+                    AnalysisWorker._ai_config_cache_time = time.time()
+                    
+                    # 标记为试用模式，后续跳过API Key检查
+                    AnalysisWorker._is_trial_mode = True
+                    
+                    print(f"[试用模式] 配置已切换为试用模式，剩余 {20 - current_count} 次试用机会")
+                else:
+                    # 不符合试用条件，清除试用标记
+                    AnalysisWorker._is_trial_mode = False
+                    
+                    if provider == 'siliconflow' and not api_key and current_count >= 20:
+                        print(f"[试用模式] 试用次数已用完（{current_count}/20），请配置API Key")
+                        
+            except Exception as e:
+                print(f"[{analysis_type}] 试用检查出错: {e}")
+                AnalysisWorker._is_trial_mode = False
+            
+            print(f"[{analysis_type}] 执行前检查通过")
+            return True
+            
+        except Exception as e:
+            print(f"[{analysis_type}] 执行前检查出错: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _ai_analysis_after(self, success=True, analysis_type="AI分析"):
+        """AI分析执行后的统一处理
+        
+        Args:
+            success: 分析是否成功
+            analysis_type: 分析类型名称（用于日志）
+        """
+        try:
+            print(f"[{analysis_type}] 执行后处理...")
+            
+            if success:
+                # 1. 增加AI使用计数
+                try:
+                    from utils.ai_usage_counter import increment_ai_usage
+                    count = increment_ai_usage()
+                    print(f"[AI计数] {analysis_type}完成，累计使用: {count} 次")
+                except Exception as e:
+                    print(f"[AI计数] 计数失败: {e}")
+                
+                # 2. 可以添加其他成功后的处理
+                # 例如：记录分析日志、更新统计信息等
+            else:
+                print(f"[{analysis_type}] 分析未成功，跳过后续处理")
+            
+        except Exception as e:
+            print(f"[{analysis_type}] 执行后处理出错: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def run_ai_analysis(self, analysis_results):
         """运行AI智能分析 - 移植自旧版main_window.py
         
         注意：这是主AI分析的数据处理和调用逻辑
         与行业分析和个股分析的AI功能分离，提供综合性的投资分析
         """
+        analysis_type = "主AI分析"
+        
         try:
-            # 检查LLM配置文件是否存在
-            if not self._check_llm_config():
-                print(t_gui("ai_config_file_not_found"))
+            # ===== 执行前检查 =====
+            if not self._ai_analysis_before(analysis_type):
                 return None
             
             # 准备分析数据
@@ -248,19 +483,79 @@ class AnalysisWorker(QThread):
             # 调用LLM API
             ai_response = self._call_llm_api(analysis_data)
             
+            # 检查是否是API Key错误信息（用户取消配置或没有输入API Key）
+            if ai_response and isinstance(ai_response, str) and ("需要配置API Key" in ai_response or "API Key configuration required" in ai_response):
+                print(f"[{analysis_type}] API Key配置取消，终止分析")
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                return None
+            
+            # ===== 执行后处理 =====
+            if ai_response:
+                self._ai_analysis_after(success=True, analysis_type=analysis_type)
+            else:
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+            
             return ai_response
             
         except Exception as e:
             print(f"{t_gui('ai_analysis_execution_failed')}: {str(e)}")
+            self._ai_analysis_after(success=False, analysis_type=analysis_type)
             return None
+    
+    def _is_large_cap_stock(self, stock_code: str) -> bool:
+        """判断是否为大盘股（与algorithms模块中的逻辑保持一致）"""
+        code = str(stock_code).strip()
+        
+        # A股大盘股判断
+        if len(code) == 6 and code.isdigit():
+            # 主板大盘股
+            if code.startswith(('000', '001', '002', '003')):  # 深交所主板
+                return True
+            elif code.startswith(('600', '601', '603', '605')):  # 上交所主板
+                return True
+            # 科创板和创业板一般不算大盘股
+            elif code.startswith('688'):  # 科创板
+                return False
+            elif code.startswith('300'):  # 创业板
+                return False
+        
+        # 港股大盘股判断（恒生指数成分股）
+        elif len(code) == 5 and code.isdigit():
+            large_cap_hk = [
+                '00700', '00939', '00941', '01299', '02318', '00388', '01398', '03988',
+                '00883', '02628', '01109', '00005', '01177', '00011', '00016', '00017',
+                '00066', '00083', '00101', '00151', '00175', '00267', '00288', '00386',
+                '00669', '00688', '00762', '00823', '00857', '00868', '00914', '00968',
+                '01038', '01044', '01066', '01093', '01113', '01171', '01199', '01211',
+                '01339', '01359', '01378', '01988', '01997', '02007', '02018', '02020',
+                '02313', '02319', '02382', '02388', '02688', '03328', '03968', '06098'
+            ]
+            return code in large_cap_hk
+        
+        # 美股大盘股判断（简化版，基于常见大盘股）
+        elif isinstance(code, str) and not code.isdigit():
+            large_cap_us = [
+                'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK.A', 'BRK.B',
+                'UNH', 'JNJ', 'JPM', 'V', 'PG', 'HD', 'MA', 'PFE', 'BAC', 'ABBV', 'KO', 'AVGO',
+                'PEP', 'TMO', 'COST', 'MRK', 'WMT', 'ACN', 'DHR', 'VZ', 'ABT', 'ADBE', 'LIN',
+                'NKE', 'TXN', 'PM', 'NEE', 'RTX', 'CRM', 'WFC', 'DIS', 'BMY', 'ORCL', 'MDT',
+                'SCHW', 'QCOM', 'UPS', 'T', 'AMGN', 'LOW', 'HON', 'ELV', 'IBM', 'CVS', 'SPGI',
+                'GS', 'CAT', 'AXP', 'DE', 'GILD', 'BKNG', 'AMD', 'SYK', 'MU', 'TJX', 'BLK',
+                'BA', 'MDLZ', 'CI', 'C', 'ISRG', 'VRTX', 'SO', 'MMM', 'PLD', 'ADI', 'REGN',
+                'ZTS', 'MO', 'CVX', 'DUK', 'TGT', 'AON', 'PYPL', 'INTC', 'EQIX', 'KLAC'
+            ]
+            return code.upper() in large_cap_us
+        
+        return False
     
     def _check_llm_config(self) -> bool:
         """检查LLM配置文件是否存在"""
         try:
             import os
             import json
-            project_root = Path(__file__).parent
-            config_path = project_root / "llm-api" / "config" / "user_settings.json"
+            from utils.path_helper import get_base_path
+            base_path = get_base_path()  # 打包环境下返回EXE所在目录
+            config_path = base_path / "llm-api" / "config" / "user_settings.json"
             
             if not config_path.exists():
                 return False
@@ -293,12 +588,32 @@ class AnalysisWorker(QThread):
                 "summary": {}
             }
             
+            # 【关键调试】分析输入参数
+            print(f"🚨 [数据传递调试] analysis_results 参数: {analysis_results}")
+            print(f"🚨 [数据传递调试] analysis_results 类型: {type(analysis_results)}")
+            print(f"🚨 [数据传递调试] analysis_results 是否为None: {analysis_results is None}")
+            
+            if analysis_results is None:
+                print(f"[ERROR] [严重错误] analysis_results 为 None，无法继续数据准备")
+                return data
+            
+            # 【调试日志】分析数据结构
+            print(f" [数据传递调试] 分析结果对象类型: {type(analysis_results)}")
+            print(f" [数据传递调试] 是否有market属性: {hasattr(analysis_results, 'market')}")
+            if hasattr(analysis_results, 'market'):
+                print(f" [数据传递调试] market数据: {analysis_results.market}")
+            else:
+                print(f" [数据传递调试] analysis_results属性列表: {dir(analysis_results) if hasattr(analysis_results, '__dict__') else '无法获取属性'}")
+            
             # 提取市场数据
             if hasattr(analysis_results, 'market') and analysis_results.market:
                 market = analysis_results.market
                 msci_value = market.get('current_msci', 0)
                 volatility = market.get('volatility', 0)
                 volume_ratio = market.get('volume_ratio', 0)
+                
+                print(f" [MSCI调试] 原始MSCI值: {msci_value}, 类型: {type(msci_value)}")
+                print(f" [MSCI调试] 波动率: {volatility}, 成交量比率: {volume_ratio}")
                 
                 # 计算市场情绪状态
                 if msci_value >= 70:
@@ -320,8 +635,17 @@ class AnalysisWorker(QThread):
                     "market_sentiment": market_sentiment,
                     "risk_level": market.get('risk_level', t_gui('moderate_risk'))
                 }
+                
+                print(f" [MSCI调试] 市场数据已准备: MSCI={msci_value}, 情绪={market_sentiment}")
+            else:
+                print(f" [MSCI调试] 未找到市场数据，将使用默认值0")
             
             # 提取行业数据
+            print(f" [行业调试] 是否有industries属性: {hasattr(analysis_results, 'industries')}")
+            if hasattr(analysis_results, 'industries'):
+                print(f" [行业调试] industries数据: {analysis_results.industries}")
+                print(f" [行业调试] industries长度: {len(analysis_results.industries) if analysis_results.industries else 0}")
+            
             if hasattr(analysis_results, 'industries') and analysis_results.industries:
                 industries_summary = {}
                 sorted_industries = []
@@ -331,6 +655,7 @@ class AnalysisWorker(QThread):
                     if isinstance(tma_value, dict):
                         tma_value = tma_value.get('irsi', 0)
                     sorted_industries.append((industry_name, float(tma_value)))
+                    print(f" [行业调试] 行业: {industry_name}, TMA: {tma_value}")
                 
                 sorted_industries.sort(key=lambda x: x[1], reverse=True)
                 
@@ -340,6 +665,11 @@ class AnalysisWorker(QThread):
                 industries_summary["sector_count"] = len(analysis_results.industries)
                 
                 data["industry_data"] = industries_summary
+                
+                print(f" [行业调试] 行业数据已准备: 共{len(analysis_results.industries)}个行业")
+                print(f" [行业调试] 前5个强势行业: {top_industries[:5]}")
+            else:
+                print(f" [行业调试] 未找到行业数据，sector_count将为0")
             
             # 提取股票数据
             if hasattr(analysis_results, 'stocks') and analysis_results.stocks:
@@ -347,10 +677,21 @@ class AnalysisWorker(QThread):
                 sorted_stocks = []
                 
                 for stock_code, stock_info in analysis_results.stocks.items():
-                    # 大盘股筛选：如果股票属于指数行业则允许通过
+                    # 优化筛选逻辑：基于RTSI分数筛选优质股票，避免过度严格的大盘股限制
                     stock_industry = stock_info.get('industry', '')
-                    if stock_industry != t_gui("指数") and not self._is_large_cap_stock(stock_code):
-                        continue
+                    
+                    # 指数行业的股票直接通过
+                    if stock_industry == t_gui("指数"):
+                        pass  # 指数股票直接通过
+                    else:
+                        # 对于其他股票，优先基于RTSI分数筛选，辅以大盘股判断
+                        rtsi_value = stock_info.get('rtsi', 0)
+                        if isinstance(rtsi_value, dict):
+                            rtsi_value = rtsi_value.get('rtsi', 0)
+                        
+                        # 放宽筛选条件：RTSI >= 45 或者是大盘股
+                        if float(rtsi_value) < 45 and not self._is_large_cap_stock(stock_code):
+                            continue
                     
                     rtsi_value = stock_info.get('rtsi', 0)
                     if isinstance(rtsi_value, dict):
@@ -359,28 +700,167 @@ class AnalysisWorker(QThread):
                 
                 sorted_stocks.sort(key=lambda x: x[2], reverse=True)
                 
-                # 取前20只大盘股
-                top_stocks = sorted_stocks[:20]
+                # 取前40只优质股票（原来是20只，现增加到40只）
+                top_stocks = sorted_stocks[:40]
                 stocks_summary["top_performers"] = top_stocks
                 stocks_summary["total_count"] = len(analysis_results.stocks)
                 
+                # 添加调试日志：确认传递给LLM的股票数量
+                print(f"[AI分析数据准备] 原始股票总数: {len(analysis_results.stocks)}")
+                print(f"[AI分析数据准备] 筛选后股票数量: {len(sorted_stocks)}")
+                print(f"[AI分析数据准备] 传递给LLM的前{len(top_stocks)}只股票:")
+                for i, (code, name, rtsi) in enumerate(top_stocks[:10]):
+                    print(f"  {i+1}. {code} {name}: RTSI {rtsi:.2f}")
+                if len(top_stocks) > 10:
+                    print(f"  ... 还有{len(top_stocks) - 10}只股票")
+                
+                # 数据质量验证
+                if len(top_stocks) == 0:
+                    print(f" [AI分析警告] 没有股票数据传递给LLM，可能导致AI编造股票")
+                elif len(top_stocks) < 5:
+                    print(f" [AI分析警告] 传递给LLM的股票数量较少({len(top_stocks)}只)，可能影响分析质量")
+                
                 # 计算分布统计
                 rtsi_values = [x[2] for x in sorted_stocks]
-                # 基于优化增强RTSI 20-75分制的分类
+                # 基于优化增强RTSI 0-100分制的分类（方案C v2.3）
                 stocks_summary["statistics"] = {
                     "average_rtsi": np.mean(rtsi_values) if rtsi_values else 0,
-                    "strong_count": len([x for x in rtsi_values if x >= 60]),  # 强势股：60+
-                    "neutral_count": len([x for x in rtsi_values if 45 <= x < 60]),  # 中性股：45-60
-                    "weak_count": len([x for x in rtsi_values if x < 45])  # 弱势股：<45
+                    "strong_count": len([x for x in rtsi_values if x >= 50]),  # 强势股：50+ (中强势+强势)
+                    "neutral_count": len([x for x in rtsi_values if 40 <= x < 50]),  # 中性股：40-49
+                    "weak_count": len([x for x in rtsi_values if x < 40])  # 弱势股：<40
                 }
                 
                 data["stock_data"] = stocks_summary
+            
+            # ===== 新增：获取指数量价数据 =====
+            # 仅对中国市场获取指数数据
+            current_market = self._get_reliable_market_info()
+            if current_market == 'cn':
+                try:
+                    from utils.index_data_fetcher import IndexDataFetcher
+                    fetcher = IndexDataFetcher(verbose=False)
+                    indices_data = fetcher.fetch_cn_indices_data(days=20)
+                    data["indices_data"] = indices_data
+                    print(f"[指数数据] 已获取 {len(indices_data)} 个指数的量价数据")
+                except Exception as e:
+                    print(f"[指数数据] 获取失败: {e}")
+                    data["indices_data"] = {}
+            else:
+                data["indices_data"] = {}
             
             return data
             
         except Exception as e:
             print(t_gui('prepare_ai_data_failed', error=str(e)))
             return {}
+    
+    def _check_api_key_before_llm(self, config, provider, use_english, base_path):
+        """
+        在执行AI前检查API Key
+        
+        Args:
+            config: 配置字典
+            provider: 供应商名称
+            use_english: 是否使用英文
+            base_path: 基础路径
+            
+        Returns:
+            None: 检查通过，继续执行
+            str: 错误信息，终止执行
+        """
+        try:
+            # 如果是Ollama或LMStudio，跳过API Key检查
+            if provider.lower() in ['ollama', 'lmstudio']:
+                print(f"[API Key检查] {provider} 不需要API Key，跳过检查")
+                return None
+            
+            # 检查是否有API Key配置
+            has_api_key = False
+            
+            # 检查各个供应商的API Key
+            provider_keys = {
+                'openai': 'OPENAI_API_KEY',
+                'deepseek': 'DEEPSEEK_API_KEY',
+                'siliconflow': 'SILICONFLOW_API_KEY',
+                'anthropic': 'ANTHROPIC_API_KEY',
+                'google': 'GOOGLE_API_KEY',
+                'zhipu': 'ZHIPU_API_KEY',
+                'moonshot': 'MOONSHOT_API_KEY',
+            }
+            
+            # 获取当前供应商对应的API Key字段名
+            key_field = provider_keys.get(provider.lower())
+            if key_field:
+                api_key = config.get(key_field, '').strip()
+                if api_key and api_key != '':
+                    has_api_key = True
+                    print(f"[API Key检查] 检测到 {provider} 的 API Key")
+            
+            # 如果没有API Key，弹出设置窗口
+            if not has_api_key:
+                print(f"[API Key检查] 未检测到 {provider} 的 API Key，需要配置")
+                
+                # 根据系统语言决定弹出哪个窗口
+                from config.gui_i18n import get_system_language
+                system_language = get_system_language()
+                
+                if system_language == 'zh':
+                    # 中文系统：弹出新的API配置对话框
+                    print("[API Key检查] 中文系统，弹出API配置对话框")
+                    try:
+                        from api_key_dialog import APIKeyDialog
+                        from PyQt5.QtWidgets import QApplication
+                        
+                        # 在主线程中显示对话框
+                        dialog = APIKeyDialog()
+                        dialog.exec_()
+                        
+                        # 对话框关闭后，返回提示信息
+                        if use_english:
+                            return "API Key configuration required. Please configure your API Key and try again."
+                        else:
+                            return "需要配置API Key。请配置您的API Key后重试。"
+                    except Exception as e:
+                        print(f"[API Key检查] 显示API配置对话框失败: {e}")
+                        if use_english:
+                            return f"Failed to show API configuration dialog: {str(e)}"
+                        else:
+                            return f"显示API配置对话框失败：{str(e)}"
+                else:
+                    # 非中文系统：运行 setting.exe
+                    print("[API Key检查] 非中文系统，运行 setting.exe")
+                    try:
+                        import subprocess
+                        import os
+                        
+                        setting_exe = base_path / "llm-api" / "setting.exe"
+                        if setting_exe.exists():
+                            subprocess.Popen([str(setting_exe)], cwd=str(setting_exe.parent))
+                            if use_english:
+                                return "API Key configuration required. Please configure your API Key in the settings window and try again."
+                            else:
+                                return "需要配置API Key。请在设置窗口中配置您的API Key后重试。"
+                        else:
+                            if use_english:
+                                return f"Settings program not found: {setting_exe}"
+                            else:
+                                return f"设置程序未找到：{setting_exe}"
+                    except Exception as e:
+                        print(f"[API Key检查] 运行 setting.exe 失败: {e}")
+                        if use_english:
+                            return f"Failed to run settings program: {str(e)}"
+                        else:
+                            return f"运行设置程序失败：{str(e)}"
+            
+            # 检查通过
+            return None
+            
+        except Exception as e:
+            print(f"[API Key检查] 检查过程出错: {e}")
+            import traceback
+            traceback.print_exc()
+            # 出错时不阻止执行，让后续的API调用自己处理错误
+            return None
     
     def _call_llm_api(self, analysis_data):
         """调用LLM API进行分析 - 移植自旧版main_window.py，完全一致"""
@@ -393,45 +873,79 @@ class AnalysisWorker(QThread):
             is_english = lambda: get_system_language() == 'en'
             use_english = is_english()
             
-            # 添加llm-api到路径
-            project_root = Path(__file__).parent
-            llm_api_path = project_root / "llm-api"
+            # 添加llm-api到路径（使用path_helper确保打包环境正确）
+            from utils.path_helper import get_base_path
+            base_path = get_base_path()  # 打包环境下返回EXE所在目录
+            llm_api_path = base_path / "llm-api"
             if str(llm_api_path) not in sys.path:
                 sys.path.insert(0, str(llm_api_path))
             
-            # 首先检查配置中的供应商设置
-            try:
+            # ===== 使用缓存的配置（可能是试用配置） =====
+            config = AnalysisWorker._ai_config_cache
+            
+            if config is None:
+                # 如果缓存为空，从文件加载
                 import json
                 config_path = llm_api_path / "config" / "user_settings.json"
                 if config_path.exists():
                     with open(config_path, 'r', encoding='utf-8') as f:
                         config = json.load(f)
-                        default_provider = config.get('default_provider', 'OpenAI')
-                        print(f"[LLM Debug] {t_gui('current_llm_provider')}: {default_provider}")
-                        
-                        # 如果使用Ollama，先检查并启动服务
-                        if default_provider.lower() == 'ollama':
-                            print(f"[LLM Debug] {t_gui('detected_ollama_provider')}")
-                            
-                            # 导入Ollama工具
-                            try:
-                                from ollama_utils import ensure_ollama_and_model
-                                model_name = config.get('default_chat_model', 'gemma3:1b')
-                                base_url = config.get('OLLAMA_BASE_URL', 'http://localhost:11434')
-                                
-                                print(f"{t_gui('LLM_Debug前缀')} {t_gui('正在启动Ollama服务并确保模型可用').format(model_name=model_name)}")
-                                if not ensure_ollama_and_model(model_name, base_url):
-                                    return t_gui("无法启动Ollama服务或模型不可用_详细说明")
-                                
-                                print(f"{t_gui('LLM_Debug前缀')} {t_gui('Ollama服务检查完成，准备进行AI分析')}")
-                                
-                            except ImportError as e:
-                                print(f"{t_gui('LLM_Debug前缀')} {t_gui('无法导入Ollama工具').format(error=str(e))}")
-                                return t_gui("Ollama工具模块导入失败").format(error=str(e))
+                        AnalysisWorker._ai_config_cache = config
+                        AnalysisWorker._ai_config_cache_time = time.time()
+                        print(f"[LLM Debug] 缓存为空，从文件加载AI配置")
                 else:
+                    config = {}
                     print("[LLM Debug] 未找到配置文件，使用默认设置")
+            else:
+                # 使用缓存的配置（可能是试用配置）
+                if AnalysisWorker._is_trial_mode:
+                    print(f"[LLM Debug] 使用试用模式配置")
+                    # 临时设置环境变量，让LLM客户端能够使用试用API Key
+                    import os
+                    os.environ['SILICONFLOW_API_KEY'] = config.get('SILICONFLOW_API_KEY', '')
+                    os.environ['SILICONFLOW_BASE_URL'] = config.get('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1')
+                    print(f"[LLM Debug] 已设置试用模式环境变量")
+                else:
+                    print(f"[LLM Debug] 使用缓存的AI配置")
+            
+            default_provider = config.get('default_provider', 'OpenAI')
+            print(f"[LLM Debug] {t_gui('current_llm_provider')}: {default_provider}")
+            
+            # ===== 检查API Key（如果不是试用模式才检查） =====
+            if not AnalysisWorker._is_trial_mode:
+                api_key_check_result = self._check_api_key_before_llm(config, default_provider, use_english, base_path)
+                if api_key_check_result is not None:
+                    # 返回错误信息或None，终止AI执行
+                    return api_key_check_result
+            else:
+                print(f"[LLM Debug] 试用模式，跳过API Key检查")
+            
+            # 继续原有逻辑
+            try:
+                
+                # 如果使用Ollama，先检查并启动服务
+                if default_provider.lower() == 'ollama':
+                    print(f"[LLM Debug] {t_gui('detected_ollama_provider')}")
+                    
+                    # 导入Ollama工具
+                    try:
+                        from ollama_utils import ensure_ollama_and_model
+                        model_name = config.get('default_chat_model', 'gemma3:1b')
+                        base_url = config.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+                        
+                        print(f"{t_gui('LLM_Debug前缀')} {t_gui('正在启动Ollama服务并确保模型可用').format(model_name=model_name)}")
+                        if not ensure_ollama_and_model(model_name, base_url):
+                            return t_gui("无法启动Ollama服务或模型不可用_详细说明")
+                        
+                        print(f"{t_gui('LLM_Debug前缀')} {t_gui('Ollama服务检查完成，准备进行AI分析')}")
+                        
+                    except ImportError as e:
+                        print(f"{t_gui('LLM_Debug前缀')} {t_gui('无法导入Ollama工具').format(error=str(e))}")
+                        return t_gui("Ollama工具模块导入失败").format(error=str(e))
+                        
             except Exception as e:
                 print(f"[LLM Debug] 读取配置文件时出错: {e}")
+                config = {}
             
             # 根据配置的提供商选择合适的LLM客户端
             default_provider = config.get('default_provider', 'OpenAI')
@@ -478,8 +992,12 @@ class AnalysisWorker(QThread):
                         LLMClient = client_module.SimpleLLMClient
                         print("[LLM Debug] 使用绝对路径导入SimpleLLMClient作为回退")
             
-            # 创建LLM客户端
-            client = LLMClient()
+            # 创建LLM客户端（试用模式下传递临时配置）
+            if AnalysisWorker._is_trial_mode:
+                print(f"[LLM Debug] 使用试用配置创建客户端")
+                client = LLMClient(temp_config=config)
+            else:
+                client = LLMClient()
             
             # 准备提示词
             prompt = self._create_analysis_prompt(analysis_data)
@@ -607,6 +1125,7 @@ class AnalysisWorker(QThread):
         market_data = analysis_data.get('market_data', {})
         industry_data = analysis_data.get('industry_data', {})
         stock_data = analysis_data.get('stock_data', {})
+        indices_data = analysis_data.get('indices_data', {})
         
         # 获取当前市场类型 - 优先从主界面检测结果获取
         current_market = self._get_reliable_market_info()
@@ -710,7 +1229,7 @@ Please provide a professional three-tier investment analysis report (Market-Indu
 
 【III. Individual Stock Performance Analysis Data】
 ▪ Total Number of Analyzed Stocks: {stock_data.get('total_count', 0)}
-▪ Average RTSI Index: {stock_data.get('statistics', {}).get('average_rtsi', 0):.2f} (Optimized Enhanced RTSI Algorithm, Range: 20-75)
+▪ Average RTSI Index: {stock_data.get('statistics', {}).get('average_rtsi', 0):.2f} (Optimized Enhanced RTSI v2.3, Range: 0-90)
 ▪ Strong Stocks Count: {stock_data.get('statistics', {}).get('strong_count', 0)} (RTSI≥50, Strong Technical Performance)
 ▪ Neutral Stocks Count: {stock_data.get('statistics', {}).get('neutral_count', 0)} (40≤RTSI<50, Balanced Technical Performance)
 ▪ Weak Stocks Count: {stock_data.get('statistics', {}).get('weak_count', 0)} (RTSI<40, Weak Technical Performance)
@@ -722,7 +1241,21 @@ Please provide a professional three-tier investment analysis report (Market-Indu
             top_stocks = stock_data.get('top_performers', [])
             for i, (code, name, rtsi) in enumerate(top_stocks[:10]):
                 prompt += f"  {i+1}. {code} {name}: RTSI {rtsi:.2f}\n"
+            
+            # ===== 添加指数量价数据 (仅中国市场) =====
+            if indices_data:
+                from utils.index_data_fetcher import IndexDataFetcher
+                fetcher = IndexDataFetcher(verbose=False)
+                prompt += f"\n{fetcher.format_indices_data_for_ai(indices_data)}\n"
         else:
+            # 【调试日志】提示词数据确认
+            print(f" [提示词调试] 构建提示词时的数据:")
+            print(f"   市场数据: {market_data}")
+            print(f"   行业数据: {industry_data}") 
+            print(f"   股票数据: {stock_data}")
+            print(f"   MSCI值: {market_data.get('msci_value', 0)}")
+            print(f"   行业数量: {industry_data.get('sector_count', 0)}")
+            
             # 中文版本的提示词
             prompt = f"""
 ===== {market_name}综合投资分析报告 =====
@@ -749,8 +1282,8 @@ Please provide a professional three-tier investment analysis report (Market-Indu
 
 【三、个股表现分析数据】
 ▪ 分析股票总数: {stock_data.get('total_count', 0)}只
-▪ 平均RTSI指数: {stock_data.get('statistics', {}).get('average_rtsi', 0):.2f} (优化增强RTSI算法，范围20-75)
-▪ 强势股票数量: {stock_data.get('statistics', {}).get('strong_count', 0)}只 (RTSI≥50，技术面强劲)
+▪ 平均RTSI指数: {stock_data.get('statistics', {}).get('average_rtsi', 0):.2f} (优化增强RTSI v2.3算法，范围0-90)
+▪ 强势股票数量: {stock_data.get('statistics', {}).get('strong_count', 0)}只 (RTSI≥50，技术面较好及以上)
 ▪ 中性股票数量: {stock_data.get('statistics', {}).get('neutral_count', 0)}只 (40≤RTSI<50，技术面平衡)
 ▪ 弱势股票数量: {stock_data.get('statistics', {}).get('weak_count', 0)}只 (RTSI<40，技术面较弱)
 
@@ -761,6 +1294,19 @@ Please provide a professional three-tier investment analysis report (Market-Indu
             top_stocks = stock_data.get('top_performers', [])
             for i, (code, name, rtsi) in enumerate(top_stocks[:10]):
                 prompt += f"  {i+1}. {code} {name}: RTSI {rtsi:.2f}\n"
+            
+            # ===== 添加指数量价数据 (仅中国市场) =====
+            if indices_data:
+                from utils.index_data_fetcher import IndexDataFetcher
+                fetcher = IndexDataFetcher(verbose=False)
+                prompt += f"\n{fetcher.format_indices_data_for_ai(indices_data)}\n"
+            
+            # 添加数据完整性验证信息
+            prompt += f"\n【数据完整性确认】\n"
+            prompt += f"▪ 实际传递的优质股票数量: {len(top_stocks)}只\n"
+            prompt += f"▪ 筛选后可推荐股票总数: {len(top_stocks)}只\n"
+            if len(top_stocks) == 0:
+                prompt += f"▪  警告：当前没有符合条件的股票数据，请基于此情况给出相应的市场分析\n"
         
         if use_english:
             # 英文版本的分析要求
@@ -816,15 +1362,16 @@ Please conduct comprehensive and in-depth investment analysis from the following
 【Analysis Requirements】
 • Price Unit: Please use your local currency unit for all price-related data consistently
 • Operational Recommendations: Operational recommendation percentages (buy, hold, sell, etc.) do not need to add up to 100%, can be flexibly adjusted based on actual conditions
+• Market Benchmark: For China A-share market analysis, use Shanghai Composite Index (上证指数) as the market benchmark
 • Response Language: Please respond in English only
 
 【Important: Stock Recommendation Requirements】
-• All recommended stocks must be real existing stocks in {market_name}
-• Stock codes and names must be accurate and precise, no fictitious or fabricated ones
-• When recommending stocks, strictly follow the code format standards of {current_market.upper()} market
-• 【Important】Only recommend large-cap stocks, avoid small-cap and growth board stocks
-• Prioritize recommending large market cap, high liquidity, fundamentally sound blue-chip stocks
-• May refer to real stock codes provided in the analysis data for recommendations
+• 【Strict Constraint】Only recommend stocks explicitly listed in the "Quality Stock Recommendations" section above, absolutely forbidden to recommend any stocks outside the analysis data
+• If more stock recommendations are needed, re-analyze and interpret existing stocks from the above list, do not fabricate new stock codes
+• Stock codes and names must be exactly consistent with those in the analysis data, no modifications or variants allowed
+• If the number of stocks above is limited, clearly state "Based on current analysis data, qualified quality stocks are as follows"
+• Absolutely forbidden to use fictitious stock codes like "BYD", "TTE Company", "XCN Energy", etc.
+• When recommending stocks, must use real {current_market.upper()} market code formats as provided in the data
 
 Please use professional and systematic analysis methods, ensuring clear analysis logic, definitive conclusions, and specific actionable recommendations. Analysis should balance risk and return, avoiding extreme viewpoints.
 """
@@ -882,18 +1429,55 @@ Please use professional and systematic analysis methods, ensuring clear analysis
 【分析要求】
 • 价格单位：所有价格相关数据请统一使用"元"作为单位（如：股价12.50元，目标价15.00元）
 • 操作建议：各项操作建议（买入、持有、卖出等）比例不需要加起来等于100%，可以根据实际情况灵活调整
+• 市场基准：分析A股市场时，请以上证指数为基准
 • 回复语言：请用中文回复所有内容
 
 【重要：股票推荐要求】
-• 推荐的所有股票必须是{market_name}真实存在的股票
-• 股票代码和名称必须准确无误，不得虚构或编造
-• 推荐股票时务必遵循{current_market.upper()}市场的代码格式规范
-• 【重要】仅推荐大盘股，避免推荐小盘股和创业板股票
-• 优先推荐市值大、流动性好、基本面稳健的优质蓝筹股
-• 可参考分析数据中提供的真实股票代码进行推荐
+• 【严格约束】只能推荐上述"个股推荐"部分明确列出的股票，绝对禁止推荐分析数据之外的任何股票
+• 【数据验证】在推荐任何股票前，必须先确认该股票在上述列表中存在
+• 如果上述列表为空或股票数量为0，必须明确说明"当前分析数据中没有符合推荐标准的股票"
+• 不得编造、假设或推测任何股票代码和名称，即使是为了举例说明
+• 股票代码和名称必须与分析数据中的完全一致，包括标点符号和空格
+• 【逻辑一致性】确保推荐的股票数量与数据确认部分的数量一致
+• 绝对禁止使用任何虚构的股票代码，如"000818景德镇卫国"、"000921汇川石化"等
+• 如果数据有限，重点分析现有股票的投资价值，而不是寻求推荐更多股票
 
 请用专业、系统的分析方法，确保分析逻辑清晰、结论明确、建议具体可操作。分析应当平衡风险与收益，避免极端观点。
+
+【重要：数据完整性确认】
+▪ 当前MSCI指数: {market_data.get('msci_value', 0):.2f}
+▪ 当前行业数量: {industry_data.get('sector_count', 0)}个
+▪ 当前股票数量: {len(stock_data.get('top_performers', []))}只
+
+{f" 数据缺失警告：MSCI指数为0.00，可能存在市场数据传递问题，请在分析中说明" if market_data.get('msci_value', 0) == 0 else ""}
+{f" 数据缺失警告：行业数量为0，无法进行行业轮动分析，请在分析中说明" if industry_data.get('sector_count', 0) == 0 else ""}
+{f" 数据缺失警告：股票数量为0，无法进行个股推荐，请在分析中说明" if len(stock_data.get('top_performers', [])) == 0 else ""}
+
+如果出现数据缺失，必须在相应分析部分明确说明数据不足的情况，不得编造或假设数据。
 """
+        
+        # 添加调试日志：确认提示词中的股票信息和约束条件
+        stock_count_in_prompt = len(stock_data.get('top_performers', []))
+        msci_value_in_prompt = market_data.get('msci_value', 0)
+        industry_count_in_prompt = industry_data.get('sector_count', 0)
+        
+        print(f"[AI分析提示词] 提示词中包含的股票数量: {stock_count_in_prompt}")
+        print(f"[AI分析提示词] 提示词中的MSCI值: {msci_value_in_prompt}")
+        print(f"[AI分析提示词] 提示词中的行业数量: {industry_count_in_prompt}")
+        print(f"[AI分析提示词] 市场类型: {current_market} ({market_name})")
+        print(f"[AI分析提示词] 语言模式: {'英文' if use_english else '中文'}")
+        print(f"[AI分析约束] 已启用强制股票验证和逻辑一致性检查")
+        print(f"[AI分析约束] 已启用虚构股票禁止约束")
+        print(f"[AI分析约束] 已启用数据完整性验证")
+        
+        if msci_value_in_prompt == 0:
+            print(f" [数据问题] MSCI为0，AI将被提醒说明数据不足")
+        if industry_count_in_prompt == 0:
+            print(f" [数据问题] 行业数量为0，AI将被提醒无法进行行业分析")
+        if stock_count_in_prompt > 0:
+            print(f"[AI分析期望] AI应推荐 {stock_count_in_prompt} 只真实股票，禁止编造")
+        else:
+            print(f" [数据问题] 股票数量为0，AI将被提醒无法推荐股票")
         
         return prompt
     
@@ -914,9 +1498,8 @@ Please use professional and systematic analysis methods, ensuring clear analysis
             else:
                 analysis_results = results_data
             
-            # 创建报告目录
-            reports_dir = Path("analysis_reports")
-            reports_dir.mkdir(exist_ok=True)
+            # 创建报告目录（使用正确的路径）
+            reports_dir = get_reports_dir()
             
             html_file = reports_dir / f"analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             
@@ -955,10 +1538,21 @@ Please use professional and systematic analysis methods, ensuring clear analysis
                     if hasattr(real_analysis_results, 'stocks'):
                         stocks_list = []
                         for code, info in real_analysis_results.stocks.items():
-                            # 大盘股筛选：如果股票属于指数行业则允许通过
+                            # 优化筛选逻辑：基于RTSI分数筛选优质股票，避免过度严格的大盘股限制
                             stock_industry = info.get('industry', '')
-                            if stock_industry != "指数" and not self._is_large_cap_stock(code):
-                                continue
+                            
+                            # 指数行业的股票直接通过
+                            if stock_industry == "指数":
+                                pass  # 指数股票直接通过
+                            else:
+                                # 对于其他股票，优先基于RTSI分数筛选，辅以大盘股判断
+                                rtsi_value = info.get('rtsi', 0)
+                                if isinstance(rtsi_value, dict):
+                                    rtsi_value = rtsi_value.get('rtsi', 0)
+                                
+                                # 放宽筛选条件：RTSI >= 45 或者是大盘股
+                                if float(rtsi_value) < 45 and not self._is_large_cap_stock(code):
+                                    continue
                                 
                             rtsi_value = info.get('rtsi', 0)
                             if isinstance(rtsi_value, dict):
@@ -1013,7 +1607,7 @@ Please use professional and systematic analysis methods, ensuring clear analysis
                     if isinstance(stock_data, tuple) and len(stock_data) >= 3:
                         code, name, rtsi = stock_data
                         rtsi_value = float(rtsi) if isinstance(rtsi, (int, float)) else 0.0
-                        # 基于优化增强RTSI 20-75分制的推荐级别
+                        # 基于优化增强RTSI 0-100分制的推荐级别（方案C v2.3）
                         if rtsi_value >= 70:
                             recommendation = "强烈推荐"
                         elif rtsi_value >= 60:
@@ -1120,7 +1714,7 @@ Please use professional and systematic analysis methods, ensuring clear analysis
             if ai_analysis:
                 ai_analysis_section = f"""
     <div class="section">
-        <h2>🤖 {t_gui('ai_intelligent_analysis')}</h2>
+        <h2> {t_gui('ai_intelligent_analysis')}</h2>
         <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
             <h3>{t_gui('ai_analyst_opinion')}</h3>
             <div style="white-space: pre-wrap; line-height: 1.6; color: #333;">{ai_analysis}</div>
@@ -1131,7 +1725,7 @@ Please use professional and systematic analysis methods, ensuring clear analysis
                 # 如果没有AI分析，添加提示信息
                 ai_analysis_section = f"""
     <div class="section">
-        <h2>🤖 {t_gui('ai_intelligent_analysis')}</h2>
+        <h2> {t_gui('ai_intelligent_analysis')}</h2>
         <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; text-align: center;">
             <h3 style="color: #856404;">{t_gui('ai_function_not_executed')}</h3>
             <p style="color: #856404; margin: 10px 0;">{t_gui('please_check_ai_settings')}</p>
@@ -1152,7 +1746,7 @@ Please use professional and systematic analysis methods, ensuring clear analysis
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{report_title}</title>
     <style>
-        body {{ font-family: 'Microsoft YaHei', Arial, sans-serif; margin: 20px; line-height: 1.6; }}
+        body {{ font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif; margin: 20px; line-height: 1.6; }}
         .header {{ background: #f4f4f4; padding: 20px; border-radius: 8px; margin-bottom: 20px; position: relative; }}
         .author {{ position: absolute; top: 20px; right: 20px; font-size: 12px; color: #666; }}
         .section {{ margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }}
@@ -1272,68 +1866,68 @@ class FileSelectionPage(QWidget):
             QWidget {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                     stop:0 #f8f9fa, stop:0.3 #e9ecef, stop:0.7 #dee2e6, stop:1 #ced4da);
-                font-family: 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif;
+                font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
             }
         """)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(30)  # 适中的间距提升美观度
-        main_layout.setContentsMargins(50, 40, 50, 40)  # 适中的边距提升美观度
+        main_layout.setSpacing(22)
+        main_layout.setContentsMargins(40, 32, 40, 28)
         
 
         
         # 主标题区域
         title_container = QWidget()
         title_layout = QVBoxLayout()
-        title_layout.setSpacing(55)  # 增加间距提升美观度
-        title_layout.setContentsMargins(40, 35, 40, 35)  # 增加边距扩大白色框架
+        title_layout.setSpacing(30)
+        title_layout.setContentsMargins(32, 28, 32, 28)
         
         # 主标题
         title_label = QLabel(t_gui('main_title'))
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setFont(QFont("Microsoft YaHei", 28, QFont.Bold))  # 减小字体从32到28
+        title_label.setFont(QFont(get_cross_platform_font(), 30, QFont.Bold))
         title_label.setStyleSheet("""
             color: #2c3e50;
-            margin: 10px 0px;
+            margin: 8px 0px;
         """)
         
         # 副标题
         subtitle_label = QLabel(t_gui('subtitle'))
         subtitle_label.setAlignment(Qt.AlignCenter)
-        subtitle_label.setFont(QFont("Microsoft YaHei", 16))  # 减小字体从18到16
+        subtitle_label.setFont(QFont(get_cross_platform_font(), 16))
         subtitle_label.setStyleSheet("""
             color: #34495e;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         """)
         
         # 商务口号区域
         slogan_container = QWidget()
         slogan_layout = QHBoxLayout()
-        slogan_layout.setSpacing(25)  # 减少间距从40到25
+        slogan_layout.setSpacing(24)
         slogan_layout.setContentsMargins(0, 0, 0, 0)
         
         # 左侧口号
         slogan1_label = QLabel(t_gui("智能分析，精准投资"))
         slogan1_label.setAlignment(Qt.AlignCenter)
-        slogan1_label.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))  # 减小字体从15到14
+        slogan1_label.setFont(QFont(get_cross_platform_font(), 14, QFont.Bold))
         slogan1_label.setStyleSheet("""
             color: #667eea;
-            background: rgba(102, 126, 234, 0.1);
-            padding: 12px 20px;
-            border-radius: 25px;
-            border: 2px solid rgba(102, 126, 234, 0.2);
+            background: rgba(102, 126, 234, 0.12);
+            padding: 9px 18px;
+            border-radius: 22px;
+            border: 1px solid rgba(102, 126, 234, 0.25);
         """)
         
         # 右侧口号
         slogan2_label = QLabel(t_gui("数据驱动，决策无忧"))
         slogan2_label.setAlignment(Qt.AlignCenter)
-        slogan2_label.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))  # 减小字体从15到14
+        slogan2_label.setFont(QFont(get_cross_platform_font(), 14, QFont.Bold))
         slogan2_label.setStyleSheet("""
             color: #764ba2;
-            background: rgba(118, 75, 162, 0.1);
-            padding: 12px 20px;
-            border-radius: 25px;
-            border: 2px solid rgba(118, 75, 162, 0.2);
+            background: rgba(118, 75, 162, 0.12);
+            padding: 9px 18px;
+            border-radius: 22px;
+            border: 1px solid rgba(118, 75, 162, 0.25);
         """)
         
         slogan_layout.addStretch()
@@ -1346,20 +1940,21 @@ class FileSelectionPage(QWidget):
         title_layout.addWidget(subtitle_label)
         title_layout.addWidget(slogan_container)
         title_container.setLayout(title_layout)
+        title_container.setMaximumHeight(420)
         
         # 设置标题容器样式
         title_container.setStyleSheet("""
             QWidget {
-                background: rgba(255, 255, 255, 0.8);
-                border-radius: 15px;
-                border: 1px solid rgba(255, 255, 255, 0.3);
+                background: rgba(255, 255, 255, 0.88);
+                border-radius: 18px;
+                border: 1px solid rgba(255, 255, 255, 0.45);
             }
         """)
         
         # 创建卡片容器
         self.cards_widget = QWidget()
         cards_layout = QHBoxLayout()
-        cards_layout.setSpacing(20)  # 减少间距从30到20
+        cards_layout.setSpacing(20)
         cards_layout.setContentsMargins(0, 0, 0, 0)
         
         # 创建三个市场分析卡片
@@ -1372,23 +1967,24 @@ class FileSelectionPage(QWidget):
         cards_layout.addWidget(self.us_card)
         
         self.cards_widget.setLayout(cards_layout)
+        self.cards_widget.setMaximumHeight(260)
         
         # 商务风格加载区域（初始隐藏）
         loading_container = QWidget()
         loading_layout = QVBoxLayout()
-        loading_layout.setSpacing(15)  # 减少间距从15到10
-        loading_layout.setContentsMargins(20, 55, 20, 15)  # 减少边距从30,25到20,15
+        loading_layout.setSpacing(14)
+        loading_layout.setContentsMargins(18, 28, 18, 20)
         
         # 加载状态标签
         self.loading_label = QLabel(t_gui("正在启动智能分析引擎..."))
         self.loading_label.setAlignment(Qt.AlignCenter)
-        self.loading_label.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
+        self.loading_label.setFont(QFont(get_cross_platform_font(), 14, QFont.Bold))
         self.loading_label.setStyleSheet("""
             color: #2c3e50;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px 25px;
-            border-radius: 25px;
-            border: 2px solid rgba(102, 126, 234, 0.2);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 16px 22px;
+            border-radius: 20px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
         """)
         self.loading_label.setVisible(False)
         
@@ -1418,7 +2014,7 @@ class FileSelectionPage(QWidget):
         # 加载提示文字
         loading_hint = QLabel(t_gui("提示：系统正在智能分析市场数据，请稍候..."))
         loading_hint.setAlignment(Qt.AlignCenter)
-        loading_hint.setFont(QFont("Microsoft YaHei", 10))
+        loading_hint.setFont(QFont(get_cross_platform_font(), 11))
         loading_hint.setStyleSheet("""
             color: #7f8c8d;
             background: transparent;
@@ -1440,22 +2036,19 @@ class FileSelectionPage(QWidget):
         """)
         loading_container.setVisible(False)
         self.loading_container = loading_container
+        self.loading_container.setMaximumHeight(200)
         
         # 布局组装
-        main_layout.addStretch(1)
-        main_layout.addWidget(title_container)
-        main_layout.addStretch(1)
-        main_layout.addWidget(self.cards_widget)
-        main_layout.addStretch(1)
+        main_layout.addWidget(title_container, stretch=13)
+        main_layout.addWidget(self.cards_widget, stretch=7)
         main_layout.addWidget(self.loading_container)
-        main_layout.addStretch(2)
         
         self.setLayout(main_layout)
         
     def create_market_card(self, title, color, data_file, date_text):
         """创建商务风格市场分析卡片"""
         card = QPushButton()
-        card.setFixedSize(320, 250)  # 增加卡片高度从220到250
+        card.setFixedSize(310, 220)
         card.setCursor(Qt.PointingHandCursor)
         
         # 根据卡片类型设置渐变色
@@ -1491,19 +2084,19 @@ class FileSelectionPage(QWidget):
         
         # 创建卡片内容布局
         card_layout = QVBoxLayout()
-        card_layout.setSpacing(8)  # 减少间距从12到8
-        card_layout.setContentsMargins(20, 20, 20, 20)  # 减少边距从25到20
+        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(22, 22, 22, 22)
         
         # 顶部图标和标题容器
         header_container = QWidget()
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(8)  # 减少间距从10到8
+        header_layout.setSpacing(8)
         
         # 市场标识
         icon_label = QLabel(icon)
         icon_label.setAlignment(Qt.AlignCenter)
-        icon_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        icon_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))
         icon_label.setStyleSheet("""
             background: transparent;
             color: white;
@@ -1512,7 +2105,7 @@ class FileSelectionPage(QWidget):
         # 市场标题
         title_label = QLabel(title)
         title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        title_label.setFont(QFont("Microsoft YaHei", 20, QFont.Bold))
+        title_label.setFont(QFont(get_cross_platform_font(), 20, QFont.Bold))
         title_label.setStyleSheet("""
             color: white; 
             background: transparent;
@@ -1535,12 +2128,12 @@ class FileSelectionPage(QWidget):
         info_container = QWidget()
         info_layout = QVBoxLayout()
         info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(6)  # 减少间距从8到6
+        info_layout.setSpacing(6)
         
         # 数据日期
         date_label = QLabel(date_text)
         date_label.setAlignment(Qt.AlignCenter)
-        date_label.setFont(QFont("Microsoft YaHei", 11))
+        date_label.setFont(QFont(get_cross_platform_font(), 11))
         date_label.setStyleSheet("""
             color: rgba(255, 255, 255, 0.9); 
             background: transparent;
@@ -1550,7 +2143,7 @@ class FileSelectionPage(QWidget):
         # 状态指示器
         status_label = QLabel(t_gui("数据就绪"))
         status_label.setAlignment(Qt.AlignCenter)
-        status_label.setFont(QFont("Microsoft YaHei", 10))
+        status_label.setFont(QFont(get_cross_platform_font(), 10))
         status_label.setStyleSheet("""
             color: rgba(255, 255, 255, 0.8);
             background: rgba(255, 255, 255, 0.1);
@@ -1572,7 +2165,7 @@ class FileSelectionPage(QWidget):
         # 将布局应用到卡片（通过创建一个容器widget）
         card_widget = QWidget(card)
         card_widget.setLayout(card_layout)
-        card_widget.setGeometry(0, 0, 320, 250)  # 更新卡片内部几何
+        card_widget.setGeometry(0, 0, 310, 220)
         card_widget.setStyleSheet("background: transparent;")
         
         # 绑定点击事件
@@ -1604,7 +2197,8 @@ class FileSelectionPage(QWidget):
         
         for filename, card in data_files.items():
             try:
-                file_path = project_root / filename
+                # 使用智能路径查找，优先从EXE目录读取
+                file_path = get_data_file_path(filename)
                 if file_path.exists():
                     with gzip.open(file_path, 'rt', encoding='utf-8') as f:
                         data = json.load(f)
@@ -1628,22 +2222,22 @@ class FileSelectionPage(QWidget):
                                 end_formatted = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:8]}"
                                 
                                 date_text = f"{start_formatted} - {end_formatted}"
-                                print(f"✅ {filename} 日期解析成功: {date_text}")
+                                print(f" {filename} 日期解析成功: {date_text}")
                             else:
-                                print(f"❌ {filename} 无有效日期列，columns: {columns[:5]}...")
+                                print(f" {filename} 无有效日期列，columns: {columns[:5]}...")
                                 date_text = "无日期数据"
                         else:
-                            print(f"❌ {filename} metadata中无columns字段")
+                            print(f" {filename} metadata中无columns字段")
                             date_text = "无列信息"
                     else:
-                        print(f"❌ {filename} 无metadata字段，keys: {list(data.keys()) if data else 'None'}")
+                        print(f" {filename} 无metadata字段，keys: {list(data.keys()) if data else 'None'}")
                         date_text = "无元数据"
                 else:
-                    print(f"❌ {filename} 文件不存在")
+                    print(f" {filename} 文件不存在")
                     date_text = "文件不存在"
                     
             except Exception as e:
-                print(f"❌ 读取{filename}日期信息失败: {e}")
+                print(f"[ERROR] 读取{filename}日期信息失败: {e}")
                 import traceback
                 traceback.print_exc()
                 date_text = "读取失败"
@@ -1654,7 +2248,8 @@ class FileSelectionPage(QWidget):
     
     def on_card_clicked(self, data_file, color):
         """卡片点击处理"""
-        file_path = project_root / data_file
+        # 使用智能路径查找，优先从EXE目录读取
+        file_path = get_data_file_path(data_file)
         if not file_path.exists():
             from PyQt5.QtWidgets import QMessageBox
             QMessageBox.warning(self, t_gui("文件不存在"), t_gui("数据文件 {data_file} 不存在！").format(data_file=data_file))
@@ -1763,8 +2358,6 @@ class AnalysisPage(QWidget):
         self.stock_ai_cache = {}  # 缓存AI分析结果
         self.ai_analysis_in_progress = False  # 防止重复分析
         self.current_ai_stock = None  # 当前分析的股票
-        
-
         self.ai_analysis_executed = False  # 是否已执行过AI分析
         
         # 迷你投资大师相关
@@ -1776,7 +2369,192 @@ class AnalysisPage(QWidget):
         self.industry_ai_cache = {}  # 缓存行业AI分析结果
         self.industry_ai_analysis_in_progress = False  # 防止重复分析
         self.current_industry_name = None  # 当前分析的行业
+        
+        # 服务器状态
+        self.server_started = False  # 服务器是否已启动
+        self.server_started_by_us = False  # 是否是本软件启动的
+        self.server_process = None  # 服务器进程
+        
+        # 主窗口引用
+        self.main_window = None
+        
+        # 调用setup_ui创建界面
         self.setup_ui()
+    
+    def _ai_analysis_before(self, analysis_type="AI分析"):
+        """AI分析执行前的统一处理（AnalysisPage版本）
+        
+        Args:
+            analysis_type: 分析类型名称（用于日志）
+            
+        Returns:
+            tuple: (success: bool, config: dict)
+                success: True表示可以继续执行，False表示应该终止
+                config: 加载的配置字典
+        """
+        try:
+            print(f"[{analysis_type}] 执行前检查...")
+            
+            # 1. 重新加载AI配置（确保使用最新配置）
+            config = {}
+            try:
+                import json
+                from pathlib import Path
+                from utils.path_helper import get_base_path
+                
+                base_path = get_base_path()
+                config_path = base_path / "llm-api" / "config" / "user_settings.json"
+                
+                if config_path.exists():
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                        print(f"[{analysis_type}] 已重新加载AI配置")
+                else:
+                    print(f"[{analysis_type}] 配置文件不存在")
+                    return False, {}
+            except Exception as e:
+                print(f"[{analysis_type}] 加载配置失败: {e}")
+                return False, {}
+            
+            # 2. 试用功能检查（必须在API Key检查之前）
+            is_trial_mode = False
+            try:
+                from utils.ai_usage_counter import get_ai_usage_count
+                
+                provider = config.get('default_provider', '').lower()
+                api_key = config.get('SILICONFLOW_API_KEY', '').strip()
+                current_count = get_ai_usage_count()
+                
+                # 检查是否符合试用条件：SiliconFlow + 无API Key + 计数<20
+                if provider == 'siliconflow' and not api_key and current_count < 20:
+                    print(f"[试用模式] 符合试用条件（{current_count}/20次）")
+                    print(f"[试用模式] 使用预设试用配置")
+                    
+                    # 使用硬编码的试用配置
+                    trial_config = {
+                        "default_provider": "SiliconFlow",
+                        "default_chat_model": "Qwen/Qwen3-8B",
+                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "request_timeout": 600,
+                        "agent_role": "不使用",
+                        "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
+                        "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
+                        "dont_show_api_dialog": True
+                    }
+                    
+                    # 使用试用配置
+                    config = trial_config
+                    is_trial_mode = True
+                    
+                    print(f"[试用模式] 配置已切换为试用模式，剩余 {20 - current_count} 次试用机会")
+                else:
+                    if provider == 'siliconflow' and not api_key and current_count >= 20:
+                        print(f"[试用模式] 试用次数已用完（{current_count}/20），请配置API Key")
+                        
+            except Exception as e:
+                print(f"[{analysis_type}] 试用检查出错: {e}")
+            
+            # 3. 检查API Key（如果不是试用模式才检查）
+            if not is_trial_mode:
+                provider = config.get('default_provider', 'OpenAI')
+                from config.gui_i18n import get_system_language
+                use_english = get_system_language() == 'en'
+                
+                api_key_error = self._check_api_key_for_stock_analysis(config, provider, use_english, base_path)
+                if api_key_error:
+                    print(f"[{analysis_type}] API Key检查失败: {api_key_error}")
+                    return False, config
+            else:
+                print(f"[{analysis_type}] 试用模式，跳过API Key检查")
+            
+            print(f"[{analysis_type}] 执行前检查通过")
+            return True, config
+            
+        except Exception as e:
+            print(f"[{analysis_type}] 执行前检查出错: {e}")
+            import traceback
+            traceback.print_exc()
+            return False, {}
+    
+    def _ai_analysis_after(self, success=True, analysis_type="AI分析"):
+        """AI分析执行后的统一处理（AnalysisPage版本）
+        
+        Args:
+            success: 分析是否成功
+            analysis_type: 分析类型名称（用于日志）
+        """
+        try:
+            print(f"[{analysis_type}] 执行后处理...")
+            
+            if success:
+                # 1. 增加AI使用计数
+                try:
+                    from utils.ai_usage_counter import increment_ai_usage
+                    count = increment_ai_usage()
+                    print(f"[AI计数] {analysis_type}完成，累计使用: {count} 次")
+                except Exception as e:
+                    print(f"[AI计数] 计数失败: {e}")
+                
+                # 2. 可以添加其他成功后的处理
+                # 例如：记录分析日志、更新缓存等
+            else:
+                print(f"[{analysis_type}] 分析未成功，跳过后续处理")
+            
+        except Exception as e:
+            print(f"[{analysis_type}] 执行后处理出错: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def set_main_window(self, main_window):
+        """设置主窗口引用，用于访问detected_market等属性"""
+        self.main_window = main_window
+        # 更新Tab可见性
+        self.update_cn_market_tabs_visibility()
+    
+    def update_cn_market_tabs_visibility(self):
+        """根据市场类型和语言更新中国市场专属Tab的可见性"""
+        try:
+            # 获取当前语言
+            current_lang = get_system_language() if callable(get_system_language) else 'zh'
+            
+            # 获取市场类型
+            detected_market = 'cn'  # 默认值
+            if hasattr(self, 'main_window') and self.main_window and hasattr(self.main_window, 'detected_market'):
+                detected_market = self.main_window.detected_market
+            
+            is_cn_market = (detected_market or 'cn').lower() == 'cn'
+            should_show_cn_tabs = current_lang.startswith('zh') and is_cn_market
+            
+            print(f"[Tab可见性更新] 语言: {current_lang}, 市场: {detected_market}, 显示中国市场Tab: {should_show_cn_tabs}")
+            
+            # 更新市场分析页面的Tab
+            # 注意：market_tab_widget 和 market_html_tabs 是 AnalysisPage 的属性，不是 market_page 的属性
+            if hasattr(self, 'market_tab_widget') and hasattr(self, 'market_html_tabs'):
+                print(f"[Tab可见性更新] market_html_tabs 数量: {len(self.market_html_tabs)}")
+                for tab_index, view, html_path in self.market_html_tabs:
+                    print(f"[Tab可见性更新] 设置市场Tab {tab_index} 可见性为: {should_show_cn_tabs}")
+                    self.market_tab_widget.setTabVisible(tab_index, should_show_cn_tabs)
+            else:
+                print(f"[Tab可见性更新] market_tab_widget 或 market_html_tabs 不存在")
+                print(f"  - hasattr market_tab_widget: {hasattr(self, 'market_tab_widget')}")
+                print(f"  - hasattr market_html_tabs: {hasattr(self, 'market_html_tabs')}")
+            
+            # 更新个股分析页面的Tab
+            # 注意：stock_tab_widget 和 stock_extra_tabs 是 AnalysisPage 的属性，不是 stock_page 的属性
+            if hasattr(self, 'stock_tab_widget') and hasattr(self, 'stock_extra_tabs'):
+                print(f"[Tab可见性更新] stock_extra_tabs 数量: {len(self.stock_extra_tabs)}")
+                for tab_index, view, html_path in self.stock_extra_tabs:
+                    print(f"[Tab可见性更新] 设置个股Tab {tab_index} 可见性为: {should_show_cn_tabs}")
+                    self.stock_tab_widget.setTabVisible(tab_index, should_show_cn_tabs)
+            else:
+                print(f"[Tab可见性更新] stock_tab_widget 或 stock_extra_tabs 不存在")
+                print(f"  - hasattr stock_tab_widget: {hasattr(self, 'stock_tab_widget')}")
+                print(f"  - hasattr stock_extra_tabs: {hasattr(self, 'stock_extra_tabs')}")
+                        
+        except Exception as e:
+            print(f"[ERROR] 更新Tab可见性失败: {e}")
+            import traceback
+            traceback.print_exc()
         
     def _get_html_lang(self):
         """获取HTML语言标识"""
@@ -1800,13 +2578,13 @@ class AnalysisPage(QWidget):
         self.tree_widget.setHeaderLabel(t_gui('analysis_items_header'))
         self.tree_widget.setMaximumWidth(350)
         self.tree_widget.setMinimumWidth(300)
-        self.tree_widget.setFont(QFont("Microsoft YaHei", 14))  # 增大字体与行业分析标题一致
+        self.tree_widget.setFont(QFont(get_cross_platform_font(), 14))  # 增大字体与行业分析标题一致
         self.tree_widget.setStyleSheet("""
             QTreeWidget {
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
-                font-family: 'Microsoft YaHei';
+                font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                 font-size: 14px;
             }
             QTreeWidget::item {
@@ -1849,6 +2627,36 @@ class AnalysisPage(QWidget):
         self.setup_tree_structure()
         self.setup_content_pages()
         
+    def _create_item_with_new_badge(self, text):
+        """创建带有红色NEW标志的TreeWidget项"""
+        widget = QWidget()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setSpacing(8)
+        
+        # 文本标签
+        text_label = QLabel(text)
+        text_label.setStyleSheet("background: transparent; color: #2c3e50; font-size: 13px;")
+        
+        # NEW标志
+        new_label = QLabel("NEW")
+        new_label.setStyleSheet("""
+            background-color: #ff0000;
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 3px;
+        """)
+        new_label.setFixedHeight(18)
+        
+        layout.addWidget(text_label)
+        layout.addWidget(new_label)
+        layout.addStretch()
+        
+        widget.setLayout(layout)
+        return widget
+    
     def setup_tree_structure(self):
         """设置树形结构 - 带子项目"""
         # AI建议
@@ -1857,9 +2665,10 @@ class AnalysisPage(QWidget):
         self.tree_widget.addTopLevelItem(ai_item)
         
         # 大盘分析
-        market_item = QTreeWidgetItem([t_gui('market_analysis')])
+        market_item = QTreeWidgetItem()
         market_item.setData(0, Qt.UserRole, "market_analysis")
         self.tree_widget.addTopLevelItem(market_item)
+        self.tree_widget.setItemWidget(market_item, 0, self._create_item_with_new_badge(t_gui('market_analysis')))
         
         # 行业列表 - 动态添加子项目
         self.industry_item = QTreeWidgetItem([t_gui('industry_list')])
@@ -1867,9 +2676,10 @@ class AnalysisPage(QWidget):
         self.tree_widget.addTopLevelItem(self.industry_item)
         
         # 个股列表 - 动态添加子项目  
-        self.stock_item = QTreeWidgetItem([t_gui('stock_list')])
+        self.stock_item = QTreeWidgetItem()
         self.stock_item.setData(0, Qt.UserRole, "stock_list")
         self.tree_widget.addTopLevelItem(self.stock_item)
+        self.tree_widget.setItemWidget(self.stock_item, 0, self._create_item_with_new_badge(t_gui('stock_list')))
         
         # 默认选中AI建议
         self.tree_widget.setCurrentItem(ai_item)
@@ -1908,7 +2718,7 @@ class AnalysisPage(QWidget):
         
         # 标题
         self.ai_title_label = QLabel(t_gui('ai_intelligent_analysis'))
-        self.ai_title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        self.ai_title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))
         self.ai_title_label.setStyleSheet("color: #2c3e50; padding: 10px;")
         self.ai_title_label.setTextFormat(Qt.RichText)  # 支持HTML格式
         header_layout.addWidget(self.ai_title_label)
@@ -1918,7 +2728,7 @@ class AnalysisPage(QWidget):
         
         # AI设置按钮
         self.ai_settings_btn = QPushButton(t_gui('ai_settings_btn'))
-        self.ai_settings_btn.setFont(QFont("Microsoft YaHei", 10))
+        self.ai_settings_btn.setFont(QFont(get_cross_platform_font(), 10))
         self.ai_settings_btn.setFixedSize(100, 35)
         self.ai_settings_btn.setStyleSheet("""
             QPushButton {
@@ -1945,7 +2755,7 @@ class AnalysisPage(QWidget):
         
         # 安装AI按钮 - 改为蓝色
         self.install_ai_btn = QPushButton(t_gui("安装AI"))
-        self.install_ai_btn.setFont(QFont("Microsoft YaHei", 10))
+        self.install_ai_btn.setFont(QFont(get_cross_platform_font(), 10))
         self.install_ai_btn.setFixedSize(100, 35)
         self.install_ai_btn.setStyleSheet("""
             QPushButton {
@@ -1972,7 +2782,7 @@ class AnalysisPage(QWidget):
         
         # AI分析按钮 - 插入在AI设置和另存为之间
         self.ai_analysis_btn = QPushButton(t_gui("ai_analysis"))
-        self.ai_analysis_btn.setFont(QFont("Microsoft YaHei", 10))
+        self.ai_analysis_btn.setFont(QFont(get_cross_platform_font(), 10))
         self.ai_analysis_btn.setFixedSize(100, 35)
         self.ai_analysis_btn.setStyleSheet("""
             QPushButton {
@@ -1999,7 +2809,7 @@ class AnalysisPage(QWidget):
         
         # 保存HTML按钮
         self.save_html_btn = QPushButton(t_gui('save_html_btn'))
-        self.save_html_btn.setFont(QFont("Microsoft YaHei", 10))
+        self.save_html_btn.setFont(QFont(get_cross_platform_font(), 10))
         self.save_html_btn.setFixedSize(100, 35)
         self.save_html_btn.setStyleSheet("""
             QPushButton {
@@ -2051,7 +2861,7 @@ class AnalysisPage(QWidget):
                 <meta charset="utf-8">
                 <style>
                     body { 
-                        font-family: 'Microsoft YaHei', sans-serif; 
+                        font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif; 
                         padding: 20px; 
                         text-align: center;
                         background: #f8f9fa;
@@ -2085,7 +2895,7 @@ class AnalysisPage(QWidget):
             </head>
             <body>
                 <div class="container">
-                    <div class="icon">📊</div>
+                    <div class="icon"></div>
                     <div class="title">等待分析完成</div>
                     <div class="description">
                         分析完成后，此处将显示完整的HTML分析报告<br/>
@@ -2102,7 +2912,7 @@ class AnalysisPage(QWidget):
             # WebEngine不可用，使用文本显示
             print(t_gui("webengine_unavailable_using_text"))
             self.ai_browser = QTextBrowser()
-            self.ai_browser.setFont(QFont("Microsoft YaHei", 10))
+            self.ai_browser.setFont(QFont(get_cross_platform_font(), 10))
             self.ai_browser.setStyleSheet("""
                 QTextBrowser {
                     border: 1px solid #dee2e6;
@@ -2128,55 +2938,47 @@ class AnalysisPage(QWidget):
         return widget
     
     def open_ai_settings(self):
-        """打开AI设置界面"""
+        """打开AI设置界面 - 始终运行 llm-api\aisetting.exe"""
         try:
             import subprocess
-            import sys
             import os
             
-            # 获取llm-api目录的设置文件路径
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            llm_api_dir = os.path.join(current_dir, "llm-api")
+            # 清除AI配置缓存，确保下次AI分析时重新加载配置
+            AnalysisWorker._ai_config_cache = None
+            AnalysisWorker._ai_config_cache_time = 0
+            print("[AI设置] 已清除AI配置缓存，下次分析将重新加载配置")
             
-            # 优先使用无控制台窗口版本
-            run_settings_no_console_path = os.path.join(llm_api_dir, "run_settings_no_console.pyw")
-            run_settings_path = os.path.join(llm_api_dir, "run_settings.py")
-            
-            if os.path.exists(run_settings_no_console_path):
-                # 使用.pyw文件启动，自动隐藏控制台窗口
-                if os.name == 'nt':  # Windows系统
-                    pythonw_path = sys.executable.replace('python.exe', 'pythonw.exe')
-                    if os.path.exists(pythonw_path):
-                        subprocess.Popen([pythonw_path, run_settings_no_console_path], 
-                                       cwd=llm_api_dir)
-                    else:
-                        subprocess.Popen([sys.executable, run_settings_no_console_path], 
-                                       cwd=llm_api_dir,
-                                       creationflags=subprocess.CREATE_NO_WINDOW)
-                else:
-                    subprocess.Popen([sys.executable, run_settings_no_console_path], 
-                                   cwd=llm_api_dir)
-            elif os.path.exists(run_settings_path):
-                # 备用方案：使用原始的.py文件
-                if os.name == 'nt':  # Windows系统
-                    pythonw_path = sys.executable.replace('python.exe', 'pythonw.exe')
-                    if os.path.exists(pythonw_path):
-                        subprocess.Popen([pythonw_path, run_settings_path], 
-                                       cwd=llm_api_dir)
-                    else:
-                        subprocess.Popen([sys.executable, run_settings_path], 
-                                       cwd=llm_api_dir,
-                                       creationflags=subprocess.CREATE_NO_WINDOW)
-                else:
-                    subprocess.Popen([sys.executable, run_settings_path], 
-                                   cwd=llm_api_dir)
-                
-                print(t_gui("ai_settings_interface_started"))
+            # 获取当前exe所在目录（打包后）或脚本所在目录（开发时）
+            if getattr(sys, 'frozen', False):
+                # 打包后：exe所在目录
+                exe_dir = os.path.dirname(sys.executable)
             else:
-                QMessageBox.warning(self, t_gui('error'), t_gui('ai_config_not_found', path1=run_settings_no_console_path, path2=run_settings_path))
+                # 开发时：脚本所在目录
+                exe_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # 在 llm-api 子目录下查找 aisetting.exe
+            aisetting_exe = os.path.join(exe_dir, "llm-api", "aisetting.exe")
+            
+            if os.path.exists(aisetting_exe):
+                # 找到了 aisetting.exe，直接运行
+                subprocess.Popen([aisetting_exe], cwd=os.path.dirname(aisetting_exe))
+                return
+            else:
+                # 未找到 aisetting.exe，显示错误信息
+                QMessageBox.warning(
+                    self,
+                    "AI设置程序未找到",
+                    f"未找到 aisetting.exe\n\n"
+                    f"查找路径: {aisetting_exe}\n\n"
+                    f"请确保 llm-api\\aisetting.exe 存在。"
+                )
                 
         except Exception as e:
-            QMessageBox.critical(self, t_gui('error'), t_gui('ai_settings_open_failed', error=str(e)))
+            QMessageBox.critical(
+                self,
+                "错误",
+                f"打开AI设置失败：\n\n{str(e)}"
+            )
     
     def install_ai(self):
         """安装AI功能 - 跨平台支持"""
@@ -2185,17 +2987,20 @@ class AnalysisPage(QWidget):
             import os
             import platform
             from pathlib import Path
+            from utils.path_helper import get_base_path
             
-            # 获取当前目录
-            current_dir = Path(__file__).parent
+            # 获取当前目录（在打包环境下应该是EXE所在目录）
+            current_dir = Path(get_base_path())
             
             # 检测操作系统
             system = platform.system()
             print(f"检测到操作系统: {system}")
+            print(f"查找安装文件的目录: {current_dir}")
             
             # 优先执行InstOlla.exe (仅Windows)
             if system == "Windows":
                 instolla_path = current_dir / "InstOlla.exe"
+                print(f"检查 InstOlla.exe: {instolla_path}, 存在={instolla_path.exists()}")
                 if instolla_path.exists():
                     print("执行InstOlla.exe...")
                     subprocess.Popen([str(instolla_path)], cwd=str(current_dir))
@@ -2207,6 +3012,7 @@ class AnalysisPage(QWidget):
                 # Windows系统 - 使用.bat脚本
                 install_script_path = current_dir / "InstallOllama.bat"
                 script_name = "InstallOllama.bat"
+                print(f"检查 {script_name}: {install_script_path}, 存在={install_script_path.exists()}")
                 
                 if install_script_path.exists():
                     print(f"执行{script_name}...")
@@ -2319,7 +3125,11 @@ class AnalysisPage(QWidget):
             
             # 打开文件保存对话框
             from PyQt5.QtWidgets import QFileDialog
-            default_name = f"{t_gui('ai_stock_analysis_report')}_{time.strftime('%Y%m%d_%H%M%S')}.html"
+            # 根据是否有AI分析结果决定文件名
+            if self.ai_analysis_executed:
+                default_name = f"AI智能分析报告_{time.strftime('%Y%m%d_%H%M%S')}.html"
+            else:
+                default_name = f"{t_gui('ai_stock_analysis_report')}_{time.strftime('%Y%m%d_%H%M%S')}.html"
             file_path, _ = QFileDialog.getSaveFileName(
                 self,
                 t_gui('save_html_report'),
@@ -2345,14 +3155,14 @@ class AnalysisPage(QWidget):
         
         # 标题
         self.market_title_label = QLabel(t_gui('market_sentiment_analysis'))
-        self.market_title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))  # 统一为16号字体
+        self.market_title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))  # 统一为16号字体
         self.market_title_label.setStyleSheet("color: #0078d4; padding: 10px;")
         self.market_title_label.setTextFormat(Qt.RichText)  # 支持HTML格式
         
         # Tab控件 - 与行业分析/个股分析保持一致的样式
         from PyQt5.QtWidgets import QTabWidget
         self.market_tab_widget = QTabWidget()
-        self.market_tab_widget.setFont(QFont("Microsoft YaHei", 10))
+        self.market_tab_widget.setFont(QFont(get_cross_platform_font(), 10))
         self.market_tab_widget.setStyleSheet("""
             QTabWidget::pane {
                 border: 1px solid #dee2e6;
@@ -2384,9 +3194,29 @@ class AnalysisPage(QWidget):
 
         # Tab 1: 详细分析 - 包含原有的市场情绪分析内容
         self.market_detail_tab = self.create_market_detail_tab()
-        self.market_tab_widget.addTab(self.market_detail_tab, t_gui("📊_详细分析"))
+        self.market_tab_widget.addTab(self.market_detail_tab, t_gui("详细分析"))
         
-
+        # Tab 2/3/4: 中国市场专属Tab（初始创建，可见性稍后由update_cn_market_tabs_visibility控制）
+        # 初始化市场HTML Tab列表
+        self.market_html_tabs = []
+        
+        # 始终创建这些Tab，但可见性由市场类型决定
+        # 已删除：股票排行榜Tab
+        
+        tab_widget2, view2, html_path2 = self.create_market_html_tab("股票涨停板.html")
+        index2 = self.market_tab_widget.addTab(tab_widget2, t_gui("股票涨停板"))
+        self.market_html_tabs.append((index2, view2, html_path2))
+        
+        tab_widget3, view3, html_path3 = self.create_market_html_tab("行业趋势.html")
+        index3 = self.market_tab_widget.addTab(tab_widget3, t_gui("行业趋势"))
+        self.market_html_tabs.append((index3, view3, html_path3))
+        
+        # 默认隐藏这些Tab，等待update_cn_market_tabs_visibility更新可见性
+        for tab_index, _, _ in self.market_html_tabs:
+            self.market_tab_widget.setTabVisible(tab_index, False)
+        
+        # 连接Tab切换事件
+        self.market_tab_widget.currentChanged.connect(self.on_market_tab_changed)
         
         # 布局
         main_layout.addWidget(self.market_title_label)
@@ -2413,7 +3243,7 @@ class AnalysisPage(QWidget):
         else:
             # 备选方案：使用QTextEdit
             self.market_text = QTextEdit()
-            self.market_text.setFont(QFont("Microsoft YaHei", 11))
+            self.market_text.setFont(QFont(get_cross_platform_font(), 11))
             self.market_text.setReadOnly(True)
         self.market_text.setStyleSheet("""
             QTextEdit {
@@ -2429,6 +3259,59 @@ class AnalysisPage(QWidget):
         widget.setLayout(layout)
         return widget
     
+    def create_market_html_tab(self, filename):
+        """创建打开本地HTML文件的Tab（延迟加载）"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        from utils.path_helper import get_base_path
+        base_path = Path(get_base_path())
+        html_path = base_path / "html" / filename
+        if not html_path.exists():
+            alt_path = project_root / "html" / filename
+            if alt_path.exists():
+                html_path = alt_path
+            else:
+                print(f"HTML文件未找到: {html_path} 或 {alt_path}")
+        
+        if WEBENGINE_AVAILABLE and QWebEngineView:
+            view = QWebEngineView()
+            try:
+                settings = view.settings()
+                settings.setAttribute(QWebEngineSettings.JavascriptEnabled, True)
+                settings.setAttribute(QWebEngineSettings.PluginsEnabled, True)
+                settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
+                settings.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
+            except Exception as e:
+                print(f"配置WebEngine设置时出错: {e}")
+            view.setStyleSheet("""
+                QWebEngineView {
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    background-color: white;
+                }
+            """)
+            # 不在这里加载HTML，而是在Tab切换时加载
+            view.setHtml(f"<div style='padding:20px;font-family:{get_cross_platform_font_family()};color:#666;text-align:center;'>切换到此Tab查看内容</div>")
+        else:
+            view = QTextEdit()
+            view.setReadOnly(True)
+            view.setFont(QFont(get_cross_platform_font(), 11))
+            view.setStyleSheet("""
+                QTextEdit {
+                    background-color: white;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    padding: 12px;
+                }
+            """)
+            # 不在这里加载HTML，而是在Tab切换时加载
+            view.setPlainText("切换到此Tab查看内容")
+        
+        layout.addWidget(view)
+        widget.setLayout(layout)
+        return widget, view, html_path
 
         
     def create_industry_analysis_page(self):
@@ -2439,14 +3322,14 @@ class AnalysisPage(QWidget):
         
         # 标题
         self.industry_title_label = QLabel(t_gui('industry_analysis'))
-        self.industry_title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))  # 统一为16号字体
+        self.industry_title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))  # 统一为16号字体
         self.industry_title_label.setStyleSheet("color: #0078d4; padding: 10px;")
         self.industry_title_label.setTextFormat(Qt.RichText)  # 支持HTML格式
         
         # Tab控件 - 类似个股分析的结构
         from PyQt5.QtWidgets import QTabWidget
         self.industry_tab_widget = QTabWidget()
-        self.industry_tab_widget.setFont(QFont("Microsoft YaHei", 10))
+        self.industry_tab_widget.setFont(QFont(get_cross_platform_font(), 10))
         
         # 连接Tab切换事件，用于AI分析自动显示
         self.industry_tab_widget.currentChanged.connect(self.on_industry_tab_changed)
@@ -2485,13 +3368,13 @@ class AnalysisPage(QWidget):
         
         # Tab 2: 趋势图表 - 新增行业趋势图表功能（指数行业会动态隐藏）
         self.industry_chart_tab = self.create_industry_chart_tab()
-        self.industry_chart_tab_index = self.industry_tab_widget.addTab(self.industry_chart_tab, t_gui("📈_趋势图表"))
+        self.industry_chart_tab_index = self.industry_tab_widget.addTab(self.industry_chart_tab, t_gui("趋势图表"))
         
 
         
         # Tab 4: 行业AI分析 - 新增AI分析功能
         self.industry_ai_analysis_tab = self.create_industry_ai_analysis_tab()
-        self.industry_tab_widget.addTab(self.industry_ai_analysis_tab, t_gui("🤖_AI分析"))
+        self.industry_tab_widget.addTab(self.industry_ai_analysis_tab, t_gui("AI分析"))
         
         main_layout.addWidget(self.industry_title_label)
         main_layout.addWidget(self.industry_tab_widget)
@@ -2517,7 +3400,7 @@ class AnalysisPage(QWidget):
         else:
             # 备选方案：使用QTextEdit
             self.industry_detail_text = QTextEdit()
-            self.industry_detail_text.setFont(QFont("Microsoft YaHei", 11))
+            self.industry_detail_text.setFont(QFont(get_cross_platform_font(), 11))
             self.industry_detail_text.setReadOnly(True)
         self.industry_detail_text.setStyleSheet("""
             QTextEdit {
@@ -2529,8 +3412,8 @@ class AnalysisPage(QWidget):
             }
         """)
         initial_html = f"""
-        <div style="text-align: center; margin-top: 50px; color: #666; font-family: 'Microsoft YaHei';">
-            <h3 style="color: #007bff;">📊 行业详细分析</h3>
+        <div style="text-align: center; margin-top: 50px; color: #666; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">
+            <h3 style="color: #007bff;"> 行业详细分析</h3>
             <p>{t_gui("select_industry_from_left_panel")}</p>
         </div>
         """
@@ -2573,7 +3456,7 @@ class AnalysisPage(QWidget):
                     border-radius: 4px;
                     padding: 15px;
                     line-height: 1.6;
-                    font-family: 'Microsoft YaHei';
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                 }
             """)
             initial_layout.addWidget(self.industry_chart_initial_text)
@@ -2606,7 +3489,7 @@ class AnalysisPage(QWidget):
                     border-radius: 4px;
                     padding: 15px;
                     line-height: 1.6;
-                    font-family: 'Microsoft YaHei';
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                 }
             """)
             result_layout.addWidget(self.industry_chart_text)
@@ -2627,7 +3510,7 @@ class AnalysisPage(QWidget):
             <meta charset="UTF-8">
             <style>
                 body {{
-                    font-family: 'Microsoft YaHei', sans-serif;
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                     margin: 0;
                     padding: 20px;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -2663,7 +3546,7 @@ class AnalysisPage(QWidget):
         </head>
         <body>
             <div class="placeholder">
-                <div class="icon">📊</div>
+                <div class="icon"></div>
                 <div class="title">点击此Tab开始计算趋势图表</div>
                 <div class="description">
                     将显示：<br/>
@@ -2710,8 +3593,8 @@ class AnalysisPage(QWidget):
         content_layout = QVBoxLayout()
         
         # 旋转图标 - 使用定时器实现旋转动画
-        self.industry_loading_icon = QLabel("📊")
-        self.industry_loading_icon.setFont(QFont("Microsoft YaHei", 36))
+        self.industry_loading_icon = QLabel("")
+        self.industry_loading_icon.setFont(QFont(get_cross_platform_font(), 36))
         self.industry_loading_icon.setAlignment(Qt.AlignCenter)
         self.industry_loading_icon.setStyleSheet("color: #0078d4; margin-bottom: 20px;")
         
@@ -2723,20 +3606,20 @@ class AnalysisPage(QWidget):
         
         # 标题
         title_label = QLabel("🔄 正在计算行业趋势图表...")
-        title_label.setFont(QFont("Microsoft YaHei", 18, QFont.Bold))
+        title_label.setFont(QFont(get_cross_platform_font(), 18, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #0078d4; margin-bottom: 15px;")
         
         # 描述信息
         desc_label = QLabel("正在分析行业数据，请稍候...\n\n• 获取行业股票数据\n• 计算加权平均值\n• 生成趋势图表")
-        desc_label.setFont(QFont("Microsoft YaHei", 12))
+        desc_label.setFont(QFont(get_cross_platform_font(), 12))
         desc_label.setAlignment(Qt.AlignCenter)
         desc_label.setStyleSheet("color: #666666; line-height: 1.6;")
         desc_label.setWordWrap(True)
         
         # 进度指示器
         progress_label = QLabel("⚡ 数据处理中...")
-        progress_label.setFont(QFont("Microsoft YaHei", 11))
+        progress_label.setFont(QFont(get_cross_platform_font(), 11))
         progress_label.setAlignment(Qt.AlignCenter)
         progress_label.setStyleSheet("color: #ffc107; margin-top: 20px;")
         
@@ -2758,7 +3641,7 @@ class AnalysisPage(QWidget):
             self.industry_loading_rotation = (self.industry_loading_rotation + 15) % 360
             # 使用transform来旋转图标（虽然QLabel不直接支持，但可以通过样式实现视觉效果）
             # 这里我们改变图标内容来创建旋转效果
-            icons = ["📊", "📈", "📉", "💹", "📊", "📈", "📉", "💹"]
+            icons = ["", "", "📉", "💹", "", "", "📉", "💹"]
             icon_index = (self.industry_loading_rotation // 45) % len(icons)
             self.industry_loading_icon.setText(icons[icon_index])
         except Exception as e:
@@ -2820,21 +3703,21 @@ class AnalysisPage(QWidget):
         layout.addStretch(1)
         
         # 主标题
-        title_label = QLabel(t_gui("🤖_行业AI智能分析"))
-        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        title_label = QLabel(t_gui("行业AI智能分析"))
+        title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #007bff; margin-bottom: 15px;")
         
         # 描述文字
         desc_label = QLabel(t_gui("industry_ai_analysis_desc"))
-        desc_label.setFont(QFont("Microsoft YaHei", 11))
+        desc_label.setFont(QFont(get_cross_platform_font(), 11))
         desc_label.setAlignment(Qt.AlignCenter)
         desc_label.setStyleSheet("color: #666666; margin-bottom: 20px; line-height: 1.4;")
         desc_label.setWordWrap(True)
         
         # 分析按钮
-        self.industry_ai_analyze_btn = QPushButton(t_gui("🚀_开始AI分析"))
-        self.industry_ai_analyze_btn.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
+        self.industry_ai_analyze_btn = QPushButton(t_gui("开始AI分析"))
+        self.industry_ai_analyze_btn.setFont(QFont(get_cross_platform_font(), 12, QFont.Bold))
         self.industry_ai_analyze_btn.setFixedHeight(45)
         self.industry_ai_analyze_btn.setFixedWidth(180)
         self.industry_ai_analyze_btn.setStyleSheet("""
@@ -2862,7 +3745,7 @@ class AnalysisPage(QWidget):
         
         # 状态标签
         self.industry_ai_status_label = QLabel("")
-        self.industry_ai_status_label.setFont(QFont("Microsoft YaHei", 10))
+        self.industry_ai_status_label.setFont(QFont(get_cross_platform_font(), 10))
         self.industry_ai_status_label.setAlignment(Qt.AlignCenter)
         self.industry_ai_status_label.setStyleSheet("color: #28a745; margin-top: 15px;")
         
@@ -2902,7 +3785,7 @@ class AnalysisPage(QWidget):
         else:
             # 备选方案：使用QTextEdit
             self.industry_ai_result_browser = QTextEdit()
-            self.industry_ai_result_browser.setFont(QFont("Microsoft YaHei", 11))
+            self.industry_ai_result_browser.setFont(QFont(get_cross_platform_font(), 11))
             self.industry_ai_result_browser.setReadOnly(True)
         self.industry_ai_result_browser.setStyleSheet("""
             QTextEdit {
@@ -2915,7 +3798,7 @@ class AnalysisPage(QWidget):
         # 设置初始HTML内容
         initial_html = f"""
         <div style="text-align: center; margin-top: 50px; color: #666;">
-            <h3 style="color: #007bff;">{t_gui("🤖 行业AI分析")}</h3>
+            <h3 style="color: #007bff;">{t_gui(" 行业AI分析")}</h3>
             <p>{t_gui("AI分析结果将在这里显示...")}</p>
             <p style="font-size: 12px; color: #999;">{t_gui("click_start_ai_analysis_button")}</p>
         </div>
@@ -2934,7 +3817,7 @@ class AnalysisPage(QWidget):
         
         # 标题 - 增大字体与行业分析一致
         self.stock_title_label = QLabel(t_gui('stock_trend_analysis'))
-        self.stock_title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))  # 与行业分析标题字体一致
+        self.stock_title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))  # 与行业分析标题字体一致
         self.stock_title_label.setStyleSheet("color: #0078d4; padding: 10px;")
         self.stock_title_label.setTextFormat(Qt.RichText)  # 支持HTML格式
         
@@ -2953,14 +3836,14 @@ class AnalysisPage(QWidget):
         
         # 查询标签 - 增大字体
         search_label = QLabel(t_gui('stock_query_label'))
-        search_label.setFont(QFont("Microsoft YaHei", 13, QFont.Bold))  # 增大字体
+        search_label.setFont(QFont(get_cross_platform_font(), 13, QFont.Bold))  # 增大字体
         search_label.setStyleSheet("color: #495057; background: transparent; border: none; padding: 0;")
         
         # 输入框 - 增大字体
         from PyQt5.QtWidgets import QLineEdit
         self.stock_search_input = QLineEdit()
         self.stock_search_input.setPlaceholderText(t_gui('stock_search_placeholder'))
-        self.stock_search_input.setFont(QFont("Microsoft YaHei", 12))  # 增大字体
+        self.stock_search_input.setFont(QFont(get_cross_platform_font(), 12))  # 增大字体
         self.stock_search_input.setStyleSheet("""
             QLineEdit {
                 background-color: white;
@@ -2982,7 +3865,7 @@ class AnalysisPage(QWidget):
         
         # 查询按钮 - 增大字体
         self.stock_search_btn = QPushButton(t_gui('stock_query_btn'))
-        self.stock_search_btn.setFont(QFont("Microsoft YaHei", 12))
+        self.stock_search_btn.setFont(QFont(get_cross_platform_font(), 12))
         self.stock_search_btn.setStyleSheet("""
             QPushButton {
                 background-color: #007bff;
@@ -3015,7 +3898,7 @@ class AnalysisPage(QWidget):
         # Tab控件 - 只保留两个区域：详细分析和趋势图表
         from PyQt5.QtWidgets import QTabWidget
         self.stock_tab_widget = QTabWidget()
-        self.stock_tab_widget.setFont(QFont("Microsoft YaHei", 10))
+        self.stock_tab_widget.setFont(QFont(get_cross_platform_font(), 10))
         
         # 连接Tab切换事件，用于AI分析自动显示缓存
         self.stock_tab_widget.currentChanged.connect(self.on_stock_tab_changed)
@@ -3048,25 +3931,43 @@ class AnalysisPage(QWidget):
             }
         """)
 
-        # Tab 1: 详细分析（含核心指标） - 前移并合并核心指标内容
+        # Tab 1: 详细分析（含核心指标）
         self.detail_tab = self.create_detail_tab()
         self.stock_tab_widget.addTab(self.detail_tab, t_gui("📋_详细分析"))
-
-        # Tab 2: 趋势图表 - 移植原界面的趋势图表区
-        self.chart_tab = self.create_chart_tab()
-        self.stock_tab_widget.addTab(self.chart_tab, t_gui("📈_趋势图表"))
         
-        # Tab 3: 迷你投资大师 - 新增迷你投资大师功能
+        # Tab 2/3/4: 中国市场专属Tab（初始创建，可见性稍后由update_cn_market_tabs_visibility控制）
+        self.stock_extra_tabs = []
+        
+        # 始终创建这些Tab，但可见性由市场类型决定
+        extra_tabs = [
+            ("html/智能个股分析.html", t_gui("个股洞察")),
+            ("html/多空博弈大师版.html", t_gui("多空博弈")),
+            ("html/逐笔分析.html", t_gui("逐笔分析"))
+        ]
+        for html_file, tab_title in extra_tabs:
+            tab_widget, view, html_path = self.create_stock_html_tab(html_file)
+            index = self.stock_tab_widget.addTab(tab_widget, tab_title)
+            self.stock_extra_tabs.append((index, view, html_path))
+        
+        # 默认隐藏这些Tab，等待update_cn_market_tabs_visibility更新可见性
+        for tab_index, _, _ in self.stock_extra_tabs:
+            self.stock_tab_widget.setTabVisible(tab_index, False)
+        
+        # Tab 5: 迷你投资大师
         self.mini_master_tab = self.create_mini_master_tab()
         self.stock_tab_widget.addTab(self.mini_master_tab, t_gui("迷你投资大师"))
         
-        # Tab 4: AI技术分析师 - 执行技术面AI分析
-        self.technical_ai_tab = self.create_technical_ai_tab()
-        self.stock_tab_widget.addTab(self.technical_ai_tab, t_gui("🤖_AI技术分析师"))
+        # Tab 6: 趋势图表
+        self.chart_tab = self.create_chart_tab()
+        self.stock_tab_widget.addTab(self.chart_tab, t_gui("趋势图表"))
         
-        # Tab 5: AI精选投资大师分析 - 执行投资大师AI分析
+        # Tab 7: AI技术分析师
+        self.technical_ai_tab = self.create_technical_ai_tab()
+        self.stock_tab_widget.addTab(self.technical_ai_tab, t_gui("AI技术分析师"))
+        
+        # Tab 8: AI精选投资大师分析
         self.master_ai_tab = self.create_master_ai_tab()
-        self.stock_tab_widget.addTab(self.master_ai_tab, t_gui("🧠_AI精选投资大师分析"))
+        self.stock_tab_widget.addTab(self.master_ai_tab, t_gui("AI精选投资大师分析"))
         
         main_layout.addWidget(self.stock_title_label)
         main_layout.addWidget(search_frame)
@@ -3074,8 +3975,63 @@ class AnalysisPage(QWidget):
         
         widget.setLayout(main_layout)
         return widget
+    
+    def create_stock_html_tab(self, relative_path):
+        """创建个股详情额外HTML Tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
         
-
+        from utils.path_helper import get_base_path
+        base_path = Path(get_base_path())
+        html_path = base_path / relative_path
+        if not html_path.exists():
+            alt_path = project_root / relative_path
+            if alt_path.exists():
+                html_path = alt_path
+            else:
+                print(f"HTML文件未找到: {html_path} 或 {alt_path}")
+        
+        if WEBENGINE_AVAILABLE and QWebEngineView:
+            view = QWebEngineView()
+            try:
+                settings = view.settings()
+                settings.setAttribute(QWebEngineSettings.JavascriptEnabled, True)
+                settings.setAttribute(QWebEngineSettings.PluginsEnabled, True)
+                settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
+                settings.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
+            except Exception as e:
+                print(f"配置个股WebEngine设置时出错: {e}")
+            view.setStyleSheet("""
+                QWebEngineView {
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                    background: white;
+                }
+            """)
+            layout.addWidget(view)
+            widget.setLayout(layout)
+            # 不在这里加载HTML，而是在Tab切换时加载（带股票代码参数）
+            # 先显示一个提示信息
+            view.setHtml(f"<div style='padding:20px;font-family:{get_cross_platform_font_family()};color:#666;text-align:center;'>请先查询股票，然后切换到此Tab查看分析</div>")
+            return widget, view, html_path
+        else:
+            view = QTextEdit()
+            view.setReadOnly(True)
+            view.setFont(QFont(get_cross_platform_font(), 11))
+            view.setStyleSheet("""
+                QTextEdit {
+                    background-color: white;
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                    padding: 12px;
+                }
+            """)
+            # 不在这里加载HTML，而是在Tab切换时加载（带股票代码参数）
+            view.setPlainText("请先查询股票，然后切换到此Tab查看分析")
+            layout.addWidget(view)
+            widget.setLayout(layout)
+            return widget, view, html_path
         
     def create_chart_tab(self):
         """创建趋势图表Tab - 使用WebView显示HTML图表，集成38天量价走势"""
@@ -3105,7 +4061,7 @@ class AnalysisPage(QWidget):
                 <title>{t_gui('waiting_stock_title')}</title>
                 <style>
                     body {{
-                        font-family: 'Microsoft YaHei', sans-serif;
+                        font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                         margin: 0;
                         padding: 40px;
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -3145,7 +4101,7 @@ class AnalysisPage(QWidget):
             </head>
             <body>
                 <div class="placeholder">
-                    <div class="icon">📊</div>
+                    <div class="icon"></div>
                     <div class="title">{t_gui('select_stock_to_view_charts')}</div>
                     <div class="description">
                         {t_gui('charts_description_will_show')}<br/>
@@ -3164,7 +4120,7 @@ class AnalysisPage(QWidget):
         except ImportError:
             # 如果WebView不可用，回退到QTextEdit
             self.chart_text = QTextEdit()
-            self.chart_text.setFont(QFont("Microsoft YaHei", 12))
+            self.chart_text.setFont(QFont(get_cross_platform_font(), 12))
             self.chart_text.setReadOnly(True)
             self.chart_text.setStyleSheet("""
                 QTextEdit {
@@ -3174,7 +4130,7 @@ class AnalysisPage(QWidget):
                     border-radius: 6px;
                     padding: 15px;
                     line-height: 1.6;
-                    font-family: 'Microsoft YaHei';
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                 }
             """)
             self.chart_text.setPlainText(t_gui("请选择股票查看趋势图表"))
@@ -3227,22 +4183,22 @@ class AnalysisPage(QWidget):
         layout.addStretch(1)
         
         # 主标题
-        title_label = QLabel("🤖 AI技术分析师")
-        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        title_label = QLabel(" AI技术分析师")
+        title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #007bff; margin-bottom: 15px;")
         layout.addWidget(title_label)
         
         # 副标题
         subtitle_label = QLabel(t_gui("专业的技术面分析，基于技术指标和图表模式"))
-        subtitle_label.setFont(QFont("Microsoft YaHei", 12))
+        subtitle_label.setFont(QFont(get_cross_platform_font(), 12))
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setStyleSheet("color: #666; margin-bottom: 30px;")
         layout.addWidget(subtitle_label)
         
         # 分析按钮
-        self.technical_ai_analyze_btn = QPushButton("🚀 开始技术面AI分析")
-        self.technical_ai_analyze_btn.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
+        self.technical_ai_analyze_btn = QPushButton(" 开始技术面AI分析")
+        self.technical_ai_analyze_btn.setFont(QFont(get_cross_platform_font(), 14, QFont.Bold))
         self.technical_ai_analyze_btn.setFixedSize(300, 60)
         self.technical_ai_analyze_btn.setStyleSheet("""
             QPushButton {
@@ -3306,7 +4262,7 @@ class AnalysisPage(QWidget):
             # 设置初始HTML内容
             initial_html = f"""
             <div style="text-align: center; margin-top: 50px; color: #666;">
-                <h3 style="color: #007bff;">🤖 AI技术分析师</h3>
+                <h3 style="color: #007bff;"> AI技术分析师</h3>
                 <p>技术面分析结果将在这里显示...</p>
                 <p style="font-size: 12px; color: #999;">点击"开始技术面AI分析"按钮开始分析</p>
             </div>
@@ -3321,13 +4277,13 @@ class AnalysisPage(QWidget):
                     border: 1px solid #ddd;
                     border-radius: 8px;
                     background-color: white;
-                    font-family: 'Microsoft YaHei';
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                     padding: 15px;
                 }
             """)
             self.technical_ai_result_text.setHtml("""
                 <div style="text-align: center; margin-top: 50px; color: #666;">
-                    <h3 style="color: #007bff;">🤖 AI技术分析师</h3>
+                    <h3 style="color: #007bff;"> AI技术分析师</h3>
                     <p>技术面分析结果将在这里显示...</p>
                     <p style="font-size: 12px; color: #999;">点击"开始技术面AI分析"按钮开始分析</p>
                 </div>
@@ -3347,22 +4303,22 @@ class AnalysisPage(QWidget):
         layout.addStretch(1)
         
         # 主标题
-        title_label = QLabel("🧠 AI精选投资大师分析")
-        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        title_label = QLabel("AI精选投资大师分析")
+        title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #dc3545; margin-bottom: 15px;")
         layout.addWidget(title_label)
         
         # 副标题
         subtitle_label = QLabel(t_gui("精选世界级投资大师的智慧，基于投资策略和风险管理"))
-        subtitle_label.setFont(QFont("Microsoft YaHei", 12))
+        subtitle_label.setFont(QFont(get_cross_platform_font(), 12))
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setStyleSheet("color: #666; margin-bottom: 30px;")
         layout.addWidget(subtitle_label)
         
         # 分析按钮
-        self.master_ai_analyze_btn = QPushButton("🚀 开始投资大师AI分析")
-        self.master_ai_analyze_btn.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
+        self.master_ai_analyze_btn = QPushButton(" 开始投资大师AI分析")
+        self.master_ai_analyze_btn.setFont(QFont(get_cross_platform_font(), 14, QFont.Bold))
         self.master_ai_analyze_btn.setFixedSize(300, 60)
         self.master_ai_analyze_btn.setStyleSheet("""
             QPushButton {
@@ -3426,7 +4382,7 @@ class AnalysisPage(QWidget):
             # 设置初始HTML内容
             initial_html = f"""
             <div style="text-align: center; margin-top: 50px; color: #666;">
-                <h3 style="color: #dc3545;">🧠 AI精选投资大师分析</h3>
+                <h3 style="color: #dc3545;">AI精选投资大师分析</h3>
                 <p>精选投资大师分析结果将在这里显示...</p>
                 <p style="font-size: 12px; color: #999;">点击"开始投资大师AI分析"按钮开始分析</p>
             </div>
@@ -3441,13 +4397,13 @@ class AnalysisPage(QWidget):
                     border: 1px solid #ddd;
                     border-radius: 8px;
                     background-color: white;
-                    font-family: 'Microsoft YaHei';
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                     padding: 15px;
                 }
             """)
             self.master_ai_result_text.setHtml("""
                 <div style="text-align: center; margin-top: 50px; color: #666;">
-                    <h3 style="color: #dc3545;">🧠 AI精选投资大师分析</h3>
+                    <h3 style="color: #dc3545;">AI精选投资大师分析</h3>
                     <p>精选投资大师分析结果将在这里显示...</p>
                     <p style="font-size: 12px; color: #999;">点击"开始投资大师AI分析"按钮开始分析</p>
                 </div>
@@ -3520,25 +4476,25 @@ class AnalysisPage(QWidget):
         
         # 图标和标题
         icon_label = QLabel("🔧")
-        icon_label.setFont(QFont("Microsoft YaHei", 28))
+        icon_label.setFont(QFont(get_cross_platform_font(), 28))
         icon_label.setAlignment(Qt.AlignCenter)
         icon_label.setStyleSheet("color: #007bff; margin-bottom: 10px;")
         
         title_label = QLabel(t_gui("技术面分析师"))
-        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #007bff; margin-bottom: 10px;")
         
         # 分析说明
         desc_label = QLabel(t_gui("基于RTSI指数、30天评级趋势、行业TMA状况和大盘情绪，为您提供专业的技术分析建议"))
-        desc_label.setFont(QFont("Microsoft YaHei", 11))
+        desc_label.setFont(QFont(get_cross_platform_font(), 11))
         desc_label.setAlignment(Qt.AlignCenter)
         desc_label.setStyleSheet("color: #666666; margin-bottom: 20px; line-height: 1.4;")
         desc_label.setWordWrap(True)
         
         # 分析按钮
-        self.technical_analyze_btn = QPushButton("🚀 开始技术面分析")
-        self.technical_analyze_btn.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
+        self.technical_analyze_btn = QPushButton(" 开始技术面分析")
+        self.technical_analyze_btn.setFont(QFont(get_cross_platform_font(), 12, QFont.Bold))
         self.technical_analyze_btn.setFixedHeight(45)
         self.technical_analyze_btn.setFixedWidth(200)
         self.technical_analyze_btn.setStyleSheet("""
@@ -3564,7 +4520,7 @@ class AnalysisPage(QWidget):
         
         # 状态标签
         self.technical_status_label = QLabel("")
-        self.technical_status_label.setFont(QFont("Microsoft YaHei", 10))
+        self.technical_status_label.setFont(QFont(get_cross_platform_font(), 10))
         self.technical_status_label.setAlignment(Qt.AlignCenter)
         self.technical_status_label.setStyleSheet("color: #ffc107; margin-top: 10px;")
         
@@ -3610,26 +4566,26 @@ class AnalysisPage(QWidget):
         content_layout = QVBoxLayout()
         
         # 图标和标题
-        icon_label = QLabel("🏆")
-        icon_label.setFont(QFont("Microsoft YaHei", 28))
+        icon_label = QLabel("")
+        icon_label.setFont(QFont(get_cross_platform_font(), 28))
         icon_label.setAlignment(Qt.AlignCenter)
         icon_label.setStyleSheet("color: #28a745; margin-bottom: 10px;")
         
         title_label = QLabel(t_gui("投资大师分析"))
-        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #28a745; margin-bottom: 10px;")
         
         # 分析说明
         desc_label = QLabel(t_gui("融合巴菲特、彼得林奇、格雷厄姆等投资大师策略，AI模拟大师们的投资思路和评分"))
-        desc_label.setFont(QFont("Microsoft YaHei", 11))
+        desc_label.setFont(QFont(get_cross_platform_font(), 11))
         desc_label.setAlignment(Qt.AlignCenter)
         desc_label.setStyleSheet("color: #666666; margin-bottom: 20px; line-height: 1.4;")
         desc_label.setWordWrap(True)
         
         # 分析按钮
-        self.master_analyze_btn = QPushButton("🧠 开始投资大师分析")
-        self.master_analyze_btn.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
+        self.master_analyze_btn = QPushButton("开始投资大师分析")
+        self.master_analyze_btn.setFont(QFont(get_cross_platform_font(), 12, QFont.Bold))
         self.master_analyze_btn.setFixedHeight(45)
         self.master_analyze_btn.setFixedWidth(200)
         self.master_analyze_btn.setStyleSheet("""
@@ -3655,7 +4611,7 @@ class AnalysisPage(QWidget):
         
         # 状态标签
         self.master_status_label = QLabel("")
-        self.master_status_label.setFont(QFont("Microsoft YaHei", 10))
+        self.master_status_label.setFont(QFont(get_cross_platform_font(), 10))
         self.master_status_label.setAlignment(Qt.AlignCenter)
         self.master_status_label.setStyleSheet("color: #ffc107; margin-top: 10px;")
         
@@ -3697,7 +4653,7 @@ class AnalysisPage(QWidget):
         else:
             # 备选方案：使用QTextEdit
             self.technical_result_browser = QTextEdit()
-            self.technical_result_browser.setFont(QFont("Microsoft YaHei", 11))
+            self.technical_result_browser.setFont(QFont(get_cross_platform_font(), 11))
             self.technical_result_browser.setReadOnly(True)
             self.technical_result_browser.setStyleSheet("""
                 QTextEdit {
@@ -3732,7 +4688,7 @@ class AnalysisPage(QWidget):
         else:
             # 备选方案：使用QTextEdit
             self.master_result_browser = QTextEdit()
-            self.master_result_browser.setFont(QFont("Microsoft YaHei", 11))
+            self.master_result_browser.setFont(QFont(get_cross_platform_font(), 11))
             self.master_result_browser.setReadOnly(True)
             self.master_result_browser.setStyleSheet("""
                 QTextEdit {
@@ -3771,26 +4727,26 @@ class AnalysisPage(QWidget):
         content_layout = QVBoxLayout()
         
         # AI图标和标题
-        icon_label = QLabel("🤖")
-        icon_label.setFont(QFont("Microsoft YaHei", 28))  # 进一步减小字体大小
+        icon_label = QLabel("")
+        icon_label.setFont(QFont(get_cross_platform_font(), 28))  # 进一步减小字体大小
         icon_label.setAlignment(Qt.AlignCenter)
         icon_label.setStyleSheet("color: #0078d4; margin-bottom: 10px;")
         
         title_label = QLabel(t_gui("AI智能股票分析"))
-        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))  # 减小字体大小
+        title_label.setFont(QFont(get_cross_platform_font(), 16, QFont.Bold))  # 减小字体大小
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #0078d4; margin-bottom: 10px;")
         
         # 分析说明
         desc_label = QLabel(t_gui("基于RTSI指数_30天评级趋势_行业TMA状况和大盘情绪_为您提供专业的投资操作建议"))
-        desc_label.setFont(QFont("Microsoft YaHei", 11))  # 减小字体大小
+        desc_label.setFont(QFont(get_cross_platform_font(), 11))  # 减小字体大小
         desc_label.setAlignment(Qt.AlignCenter)
         desc_label.setStyleSheet("color: #666666; margin-bottom: 20px; line-height: 1.4;")
         desc_label.setWordWrap(True)
         
         # 分析按钮
-        self.stock_ai_analyze_btn = QPushButton(t_gui("🚀_开始AI分析"))
-        self.stock_ai_analyze_btn.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))  # 减小字体
+        self.stock_ai_analyze_btn = QPushButton(t_gui("开始AI分析"))
+        self.stock_ai_analyze_btn.setFont(QFont(get_cross_platform_font(), 12, QFont.Bold))  # 减小字体
         self.stock_ai_analyze_btn.setFixedHeight(45)  # 减小高度
         self.stock_ai_analyze_btn.setFixedWidth(180)  # 减小宽度
         self.stock_ai_analyze_btn.setStyleSheet("""
@@ -3816,7 +4772,7 @@ class AnalysisPage(QWidget):
         
         # 状态标签
         self.ai_status_label = QLabel("")
-        self.ai_status_label.setFont(QFont("Microsoft YaHei", 10))  # 减小字体
+        self.ai_status_label.setFont(QFont(get_cross_platform_font(), 10))  # 减小字体
         self.ai_status_label.setAlignment(Qt.AlignCenter)
         self.ai_status_label.setStyleSheet("color: #ffc107; margin-top: 10px;")
         
@@ -3861,7 +4817,7 @@ class AnalysisPage(QWidget):
         else:
             # 备选方案：使用QTextEdit
             self.stock_ai_result_browser = QTextEdit()
-            self.stock_ai_result_browser.setFont(QFont("Microsoft YaHei", 11))
+            self.stock_ai_result_browser.setFont(QFont(get_cross_platform_font(), 11))
             self.stock_ai_result_browser.setReadOnly(True)
         self.stock_ai_result_browser.setStyleSheet("""
             QTextEdit {
@@ -3879,7 +4835,7 @@ class AnalysisPage(QWidget):
         return widget
     
     def create_mini_master_tab(self):
-        """创建迷你投资大师Tab - 采用2页方式"""
+        """创建迷你投资大师Tab - 采用2页方式（改进版）"""
         # 创建堆叠窗口实现页面切换
         from PyQt5.QtWidgets import QStackedWidget
         
@@ -3899,92 +4855,110 @@ class AnalysisPage(QWidget):
         return self.mini_master_stacked_widget
     
     def create_mini_master_button_page(self):
-        """创建迷你投资大师分析按钮页面（第1页）"""
+        """创建迷你投资大师分析按钮页面（第1页）- 简洁版"""
         widget = QWidget()
         layout = QVBoxLayout()
-        layout.setContentsMargins(15, 15, 15, 15)  # 减少边距从20到15
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(25)
         
-        # 添加少量顶部空间
-        layout.addSpacing(10)
-        
-        # 主要内容区域
-        content_frame = QFrame()
-        content_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 12px;
-                padding: 30px;
+        # 不使用边框，直接设置背景
+        widget.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #f8f9fa, stop:1 #ffffff);
             }
         """)
-        content_layout = QVBoxLayout()
         
-        # 投资大师图标和标题
-        icon_label = QLabel("📊")
-        icon_label.setFont(QFont("Microsoft YaHei", 28))
+        # 投资大师图标
+        icon_label = QLabel("💼")
+        icon_label.setFont(QFont(get_cross_platform_font(), 48))
         icon_label.setAlignment(Qt.AlignCenter)
-        icon_label.setStyleSheet("color: #0078d4; margin-bottom: 10px;")
+        icon_label.setStyleSheet("margin-bottom: 10px;")
         
-        title_label = QLabel(t_gui("迷你投资大师"))
-        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        # 标题
+        title_label = QLabel("迷你投资大师")
+        title_label.setFont(QFont(get_cross_platform_font(), 20, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("color: #0078d4; margin-bottom: 10px;")
+        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
         
-        # 分析说明
-        desc_label = QLabel(t_gui("融合巴菲特_彼得林奇_格雷厄姆等投资大师策略_为您提供专业的投资分析报告"))
-        desc_label.setFont(QFont("Microsoft YaHei", 11))
-        desc_label.setAlignment(Qt.AlignCenter)
-        desc_label.setStyleSheet("color: #666666; margin-bottom: 20px; line-height: 1.4;")
-        desc_label.setWordWrap(True)
+        # 副标题
+        subtitle_label = QLabel("AI驱动的智能投资分析系统")
+        subtitle_label.setFont(QFont(get_cross_platform_font(), 12))
+        subtitle_label.setAlignment(Qt.AlignCenter)
+        subtitle_label.setStyleSheet("color: #7f8c8d; margin-bottom: 15px;")
+        
+        # 功能特性列表（简化版）
+        features_text = QLabel(
+            " 技术指标分析 ·  资金流向追踪\n"
+            " 大师策略融合 ·  AI智能评分"
+        )
+        features_text.setFont(QFont(get_cross_platform_font(), 11))
+        features_text.setAlignment(Qt.AlignCenter)
+        features_text.setStyleSheet("""
+            color: #5a6c7d;
+            padding: 15px;
+            line-height: 1.8;
+        """)
+        features_text.setWordWrap(True)
         
         # 分析按钮
-        self.mini_master_analyze_btn = QPushButton(t_gui("🎯_开始分析"))
-        self.mini_master_analyze_btn.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
-        self.mini_master_analyze_btn.setFixedHeight(45)
-        self.mini_master_analyze_btn.setFixedWidth(180)
+        self.mini_master_analyze_btn = QPushButton(" 开始深度分析")
+        self.mini_master_analyze_btn.setFont(QFont(get_cross_platform_font(), 13, QFont.Bold))
+        self.mini_master_analyze_btn.setFixedHeight(50)
+        self.mini_master_analyze_btn.setMinimumWidth(200)
         self.mini_master_analyze_btn.setStyleSheet("""
             QPushButton {
-                background-color: #007bff;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #667eea, stop:1 #764ba2);
                 color: white;
                 border: none;
-                border-radius: 12px;
-                padding: 15px 30px;
+                border-radius: 25px;
+                padding: 15px 40px;
+                font-size: 13px;
             }
             QPushButton:hover {
-                background-color: #0056b3;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #764ba2, stop:1 #667eea);
             }
             QPushButton:pressed {
-                background-color: #004085;
+                background: #5a3d7a;
             }
             QPushButton:disabled {
-                background-color: #6c757d;
-                color: #f8f9fa;
+                background: #95a5a6;
             }
         """)
         self.mini_master_analyze_btn.clicked.connect(self.start_mini_master_analysis)
         
         # 状态标签
         self.mini_master_status_label = QLabel("")
-        self.mini_master_status_label.setFont(QFont("Microsoft YaHei", 10))
+        self.mini_master_status_label.setFont(QFont(get_cross_platform_font(), 10))
         self.mini_master_status_label.setAlignment(Qt.AlignCenter)
-        self.mini_master_status_label.setStyleSheet("color: #ffc107; margin-top: 10px;")
+        self.mini_master_status_label.setStyleSheet("color: #e74c3c; margin-top: 10px;")
         
-        content_layout.addWidget(icon_label)
-        content_layout.addWidget(title_label)
-        content_layout.addWidget(desc_label)
+        # 提示信息
+        hint_label = QLabel(" 提示：请先在左侧选择或搜索股票")
+        hint_label.setFont(QFont(get_cross_platform_font(), 9))
+        hint_label.setAlignment(Qt.AlignCenter)
+        hint_label.setStyleSheet("color: #95a5a6; margin-top: 5px;")
+        
+        # 添加所有组件到主布局
+        layout.addWidget(icon_label)
+        layout.addWidget(title_label)
+        layout.addWidget(subtitle_label)
+        layout.addSpacing(20)
+        layout.addWidget(features_text)
+        layout.addSpacing(25)
         
         # 按钮居中布局
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         button_layout.addWidget(self.mini_master_analyze_btn)
         button_layout.addStretch()
-        content_layout.addLayout(button_layout)
+        layout.addLayout(button_layout)
         
-        content_layout.addWidget(self.mini_master_status_label)
-        
-        content_frame.setLayout(content_layout)
-        layout.addWidget(content_frame)
-        layout.addSpacing(10)
+        layout.addWidget(self.mini_master_status_label)
+        layout.addWidget(hint_label)
+        layout.addStretch()
         
         widget.setLayout(layout)
         return widget
@@ -4010,7 +4984,7 @@ class AnalysisPage(QWidget):
             # 如果没有QWebEngineView，使用QTextEdit作为备选
             from PyQt5.QtWidgets import QTextEdit
             self.mini_master_result_browser = QTextEdit()
-            self.mini_master_result_browser.setFont(QFont("Microsoft YaHei", 11))
+            self.mini_master_result_browser.setFont(QFont(get_cross_platform_font(), 11))
             self.mini_master_result_browser.setReadOnly(True)
             self.mini_master_result_browser.setStyleSheet("""
                 QTextEdit {
@@ -4045,7 +5019,7 @@ class AnalysisPage(QWidget):
         else:
             # 备选方案：使用QTextEdit
             self.stock_detail_text = QTextEdit()
-            self.stock_detail_text.setFont(QFont("Microsoft YaHei", 12))  # 增大字体提升可读性
+            self.stock_detail_text.setFont(QFont(get_cross_platform_font(), 12))  # 增大字体提升可读性
             self.stock_detail_text.setReadOnly(True)
         self.stock_detail_text.setStyleSheet("""
             QTextEdit {
@@ -4055,12 +5029,12 @@ class AnalysisPage(QWidget):
                 border-radius: 6px;
                 padding: 15px;
                 line-height: 1.6;
-                font-family: 'Microsoft YaHei';
+                font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
             }
         """)
         initial_html = f"""
-        <div style="text-align: center; margin-top: 50px; color: #666; font-family: 'Microsoft YaHei';">
-            <h3 style="color: #007bff;">📈 个股详细分析</h3>
+        <div style="text-align: center; margin-top: 50px; color: #666; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">
+            <h3 style="color: #007bff;"> 个股详细分析</h3>
             <p>{t_gui('select_stock_prompt')}</p>
         </div>
         """
@@ -4231,8 +5205,8 @@ class AnalysisPage(QWidget):
             self.content_area.setCurrentWidget(self.industry_page)
             # 显示默认提示信息
             initial_html = f"""
-            <div style="text-align: center; margin-top: 50px; color: #666; font-family: 'Microsoft YaHei';">
-                <h3 style="color: #007bff;">📊 行业详细分析</h3>
+            <div style="text-align: center; margin-top: 50px; color: #666; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">
+                <h3 style="color: #007bff;"> 行业详细分析</h3>
                 <p>{t_gui("select_industry_from_left_panel")}</p>
             </div>
             """
@@ -4246,8 +5220,8 @@ class AnalysisPage(QWidget):
             # 显示默认提示信息
             if hasattr(self, 'stock_detail_text'):
                 initial_html = f"""
-                <div style="text-align: center; margin-top: 50px; color: #666; font-family: 'Microsoft YaHei';">
-                    <h3 style="color: #007bff;">📈 个股详细分析</h3>
+                <div style="text-align: center; margin-top: 50px; color: #666; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">
+                    <h3 style="color: #007bff;"> 个股详细分析</h3>
                     <p>{t_gui("请从左侧个股列表中选择一只股票查看详细分析")}</p>
                 </div>
                 """
@@ -4269,30 +5243,45 @@ class AnalysisPage(QWidget):
             
     def update_analysis_results(self, results: Dict[str, Any]):
         """更新分析结果并填充树形控件"""
-        self.analysis_results = results
-        
-        # 提取不同格式的结果
-        self.analysis_results_obj = results.get('analysis_results')  # AnalysisResults对象
-        self.analysis_dict = results.get('analysis_dict', {})        # 字典格式
-        
-        # 检查是否包含AI分析结果
-        self.ai_analysis_executed = 'ai_analysis' in results and results['ai_analysis'] is not None
-        
-        # 获取数据日期范围
-        self.date_range_text = self.get_data_date_range()
-        
-        # 更新所有页面标题（添加日期范围）
-        self.update_page_titles_with_date_range()
-        
-        # 填充树形控件的子项目
-        self.populate_tree_items()
-        
-        # 更新内容页面
-        self.update_ai_suggestions()
-        self.update_market_analysis()
-        
-        # 更新AI按钮状态
-        self.update_ai_buttons_state()
+        try:
+            print("[update_analysis_results] 开始更新分析结果...")
+            self.analysis_results = results
+            
+            # 提取不同格式的结果
+            self.analysis_results_obj = results.get('analysis_results')  # AnalysisResults对象
+            self.analysis_dict = results.get('analysis_dict', {})        # 字典格式
+            
+            # 检查是否包含AI分析结果
+            self.ai_analysis_executed = 'ai_analysis' in results and results['ai_analysis'] is not None
+            
+            # 获取数据日期范围
+            print("[update_analysis_results] 获取日期范围...")
+            self.date_range_text = self.get_data_date_range()
+            
+            # 更新所有页面标题（添加日期范围）
+            print("[update_analysis_results] 更新页面标题...")
+            self.update_page_titles_with_date_range()
+            
+            # 填充树形控件的子项目
+            print("[update_analysis_results] 填充树形控件...")
+            self.populate_tree_items()
+            
+            # 更新内容页面
+            print("[update_analysis_results] 更新AI建议...")
+            self.update_ai_suggestions()
+            
+            print("[update_analysis_results] 更新市场分析...")
+            self.update_market_analysis()
+            
+            # 更新AI按钮状态
+            print("[update_analysis_results] 更新AI按钮状态...")
+            self.update_ai_buttons_state()
+            
+            print("[update_analysis_results] 更新分析结果完成")
+        except Exception as e:
+            print(f"[update_analysis_results] 更新分析结果时出错: {e}")
+            import traceback
+            traceback.print_exc()
         
     def get_data_date_range(self) -> str:
         """获取数据文件的日期范围 - 参考main_window.py实现"""
@@ -4322,7 +5311,7 @@ class AnalysisPage(QWidget):
                         end_date = str(date_range[1])
                         formatted_start = format_date(start_date)
                         formatted_end = format_date(end_date)
-                        print(f"[Debug] 从直接数据源获取日期范围: {start_date} ~ {end_date}")
+                        print(f" 从直接数据源获取日期范围: {start_date} ~ {end_date}")
                         return t_gui('date_range_format', start_date=formatted_start, end_date=formatted_end)
             
             # 方法2：从分析结果对象中获取数据集信息（通过data_source属性）
@@ -4335,7 +5324,7 @@ class AnalysisPage(QWidget):
                         end_date = str(date_range[1])
                         formatted_start = format_date(start_date)
                         formatted_end = format_date(end_date)
-                        print(f"[Debug] 从分析对象数据源获取日期范围: {start_date} ~ {end_date}")
+                        print(f" 从分析对象数据源获取日期范围: {start_date} ~ {end_date}")
                         return t_gui('date_range_format', start_date=formatted_start, end_date=formatted_end)
             
             # 方法3：通过metadata获取（备用方案1）
@@ -4349,7 +5338,7 @@ class AnalysisPage(QWidget):
                         end_date = str(date_range[1])
                         formatted_start = format_date(start_date)
                         formatted_end = format_date(end_date)
-                        print(f"[Debug] 通过metadata获取日期范围: {start_date} ~ {end_date}")
+                        print(f" 通过metadata获取日期范围: {start_date} ~ {end_date}")
                         return t_gui('date_range_format', start_date=formatted_start, end_date=formatted_end)
             
             # 方法4：从分析字典中获取（兼容性方案）
@@ -4361,13 +5350,13 @@ class AnalysisPage(QWidget):
                         start, end = date_range.split('~')
                         start = start.strip()
                         end = end.strip()
-                        print(f"[Debug] 从分析字典获取日期范围: {start} ~ {end}")
+                        print(f" 从分析字典获取日期范围: {start} ~ {end}")
                         return f"（{start}至{end}）"
             
-            print("[Debug] 无法获取日期范围，使用默认值")
+            print(" 无法获取日期范围，使用默认值")
             return t_gui('date_range_unknown')
         except Exception as e:
-            print(f"[Debug] 获取日期范围失败: {e}")
+            print(f" 获取日期范围失败: {e}")
             import traceback
             traceback.print_exc()
             return t_gui('date_range_unknown')
@@ -4384,19 +5373,19 @@ class AnalysisPage(QWidget):
                 try:
                     from datetime import datetime, timedelta
                     
-                    print(f"[Debug] 检查日期范围: {date_range}")
+                    print(f" 检查日期范围: {date_range}")
                     
                     # 解析日期范围，获取结束日期
                     end_date_str = None
                     if " - " in date_range:
                         end_date_str = date_range.split(" - ")[1].strip()
-                        print(f"[Debug] 结束日期字符串: {end_date_str}")
+                        print(f" 结束日期字符串: {end_date_str}")
                     elif "至" in date_range:
                         # 处理中文格式：（2024-7-9至2024-8-29）
                         end_date_str = date_range.split("至")[1].strip().rstrip("）")
-                        print(f"[Debug] 中文格式结束日期字符串: {end_date_str}")
+                        print(f" 中文格式结束日期字符串: {end_date_str}")
                     else:
-                        print(f"[Debug] 无法识别的日期范围格式: {date_range}")
+                        print(f" 无法识别的日期范围格式: {date_range}")
                     
                     # 解析日期格式 YYYY-MM-DD 或 YYYY-M-D
                     if end_date_str and "-" in end_date_str:
@@ -4420,10 +5409,10 @@ class AnalysisPage(QWidget):
                         # 计算与今天的差距
                         today = datetime.now()
                         days_diff = (today - end_date).days
-                        print(f"[Debug] 今天: {today}, 结束日期: {end_date}, 相差天数: {days_diff}")
+                        print(f" 今天: {today}, 结束日期: {end_date}, 相差天数: {days_diff}")
                         
                         if days_diff > 2:
-                            print(f"[Debug] 需要闪烁！相差{days_diff}天")
+                            print(f" 需要闪烁！相差{days_diff}天")
                             date_color = "#dc3545"  # 红色
                             should_blink = True
                             # 启动闪烁定时器
@@ -4431,12 +5420,12 @@ class AnalysisPage(QWidget):
                                 self.date_blink_timer = QTimer()
                                 self.date_blink_timer.timeout.connect(self.toggle_date_blink)
                                 self.date_blink_visible = True
-                                print(f"[Debug] 创建闪烁定时器")
+                                print(f" 创建闪烁定时器")
                             if not self.date_blink_timer.isActive():
                                 self.date_blink_timer.start(1000)  # 每1秒闪烁一次
-                                print(f"[Debug] 启动闪烁定时器")
+                                print(f" 启动闪烁定时器")
                         else:
-                            print(f"[Debug] 不需要闪烁，相差{days_diff}天")
+                            print(f" 不需要闪烁，相差{days_diff}天")
                                 
                 except Exception as e:
                     print(f"日期检查失败: {e}")
@@ -4460,7 +5449,7 @@ class AnalysisPage(QWidget):
             
             # 更新大盘分析页面标题
             if hasattr(self, 'market_title_label'):
-                html_title = format_title_with_date(t_gui('📊_市场情绪分析'), self.date_range_text)
+                html_title = format_title_with_date(t_gui('市场情绪分析'), self.date_range_text)
                 self.market_title_label.setText(html_title)
                 self.market_title_label.setStyleSheet("padding: 10px;")
             
@@ -4472,7 +5461,7 @@ class AnalysisPage(QWidget):
             
             # 更新个股分析页面标题
             if hasattr(self, 'stock_title_label'):
-                html_title = format_title_with_date(t_gui('📈_个股趋势分析'), self.date_range_text)
+                html_title = format_title_with_date(t_gui('个股趋势分析'), self.date_range_text)
                 self.stock_title_label.setText(html_title)
                 self.stock_title_label.setStyleSheet("padding: 10px;")
                 
@@ -4502,11 +5491,11 @@ class AnalysisPage(QWidget):
         if hasattr(self, 'ai_title_label'):
             self.ai_title_label.setText(html_template.format(t_gui('ai_intelligent_analysis')))
         if hasattr(self, 'market_title_label'):
-            self.market_title_label.setText(html_template.format(t_gui('📊_市场情绪分析')))
+            self.market_title_label.setText(html_template.format(t_gui('市场情绪分析')))
         if hasattr(self, 'industry_title_label'):
             self.industry_title_label.setText(html_template.format(t_gui('🏭_行业分析')))
         if hasattr(self, 'stock_title_label'):
-            self.stock_title_label.setText(html_template.format(t_gui('📈_个股趋势分析')))
+            self.stock_title_label.setText(html_template.format(t_gui('个股趋势分析')))
     
 
     def get_risk_warning_html(self):
@@ -4518,7 +5507,7 @@ class AnalysisPage(QWidget):
             border-radius: 5px;
             margin: 20px 0;
             padding: 15px;
-            font-family: 'Microsoft YaHei', sans-serif;
+            font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
         ">
             <div style="
                 display: flex;
@@ -4528,7 +5517,7 @@ class AnalysisPage(QWidget):
                 <span style="
                     font-size: 16px;
                     margin-right: 8px;
-                ">⚠️</span>
+                "></span>
                 <strong style="
                     color: #856404;
                     font-size: 14px;
@@ -4559,29 +5548,48 @@ class AnalysisPage(QWidget):
         # 添加行业子项目
         if hasattr(self.analysis_results_obj, 'industries'):
             industries_data = self.analysis_results_obj.industries
-            # 按TMA排序，但指数固定第一位
+            # 按行业内最高RTSI排序，但指数固定第一位
             sorted_industries = []
             index_industry = None
             
             for industry_name, industry_info in industries_data.items():
+                # 获取行业内所有股票的RTSI值
+                max_rtsi = 0
                 tma_value = 0
+                
                 if isinstance(industry_info, dict):
+                    # 获取TMA值用于显示
                     tma_value = industry_info.get('irsi', 0)
-                    # 处理TMA值也是字典的情况
                     if isinstance(tma_value, dict):
                         tma_value = tma_value.get('irsi', 0)
+                    
+                    # 获取行业内最高RTSI值用于排序
+                    stocks = industry_info.get('stocks', {})
+                    if isinstance(stocks, dict):
+                        for stock_code, stock_info in stocks.items():
+                            if isinstance(stock_info, dict):
+                                rtsi = stock_info.get('rtsi', 0)
+                                if isinstance(rtsi, (int, float)):
+                                    max_rtsi = max(max_rtsi, float(rtsi))
+                    elif isinstance(stocks, list):
+                        for stock in stocks:
+                            if isinstance(stock, dict):
+                                rtsi = stock.get('rtsi', 0)
+                                if isinstance(rtsi, (int, float)):
+                                    max_rtsi = max(max_rtsi, float(rtsi))
+                
                 # 确保tma_value是数字
                 if not isinstance(tma_value, (int, float)):
                     tma_value = 0
                 
                 # 检查是否是指数行业
                 if industry_name == "指数":
-                    index_industry = (industry_name, float(tma_value))
+                    index_industry = (industry_name, float(tma_value), float(max_rtsi))
                 else:
-                    sorted_industries.append((industry_name, float(tma_value)))
+                    sorted_industries.append((industry_name, float(tma_value), float(max_rtsi)))
             
-            # 按TMA排序其他行业
-            sorted_industries.sort(key=lambda x: x[1], reverse=True)
+            # 按行业内最高RTSI排序其他行业（从高到低）
+            sorted_industries.sort(key=lambda x: x[2], reverse=True)
             
             # 指数固定在第一位
             if index_industry:
@@ -4589,8 +5597,8 @@ class AnalysisPage(QWidget):
             else:
                 final_industries = sorted_industries
             
-            for industry_name, tma_value in final_industries:  # 显示所有行业
-                child_item = QTreeWidgetItem([f"🏢 {industry_name} (TMA: {tma_value:.1f})"])
+            for industry_name, tma_value, max_rtsi in final_industries:  # 显示所有行业
+                child_item = QTreeWidgetItem([f"🏢 {industry_name} (TMA: {tma_value:.1f}, 最高RTSI: {max_rtsi:.1f})"])
                 child_item.setData(0, Qt.UserRole, f"industry_{industry_name}")
                 self.industry_item.addChild(child_item)
         
@@ -4615,7 +5623,7 @@ class AnalysisPage(QWidget):
             sorted_stocks.sort(key=lambda x: x[0])
             
             for stock_code, rtsi_value, stock_name in sorted_stocks:  # 显示所有股票
-                child_item = QTreeWidgetItem([f"📊 {stock_code} {stock_name} (RTSI: {rtsi_value:.1f})"])
+                child_item = QTreeWidgetItem([f" {stock_code} {stock_name} (RTSI: {rtsi_value:.1f})"])
                 child_item.setData(0, Qt.UserRole, f"stock_{stock_code}")
                 child_item.setData(0, Qt.UserRole + 1, stock_code)  # 存储纯股票代码供搜索使用
                 self.stock_item.addChild(child_item)
@@ -4689,7 +5697,7 @@ class AnalysisPage(QWidget):
             <title>智能分析报告</title>
             <style>
                 body { 
-                    font-family: 'Microsoft YaHei', sans-serif; 
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif; 
                     padding: 20px; 
                     text-align: center;
                     background: #f8f9fa;
@@ -4716,7 +5724,7 @@ class AnalysisPage(QWidget):
         </head>
         <body>
             <div class="container">
-                <div class="icon">⚠️</div>
+                <div class="icon"></div>
                 <div class="title">智能分析报告</div>
                 <div class="description">
                     未生成HTML分析报告，可能的原因：<br/>
@@ -4765,7 +5773,7 @@ class AnalysisPage(QWidget):
             if msci_value >= 70:
                 market_mood = t_gui("极度乐观")
                 mood_color = "#28a745"  # 绿色-乐观/高位风险
-                risk_warning = t_gui("⚠️_高风险_市场可能过热_建议谨慎")
+                risk_warning = t_gui("高风险_市场可能过热_建议谨慎")
             elif msci_value >= 60:
                 market_mood = t_gui("乐观")
                 mood_color = "#ff6600"  # 橙色-偏乐观
@@ -4773,15 +5781,15 @@ class AnalysisPage(QWidget):
             elif msci_value >= 40:
                 market_mood = t_gui("中性")
                 mood_color = "#6c757d"  # 灰色-中性
-                risk_warning = t_gui("✅_中等风险_市场相对理性")
+                risk_warning = t_gui("中等风险_市场相对理性")
             elif msci_value >= 30:
                 market_mood = t_gui("悲观")
                 mood_color = "#009900"  # 深绿色-偏悲观
-                risk_warning = t_gui("📈_机会信号_市场可能接近底部")
+                risk_warning = t_gui("机会信号_市场可能接近底部")
             else:
                 market_mood = t_gui("极度悲观")
                 mood_color = "#dc3545"  # 红色-悲观/低位机会
-                risk_warning = t_gui("🚀_重大机会_市场严重超跌")
+                risk_warning = t_gui("重大机会_市场严重超跌")
             
             # 技术指标
             volatility = market_data.get('volatility', 0)
@@ -4792,9 +5800,9 @@ class AnalysisPage(QWidget):
             from datetime import datetime
             
             market_html = f"""
-            <div style="font-family: 'Microsoft YaHei'; line-height: 1.6; color: #333;">
+            <div style="font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif; line-height: 1.6; color: #333;">
                 <h2 style="color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 5px;">
-                    📊 {t_gui('market_sentiment_analysis_report')}
+                     {t_gui('market_sentiment_analysis_report')}
                 </h2>
                 
                 <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">🌐 {t_gui('core_indicators')}</h3>
@@ -4804,7 +5812,7 @@ class AnalysisPage(QWidget):
                     <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('risk_warning')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee;">{risk_warning}</td></tr>
                 </table>
                 
-                <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">📊 {t_gui('technical_indicator_analysis')}</h3>
+                <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('technical_indicator_analysis')}</h3>
                 <ul style="margin-left: 20px;">
                     <li><strong>{t_gui('market_volatility')}:</strong> <span style="color: {'#dc3545' if volatility > 3 else '#ffc107' if volatility > 1.5 else '#28a745'};">{volatility:.2f}%</span></li>
                     <li><strong>{t_gui('volume_ratio')}:</strong> <span style="color: {'#dc3545' if volume_ratio > 1.2 else '#ffc107' if volume_ratio > 0.8 else '#28a745'};">{volume_ratio:.2f}</span></li>
@@ -4817,7 +5825,7 @@ class AnalysisPage(QWidget):
                     <li><strong>{t_gui('historical_trend')}:</strong> {self.analyze_historical_trend(market_data)}</li>
                 </ul>
                 
-                <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">⚠️ {t_gui('risk_assessment')}</h3>
+                <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('risk_assessment')}</h3>
                 <ul style="margin-left: 20px;">
                     <li><strong>{t_gui('comprehensive_assessment')}:</strong> {self.assess_market_risk(msci_value, market_data.get('risk_level', t_gui('moderate_level')))}</li>
                     <li><strong>{t_gui('systemic_risk')}:</strong> {self.get_systemic_risk(msci_value)}</li>
@@ -4831,13 +5839,13 @@ class AnalysisPage(QWidget):
                     <li><strong>{t_gui('long_term_prospects')}:</strong> {self.get_long_term_prospect(msci_value)}</li>
                 </ul>
                 
-                <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">💡 {t_gui('investment_strategy_advice')}</h3>
+                <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('investment_strategy_advice')}</h3>
                 <div style="background-color: #e3f2fd; border: 1px solid #2196f3; border-radius: 6px; padding: 15px; margin: 10px 0;">
                     <p style="margin: 0; line-height: 1.8;">{self.suggest_investment_strategy(msci_value, market_mood)}</p>
                 </div>
                 
                 <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin-top: 25px;">
-                    <h4 style="color: #856404; margin-top: 0;">🔍 {t_gui('risk_warning')}</h4>
+                    <h4 style="color: #856404; margin-top: 0;"> {t_gui('risk_warning')}</h4>
                     <p style="color: #856404; margin-bottom: 0; font-size: 12px;">
                         {t_gui('market_analysis_reference_only')}
                     </p>
@@ -4960,12 +5968,12 @@ class AnalysisPage(QWidget):
         from datetime import datetime
         
         industry_html = f"""
-        <div style="font-family: 'Microsoft YaHei'; line-height: 1.6; color: #333;">
+        <div style="font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif; line-height: 1.6; color: #333;">
             <h2 style="color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 5px;">
                 🏭 {industry_name} 详细分析
             </h2>
             
-            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">📊 {t_gui('core_indicators')}</h3>
+            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('core_indicators')}</h3>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                 <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('industry_name')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee;">{industry_name}</td></tr>
                 <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('tma_index')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: {strength_color};"><strong>{tma_value:.2f}</strong></td></tr>
@@ -4974,7 +5982,7 @@ class AnalysisPage(QWidget):
                 <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('strength_level')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: {strength_color};"><strong>{color_desc} {strength}</strong></td></tr>
             </table>
             
-            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">🎯 {t_gui('industry_leading_stocks')} ({t_gui('top_5_stocks')})</h3>
+            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('industry_leading_stocks')} ({t_gui('top_5_stocks')})</h3>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                 <tr style="background-color: #f8f9fa;">
                     <th style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: left;">{t_gui('ranking')}</th>
@@ -4987,7 +5995,7 @@ class AnalysisPage(QWidget):
             
 
             
-            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">📈 {t_gui('technical_analysis')}</h3>
+            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('technical_analysis')}</h3>
             <ul style="margin-left: 20px;">
                 <li><strong>{t_gui('trend_status')}:</strong> {self.get_industry_trend_status(tma_value)}</li>
                 <li><strong>{t_gui('market_position')}:</strong> {self.get_industry_market_position(tma_value)}</li>
@@ -4995,7 +6003,7 @@ class AnalysisPage(QWidget):
             </ul>
             
             <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin-top: 25px;">
-                <h4 style="color: #856404; margin-top: 0;">⚠️ {t_gui('risk_warning')}</h4>
+                <h4 style="color: #856404; margin-top: 0;"> {t_gui('risk_warning')}</h4>
                 <p style="color: #856404; margin-bottom: 0; font-size: 12px;">
                     {t_gui('analysis_for_reference_only')}
                 </p>
@@ -5019,8 +6027,8 @@ class AnalysisPage(QWidget):
         
         if not stock_info:
             error_html = f"""
-            <div style="text-align: center; margin-top: 50px; color: #dc3545; font-family: 'Microsoft YaHei';">
-                <h3>❌ 数据错误</h3>
+            <div style="text-align: center; margin-top: 50px; color: #dc3545; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">
+                <h3>[ERROR] 数据错误</h3>
                 <p>{t_gui("未找到股票_stock_code_的详细信息", stock_code=stock_code)}</p>
             </div>
             """
@@ -5030,7 +6038,7 @@ class AnalysisPage(QWidget):
         # 生成详细信息
         detail_lines = []
         stock_name = stock_info.get('name', stock_code)
-        detail_lines.append(f"📊 {stock_name} ({stock_code}) 详细分析")
+        detail_lines.append(f" {stock_name} ({stock_code}) 详细分析")
         detail_lines.append("=" * 50)
         detail_lines.append("")
         
@@ -5051,11 +6059,11 @@ class AnalysisPage(QWidget):
                 industry = stock_info.get('industry', t_gui('uncategorized'))
                 
                 detail_lines.append(f"🏢 所属行业: {industry}")
-                detail_lines.append(f"🚀 ARTS分数: {score:.2f}")
-                detail_lines.append(f"🎯 评级等级: {rating_level}")
-                detail_lines.append(f"📊 趋势模式: {pattern}")
-                detail_lines.append(f"🔍 置信度: {confidence}")
-                detail_lines.append(f"📈 趋势方向: {trend_direction}")
+                detail_lines.append(f" ARTS分数: {score:.2f}")
+                detail_lines.append(f" 评级等级: {rating_level}")
+                detail_lines.append(f" 趋势模式: {pattern}")
+                detail_lines.append(f" 置信度: {confidence}")
+                detail_lines.append(f" 趋势方向: {trend_direction}")
                 detail_lines.append("")
                 
                 # ARTS评级对应的风险等级
@@ -5068,7 +6076,7 @@ class AnalysisPage(QWidget):
                 else:
                     risk_desc = t_gui("🔴_高风险")
                 
-                detail_lines.append(f"⚠️ 风险等级: {risk_desc}")
+                detail_lines.append(f" 风险等级: {risk_desc}")
                 detail_lines.append("")
                 
 
@@ -5076,26 +6084,26 @@ class AnalysisPage(QWidget):
                 # 根据评级等级给出详细建议
                 if '7级' in rating_level or '6级' in rating_level:
                     detail_lines.append("  • ⭐ 强烈推荐：ARTS评级优秀")
-                    detail_lines.append("  • 🎯 操作策略：可积极配置")
-                    detail_lines.append("  • 📈 目标：中长期持有")
+                    detail_lines.append("  •  操作策略：可积极配置")
+                    detail_lines.append("  •  目标：中长期持有")
                 elif '5级' in rating_level or '4级' in rating_level:
-                    detail_lines.append("  • ✅ 适度关注：ARTS评级良好")
-                    detail_lines.append("  • 🎯 操作策略：可适量配置")
-                    detail_lines.append("  • 📈 目标：观察后续表现")
+                    detail_lines.append("  •  适度关注：ARTS评级良好")
+                    detail_lines.append("  •  操作策略：可适量配置")
+                    detail_lines.append("  •  目标：观察后续表现")
                 elif '3级' in rating_level or '2级' in rating_level:
-                    detail_lines.append("  • 🔍 谨慎观望：ARTS评级一般")
-                    detail_lines.append("  • 🎯 操作策略：减少配置")
-                    detail_lines.append("  • 📈 目标：等待改善信号")
+                    detail_lines.append("  •  谨慎观望：ARTS评级一般")
+                    detail_lines.append("  •  操作策略：减少配置")
+                    detail_lines.append("  •  目标：等待改善信号")
                 else:
-                    detail_lines.append("  • ⚠️ 建议回避：ARTS评级较低")
-                    detail_lines.append("  • 🎯 操作策略：避免新增")
-                    detail_lines.append("  • 📈 目标：择机减仓")
+                    detail_lines.append("  •  建议回避：ARTS评级较低")
+                    detail_lines.append("  •  操作策略：避免新增")
+                    detail_lines.append("  •  目标：择机减仓")
                 
                 if confidence in ['极低', '低']:
-                    detail_lines.append("  • ⚠️ 注意：当前分析置信度较低，建议谨慎决策")
+                    detail_lines.append("  •  注意：当前分析置信度较低，建议谨慎决策")
                 
                 detail_lines.append("")
-                detail_lines.append("🔍 ARTS算法特点:")
+                detail_lines.append(" ARTS算法特点:")
                 detail_lines.append("  • 动态时间加权，对近期变化敏感")
                 detail_lines.append("  • 智能模式识别，捕捉复杂趋势")
                 detail_lines.append("  • 置信度评估，提供可靠性参考")
@@ -5110,7 +6118,7 @@ class AnalysisPage(QWidget):
                 industry = stock_info.get('industry', t_gui('uncategorized'))
                 
                 detail_lines.append(f"🏢 所属行业: {industry}")
-                detail_lines.append(f"📈 RTSI指数: {rtsi_value:.2f}")
+                detail_lines.append(f" RTSI指数: {rtsi_value:.2f}")
                 
                 # 判断趋势强度
                 if rtsi_value > 80:
@@ -5129,8 +6137,8 @@ class AnalysisPage(QWidget):
                     trend = "下降趋势"
                     risk_desc = "🔴 高风险"
                     
-                detail_lines.append(f"📊 趋势判断: {trend}")
-                detail_lines.append(f"⚠️ 风险等级: {risk_desc}")
+                detail_lines.append(f" 趋势判断: {trend}")
+                detail_lines.append(f" 风险等级: {risk_desc}")
                 detail_lines.append("")
                 
 
@@ -5140,7 +6148,7 @@ class AnalysisPage(QWidget):
 
                     
                 detail_lines.append("")
-                detail_lines.append("🔍 重要提示:")
+                detail_lines.append(" 重要提示:")
                 detail_lines.append("  • RTSI指数反映短期技术趋势强度")
                 detail_lines.append("  • 投资决策还需结合基本面分析")
                 detail_lines.append("  • 市场有风险，投资需谨慎")
@@ -5150,13 +6158,13 @@ class AnalysisPage(QWidget):
             industry = stock_info.get('industry', t_gui('uncategorized'))
             
             detail_lines.append(f"🏢 所属行业: {industry}")
-            detail_lines.append(f"📈 分析分数: {rtsi_value:.2f}")
-            detail_lines.append("⚠️ 注意：使用简化显示模式")
+            detail_lines.append(f" 分析分数: {rtsi_value:.2f}")
+            detail_lines.append(" 注意：使用简化显示模式")
         
         # 将文本转换为HTML格式
         detail_html = f"""
-        <div style="font-family: 'Microsoft YaHei'; padding: 20px; line-height: 1.6;">
-            <pre style="white-space: pre-wrap; font-family: 'Microsoft YaHei';">{"<br>".join(detail_lines)}</pre>
+        <div style="font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif; padding: 20px; line-height: 1.6;">
+            <pre style="white-space: pre-wrap; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">{"<br>".join(detail_lines)}</pre>
         </div>
         """
         self.set_stock_detail_html(detail_html)
@@ -5200,10 +6208,10 @@ class AnalysisPage(QWidget):
         """延迟加载股票趋势图表数据 - 只在用户点击趋势图表Tab时执行"""
         try:
             if not hasattr(self, 'current_stock_info') or not self.current_stock_info:
-                print(f"⚠️  无法加载趋势图表：缺少股票信息 {stock_code}")
+                print(f"  无法加载趋势图表：缺少股票信息 {stock_code}")
                 return
             
-            print(f"📊 开始延迟加载趋势图表数据: {stock_code}")
+            print(f" 开始延迟加载趋势图表数据: {stock_code}")
             
             # 预取量价数据并缓存
             self._prefetch_volume_price_data(stock_code)
@@ -5211,10 +6219,10 @@ class AnalysisPage(QWidget):
             # 更新趋势图表Tab
             self.update_stock_chart(stock_code, self.current_stock_info)
             
-            print(f"✅ 趋势图表数据加载完成: {stock_code}")
+            print(f" 趋势图表数据加载完成: {stock_code}")
             
         except Exception as e:
-            print(f"❌ 延迟加载趋势图表数据失败: {stock_code} - {e}")
+            print(f"[ERROR] 延迟加载趋势图表数据失败: {stock_code} - {e}")
     
     def auto_trigger_mini_master_analysis(self, stock_code, stock_name):
         """自动触发迷你投资大师分析 - 无需用户点击按钮"""
@@ -5251,24 +6259,24 @@ class AnalysisPage(QWidget):
             # 获取市场类型 - 使用多种检测方案
             preferred_market = self._get_preferred_market_with_multiple_fallbacks(stock_code)
             if not preferred_market:
-                print(f"⚠️  无法确定市场类型，跳过量价数据预取: {stock_code}")
+                print(f"  无法确定市场类型，跳过量价数据预取: {stock_code}")
                 return
             
             # 获取缓存管理器
             cache_manager = get_cache_manager(verbose=False)
             
             # 异步预取数据（38天用于趋势图，5天用于AI分析）
-            print(f"📊 开始预取量价数据: {stock_code} ({preferred_market.upper()}市场)")
+            print(f" 开始预取量价数据: {stock_code} ({preferred_market.upper()}市场)")
             
             # 预取38天数据（趋势图用）
             volume_price_data_38 = cache_manager.get_volume_price_data(stock_code, preferred_market, 38)
             if volume_price_data_38:
-                print(f"✅ 成功缓存38天量价数据: {volume_price_data_38['stock_name']} - {volume_price_data_38['total_days']}天")
+                print(f" 成功缓存38天量价数据: {volume_price_data_38['stock_name']} - {volume_price_data_38['total_days']}天")
             
             # 预取5天数据（AI分析用）
             volume_price_data_5 = cache_manager.get_volume_price_data(stock_code, preferred_market, 5)
             if volume_price_data_5:
-                print(f"✅ 成功缓存5天量价数据: {volume_price_data_5['stock_name']} - {volume_price_data_5['total_days']}天")
+                print(f" 成功缓存5天量价数据: {volume_price_data_5['stock_name']} - {volume_price_data_5['total_days']}天")
             
             # 保存到实例变量供其他方法使用
             self.current_volume_price_data = {
@@ -5278,7 +6286,7 @@ class AnalysisPage(QWidget):
             }
             
         except Exception as e:
-            print(f"❌ 预取量价数据失败: {stock_code} - {e}")
+            print(f"[ERROR] 预取量价数据失败: {stock_code} - {e}")
             self.current_volume_price_data = None
     
     def get_cached_volume_price_data(self, stock_code: str = None, days: int = 38) -> dict:
@@ -5318,7 +6326,7 @@ class AnalysisPage(QWidget):
             return result
             
         except Exception as e:
-            print(f"❌ 获取缓存量价数据失败: {stock_code} - {e}")
+            print(f"[ERROR] 获取缓存量价数据失败: {stock_code} - {e}")
             return None
         
     def clear_stock_analysis(self):
@@ -5334,7 +6342,7 @@ class AnalysisPage(QWidget):
                 <title>等待选择股票</title>
                 <style>
                     body {
-                        font-family: 'Microsoft YaHei', sans-serif;
+                        font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                         margin: 0;
                         padding: 40px;
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -5374,7 +6382,7 @@ class AnalysisPage(QWidget):
             </head>
             <body>
                 <div class="placeholder">
-                    <div class="icon">📊</div>
+                    <div class="icon"></div>
                     <div class="title">请选择股票查看趋势图表</div>
                     <div class="description">
                         选择股票后，将显示：<br/>
@@ -5390,8 +6398,8 @@ class AnalysisPage(QWidget):
             self.chart_webview.setHtml(default_html)
         elif hasattr(self, 'chart_text'):
             chart_html = f"""
-            <div style="text-align: center; margin-top: 50px; color: #666; font-family: 'Microsoft YaHei';">
-                <h3 style="color: #007bff;">📈 趋势图表</h3>
+            <div style="text-align: center; margin-top: 50px; color: #666; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">
+                <h3 style="color: #007bff;"> 趋势图表</h3>
                 <p>{t_gui("请选择股票查看趋势图表...")}</p>
             </div>
             """
@@ -5400,8 +6408,8 @@ class AnalysisPage(QWidget):
         # 清空详细分析
         if hasattr(self, 'stock_detail_text'):
             detail_html = f"""
-            <div style="text-align: center; margin-top: 50px; color: #666; font-family: 'Microsoft YaHei';">
-                <h3 style="color: #007bff;">📈 个股详细分析</h3>
+            <div style="text-align: center; margin-top: 50px; color: #666; font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;">
+                <h3 style="color: #007bff;"> 个股详细分析</h3>
                 <p>{t_gui("请从左侧股票列表中选择一只股票查看详细分析")}</p>
             </div>
             """
@@ -5419,7 +6427,7 @@ class AnalysisPage(QWidget):
             self.ai_status_label.setText("")
         if hasattr(self, 'stock_ai_analyze_btn'):
             self.stock_ai_analyze_btn.setEnabled(True)
-            self.stock_ai_analyze_btn.setText(t_gui("🚀_开始AI分析"))
+            self.stock_ai_analyze_btn.setText(t_gui("开始AI分析"))
             
 
             
@@ -5473,7 +6481,7 @@ class AnalysisPage(QWidget):
             
             # 验证市场参数
             if not preferred_market:
-                print(f"❌ 无法确定股票市场，使用默认CN市场")
+                print(f"[ERROR] 无法确定股票市场，使用默认CN市场")
                 preferred_market = 'cn'
             
             # 从统一缓存接口获取38天量价数据
@@ -5483,11 +6491,11 @@ class AnalysisPage(QWidget):
             # 获取真实的评级历史数据（不使用模拟数据）
             rating_data = self.get_real_historical_data(stock_code)
             if not rating_data:
-                print(f"⚠️ 股票 {stock_code} 没有真实评级数据，将不显示评级图表")
+                print(f" 股票 {stock_code} 没有真实评级数据，将不显示评级图表")
                 rating_data = []
             
             # 调试：打印量价数据获取结果
-            print(f"🔍 量价数据获取结果: {stock_code}")
+            print(f" 量价数据获取结果: {stock_code}")
             print(f"  - 数据对象: {type(volume_price_data)}")
             if volume_price_data:
                 print(f"  - 数据键: {list(volume_price_data.keys()) if isinstance(volume_price_data, dict) else 'Not dict'}")
@@ -5508,20 +6516,20 @@ class AnalysisPage(QWidget):
                 # 在WebView中显示
                 if hasattr(self, 'chart_webview'):
                     self.chart_webview.setHtml(enhanced_html)
-                    self.log(f"✅ 成功生成增强图表：{stock_name} ({stock_code})")
+                    self.log(f" 成功生成增强图表：{stock_name} ({stock_code})")
                 elif hasattr(self, 'chart_text'):
                     # 回退到简化HTML版本
                     self.chart_text.setHtml(self.generate_fallback_chart(stock_code, stock_name, rtsi_value, rating_data))
                     
             else:
                 # 无量价数据时，尝试强制获取数据
-                self.log(f"⚠️ 第一次获取失败，尝试强制获取 {stock_code} 的量价数据")
+                self.log(f" 第一次获取失败，尝试强制获取 {stock_code} 的量价数据")
                 
                 # 尝试直接使用图表生成器获取数据
                 try:
                     direct_data = chart_generator.get_volume_price_data(stock_code, 38, preferred_market)
                     if direct_data and direct_data.get('data'):
-                        print(f"✅ 直接获取成功，数据长度: {len(direct_data['data'])}")
+                        print(f" 直接获取成功，数据长度: {len(direct_data['data'])}")
                         enhanced_html = chart_generator.generate_enhanced_html_chart(
                             stock_code=stock_code,
                             stock_name=stock_name,
@@ -5533,16 +6541,16 @@ class AnalysisPage(QWidget):
                         
                         if hasattr(self, 'chart_webview'):
                             self.chart_webview.setHtml(enhanced_html)
-                            self.log(f"✅ 成功生成增强图表（直接获取）：{stock_name} ({stock_code})")
+                            self.log(f" 成功生成增强图表（直接获取）：{stock_name} ({stock_code})")
                             return
                         elif hasattr(self, 'chart_text'):
                             self.chart_text.setHtml(enhanced_html)
                             return
                 except Exception as direct_e:
-                    print(f"❌ 直接获取也失败: {direct_e}")
+                    print(f"[ERROR] 直接获取也失败: {direct_e}")
                 
                 # 最后回退到基础图表
-                self.log(f"⚠️ 无法获取 {stock_code} 的量价数据，仅显示评级趋势")
+                self.log(f" 无法获取 {stock_code} 的量价数据，仅显示评级趋势")
                 fallback_html = self.generate_fallback_chart(stock_code, stock_name, rtsi_value, rating_data)
                 
                 if hasattr(self, 'chart_webview'):
@@ -5551,8 +6559,8 @@ class AnalysisPage(QWidget):
                     self.chart_text.setHtml(fallback_html)
                     
         except Exception as e:
-            self.log(f"❌ 生成增强图表失败: {str(e)}")
-            print(f"❌ 异常详情: {e}")
+            self.log(f"[ERROR] 生成增强图表失败: {str(e)}")
+            print(f"[ERROR] 异常详情: {e}")
             import traceback
             traceback.print_exc()
             # 使用原有的图表生成方法作为备用
@@ -5571,7 +6579,7 @@ class AnalysisPage(QWidget):
             <title>{stock_name} - 评级趋势分析</title>
             <style>
                 body {{
-                    font-family: 'Microsoft YaHei', sans-serif;
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                     margin: 0;
                     padding: 20px;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -5672,7 +6680,7 @@ class AnalysisPage(QWidget):
         <body>
             <div class="chart-container">
                 <div class="header">
-                    <h1>📈 {stock_name} ({stock_code})</h1>
+                    <h1> {stock_name} ({stock_code})</h1>
                     <div style="color: #7f8c8d; font-size: 16px;">评级趋势分析</div>
                 </div>
                 
@@ -5692,16 +6700,16 @@ class AnalysisPage(QWidget):
                 </div>
                 
                 <div class="warning">
-                    ⚠️ <strong>数据说明：</strong> 无法获取该股票的量价数据，仅显示评级趋势分析。建议选择有完整数据的股票以获得最佳分析体验。
+                     <strong>数据说明：</strong> 无法获取该股票的量价数据，仅显示评级趋势分析。建议选择有完整数据的股票以获得最佳分析体验。
                 </div>
                 
                 <div class="chart-area">
-                    <div class="chart-title">📊 评级趋势图（近期数据）</div>
+                    <div class="chart-title"> 评级趋势图（近期数据）</div>
                     <div class="ascii-chart">{self.generate_ascii_chart(rating_data) if rating_data else "暂无评级数据"}</div>
                 </div>
                 
                 <div class="analysis-panel">
-                    <h4 style="color: #1976d2; margin-top: 0;">🔍 技术分析</h4>
+                    <h4 style="color: #1976d2; margin-top: 0;"> 技术分析</h4>
                     <ul style="margin-left: 20px;">
                         <li><strong>趋势方向:</strong> <span style="color: {'#28a745' if rtsi_value > 60 else '#ffc107' if rtsi_value > 40 else '#dc3545'};">{self.get_detailed_trend(rtsi_value) if hasattr(self, 'get_detailed_trend') else '分析中'}</span></li>
                         <li><strong>RTSI区间:</strong> {self.get_rtsi_zone(rtsi_value) if hasattr(self, 'get_rtsi_zone') else '计算中'}</li>
@@ -5712,8 +6720,8 @@ class AnalysisPage(QWidget):
             
             <div style="text-align: center; margin-top: 30px; color: #6c757d; font-size: 12px;">
                 🕒 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 
-                📊 数据来源: AI股票分析系统 | 
-                ⚠️ 仅供参考，投资有风险
+                 数据来源: AI股票分析系统 | 
+                 仅供参考，投资有风险
             </div>
         </body>
         </html>
@@ -5744,25 +6752,25 @@ class AnalysisPage(QWidget):
     def update_industry_chart(self, industry_name):
         """更新行业趋势图表 - 基于行业内个股的平均值数据"""
         try:
-            print(f"📊 开始更新行业趋势图表: {industry_name}")
+            print(f" 开始更新行业趋势图表: {industry_name}")
             
             if not self.analysis_results_obj:
-                print("❌ 暂无分析数据")
+                print("[ERROR] 暂无分析数据")
                 self.set_industry_chart_html("<p style='color: #dc3545;'>暂无分析数据</p>")
                 return
             
             # 特殊处理指数行业 - 指数不需要交易数据，直接使用权重和评级数据
             if industry_name == "指数":
-                print("🔍 检测到指数行业，使用权重模式（不要求交易数据）")
+                print(" 检测到指数行业，使用权重模式（不要求交易数据）")
                 # 指数行业使用权重和评级数据，不需要真实交易数据验证
                 # 直接跳过数据验证，继续处理
             
             # 获取行业内的股票数据
             industry_stocks = self.get_industry_stocks_data(industry_name)
-            print(f"📈 获取到 {len(industry_stocks)} 只行业股票")
+            print(f" 获取到 {len(industry_stocks)} 只行业股票")
             
             if not industry_stocks:
-                print(f"❌ 行业 {industry_name} 暂无股票数据")
+                print(f"[ERROR] 行业 {industry_name} 暂无股票数据")
                 self.set_industry_chart_html(f"<p style='color: #dc3545;'>行业 {industry_name} 暂无股票数据</p>")
                 return
             
@@ -5771,7 +6779,7 @@ class AnalysisPage(QWidget):
             if current_market == 'hk' and self._is_hk_industry(industry_name, industry_stocks):
                 validated_stocks = self._validate_hk_industry_data(industry_stocks)
                 if not validated_stocks:
-                    print(f"❌ 港股行业 {industry_name} 数据验证失败")
+                    print(f"[ERROR] 港股行业 {industry_name} 数据验证失败")
                     self.set_industry_chart_html(f"<p style='color: #dc3545;'>港股行业 {industry_name} 数据验证失败，请检查数据源</p>")
                     return
                 industry_stocks = validated_stocks
@@ -5779,7 +6787,7 @@ class AnalysisPage(QWidget):
                 # 美股数据验证（简化版，主要检查数据完整性）
                 validated_stocks = self._validate_us_industry_data(industry_stocks)
                 if not validated_stocks:
-                    print(f"❌ 美股行业 {industry_name} 数据验证失败")
+                    print(f"[ERROR] 美股行业 {industry_name} 数据验证失败")
                     self.set_industry_chart_html(f"<p style='color: #dc3545;'>美股行业 {industry_name} 数据验证失败，请检查数据源</p>")
                     return
                 industry_stocks = validated_stocks
@@ -5787,17 +6795,17 @@ class AnalysisPage(QWidget):
             
             # 计算行业平均值
             industry_avg_data = self.calculate_industry_averages(industry_stocks)
-            print(f"📊 计算得到行业平均RTSI: {industry_avg_data.get('avg_rtsi', 0):.2f}")
+            print(f" 计算得到行业平均RTSI: {industry_avg_data.get('avg_rtsi', 0):.2f}")
             
             # 生成行业趋势图表HTML
             chart_html = self.generate_industry_chart_html(industry_name, industry_avg_data)
             
             # 更新显示
             self.set_industry_chart_html(chart_html)
-            print(f"✅ 行业趋势图表更新完成: {industry_name}")
+            print(f" 行业趋势图表更新完成: {industry_name}")
             
         except Exception as e:
-            print(f"❌ 更新行业趋势图表失败: {industry_name} - {e}")
+            print(f"[ERROR] 更新行业趋势图表失败: {industry_name} - {e}")
             import traceback
             traceback.print_exc()
             self.set_industry_chart_html(f"<p style='color: #dc3545;'>生成行业图表失败: {str(e)}</p>")
@@ -5808,11 +6816,11 @@ class AnalysisPage(QWidget):
             if not self.analysis_results_obj:
                 return []
             
-            print(f"📊 开始获取行业 {industry_name} 的股票数据...")
+            print(f" 开始获取行业 {industry_name} 的股票数据...")
             
             # 特殊处理指数行业
             if industry_name == "指数":
-                print("🔍 检测到指数行业，使用特殊处理逻辑")
+                print(" 检测到指数行业，使用特殊处理逻辑")
                 return self._get_index_industry_data()
             
             # 首先尝试从行业数据中获取股票列表
@@ -5824,11 +6832,11 @@ class AnalysisPage(QWidget):
                 # 检查行业数据中是否已经包含股票信息
                 if 'stocks' in industry_info and industry_info['stocks']:
                     industry_stocks_raw = industry_info['stocks']
-                    print(f"📈 从行业数据中获取到 {len(industry_stocks_raw)} 只股票")
+                    print(f" 从行业数据中获取到 {len(industry_stocks_raw)} 只股票")
             
             # 如果行业数据中没有股票信息，则遍历所有股票查找
             if not industry_stocks_raw and hasattr(self.analysis_results_obj, 'stocks'):
-                print("📊 从全部股票中筛选行业股票...")
+                print(" 从全部股票中筛选行业股票...")
                 
                 for stock_code, stock_data in self.analysis_results_obj.stocks.items():
                     # 检查股票是否属于该行业
@@ -5841,10 +6849,10 @@ class AnalysisPage(QWidget):
                             'data': stock_data
                         })
                 
-                print(f"📈 筛选得到 {len(industry_stocks_raw)} 只行业股票")
+                print(f" 筛选得到 {len(industry_stocks_raw)} 只行业股票")
             
             if not industry_stocks_raw:
-                print(f"❌ 行业 {industry_name} 没有找到股票数据")
+                print(f"[ERROR] 行业 {industry_name} 没有找到股票数据")
                 return []
             
             # 获取每只股票的当天成交金额并排序
@@ -5874,14 +6882,14 @@ class AnalysisPage(QWidget):
             selected_count = min(10, len(stocks_with_volume))
             selected_stocks = stocks_with_volume[:selected_count]
             
-            print(f"📊 按成交金额排序，选择前 {selected_count} 只股票参与计算")
+            print(f" 按成交金额排序，选择前 {selected_count} 只股票参与计算")
             for i, stock in enumerate(selected_stocks, 1):
                 print(f"  {i}. {stock['code']}({stock['name']}): {stock['current_volume']:,.0f}")
             
             return selected_stocks
             
         except Exception as e:
-            print(f"❌ 获取行业股票数据失败: {industry_name} - {e}")
+            print(f"[ERROR] 获取行业股票数据失败: {industry_name} - {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -5889,12 +6897,12 @@ class AnalysisPage(QWidget):
     def get_stock_current_volume(self, stock_code):
         """获取股票的当天成交金额"""
         try:
-            print(f"  🔍 开始获取 {stock_code} 的成交金额...")
+            print(f"   开始获取 {stock_code} 的成交金额...")
             
             # 特殊处理指数：指数没有成交金额概念，使用权重或重要性排序
             if self._is_index_code(stock_code):
                 index_weight = self._get_index_weight(stock_code)
-                print(f"  📊 指数 {stock_code} 使用权重排序: {index_weight:,.0f}")
+                print(f"   指数 {stock_code} 使用权重排序: {index_weight:,.0f}")
                 return float(index_weight)
             
             # 尝试从多个数据源获取成交金额
@@ -5909,37 +6917,40 @@ class AnalysisPage(QWidget):
                 market = self._detect_stock_market(stock_code)
                 print(f"  🌍 当前市场类型: {current_market.upper()}, 股票市场: {market.upper()}")
                 
-                # 检查对应市场的数据文件是否存在
+                # 检查对应市场的数据文件是否存在（使用智能路径查找）
                 market_data_files = {
                     'cn': 'cn-lj.dat.gz',
                     'hk': 'hk-lj.dat.gz', 
                     'us': 'us-lj.dat.gz'
                 }
                 
-                if market in market_data_files and os.path.exists(market_data_files[market]):
-                    print(f"使用lj-read.py数据读取器，数据文件: {market_data_files[market]}")
-                    
-                    # 获取最近1天的数据（移除data_type参数）
-                    volume_data = lj_reader.get_volume_price_data(stock_code, days=1, market=market)
-                    if volume_data and 'data' in volume_data and volume_data['data']:
-                        latest_data = volume_data['data'][-1]  # 最新一天的数据
-                        amount = latest_data.get('amount', 0)  # 成交金额
-                        if amount > 0:
-                            print(f"  📊 从LJ数据获取 {stock_code} 成交金额: {amount:,.0f}")
-                            return float(amount)
-                        else:
-                            # 如果没有成交金额，尝试计算：成交金额 = 成交量 × 收盘价
-                            volume = latest_data.get('volume', 0)  # 成交量
-                            close_price = latest_data.get('close_price', 0)  # 收盘价
-                            if volume > 0 and close_price > 0:
-                                calculated_amount = volume * close_price
-                                print(f"  🧮 计算 {stock_code} 成交金额: {volume:,.0f} × {close_price} = {calculated_amount:,.0f}")
-                                return float(calculated_amount)
-                else:
-                    print(f"  ⚠️  {market.upper()}市场数据文件不存在: {market_data_files.get(market, 'unknown')}")
+                # 使用智能路径查找（优先EXE目录）
+                if market in market_data_files:
+                    data_file_path = get_data_file_path(market_data_files[market])
+                    if data_file_path.exists():
+                        print(f"✓ 使用lj-read.py数据读取器，数据文件: {data_file_path}")
+                        
+                        # 获取最近1天的数据（移除data_type参数）
+                        volume_data = lj_reader.get_volume_price_data(stock_code, days=1, market=market)
+                        if volume_data and 'data' in volume_data and volume_data['data']:
+                            latest_data = volume_data['data'][-1]  # 最新一天的数据
+                            amount = latest_data.get('amount', 0)  # 成交金额
+                            if amount > 0:
+                                print(f"   从LJ数据获取 {stock_code} 成交金额: {amount:,.0f}")
+                                return float(amount)
+                            else:
+                                # 如果没有成交金额，尝试计算：成交金额 = 成交量 × 收盘价
+                                volume = latest_data.get('volume', 0)  # 成交量
+                                close_price = latest_data.get('close_price', 0)  # 收盘价
+                                if volume > 0 and close_price > 0:
+                                    calculated_amount = volume * close_price
+                                    print(f"  🧮 计算 {stock_code} 成交金额: {volume:,.0f} × {close_price} = {calculated_amount:,.0f}")
+                                    return float(calculated_amount)
+                    else:
+                        print(f"    {market.upper()}市场数据文件不存在: {data_file_path}")
                     
             except Exception as e:
-                print(f"  ⚠️  LJ数据获取失败 {stock_code}: {e}")
+                print(f"    LJ数据获取失败 {stock_code}: {e}")
             
             # 方法2: 备用 - 尝试从主数据文件获取成交金额（.json.gz只有评级数据，通常没有交易数据）
             try:
@@ -5948,10 +6959,10 @@ class AnalysisPage(QWidget):
                 # 从主数据文件获取成交金额
                 amount_from_main = self._get_amount_from_main_data(stock_code)
                 if amount_from_main and amount_from_main > 0:
-                    print(f"  📊 从主数据文件获取 {stock_code} 成交金额: {amount_from_main:,.0f}")
+                    print(f"   从主数据文件获取 {stock_code} 成交金额: {amount_from_main:,.0f}")
                     return float(amount_from_main)
             except Exception as e:
-                print(f"  ⚠️  主数据文件获取失败 {stock_code}: {e}")
+                print(f"    主数据文件获取失败 {stock_code}: {e}")
             
             # 方法3: 尝试从股票搜索工具获取
             try:
@@ -5969,17 +6980,17 @@ class AnalysisPage(QWidget):
                                 latest_trade = trade_data[latest_date]
                                 volume = latest_trade.get('成交额', 0)
                                 if volume > 0:
-                                    print(f"  📊 从搜索工具获取 {stock_code} 成交金额: {volume:,.0f}")
+                                    print(f"   从搜索工具获取 {stock_code} 成交金额: {volume:,.0f}")
                                     return float(volume)
             except Exception as e:
-                print(f"  ⚠️  搜索工具获取失败 {stock_code}: {e}")
+                print(f"    搜索工具获取失败 {stock_code}: {e}")
             
             # 如果无法获取真实成交金额，返回0表示数据不可用
-            print(f"  ❌ 无法获取 {stock_code} 的真实成交金额数据")
+            print(f"  [ERROR] 无法获取 {stock_code} 的真实成交金额数据")
             return 0.0
             
         except Exception as e:
-            print(f"❌ 获取股票成交金额失败 {stock_code}: {e}")
+            print(f"[ERROR] 获取股票成交金额失败 {stock_code}: {e}")
             return 50000000.0  # 默认5000万
     
     def _load_industries_from_file(self):
@@ -5999,7 +7010,7 @@ class AnalysisPage(QWidget):
             # 获取当前主文件路径
             current_file = self._get_current_rating_file()
             if current_file:
-                print(f"🎯 使用当前主文件: {current_file}")
+                print(f" 使用当前主文件: {current_file}")
                 # 基于当前文件生成候选文件列表
                 base_name = os.path.splitext(os.path.basename(current_file))[0]
                 if base_name.endswith('.json'):
@@ -6019,7 +7030,7 @@ class AnalysisPage(QWidget):
                     f"{base_name.upper()}.json.gz"
                 ]
             else:
-                print("⚠️ 未获取到当前主文件，使用默认CN数据")
+                print(" 未获取到当前主文件，使用默认CN数据")
                 # 回退到默认文件
                 uncompressed_files = ['cn_data5000.json', 'CN_Data5000.json']
                 compressed_files = ['cn_data5000.json.gz', 'CN_Data5000.json.gz']
@@ -6043,13 +7054,13 @@ class AnalysisPage(QWidget):
                 for file_path in uncompressed_files:
                     if os.path.exists(file_path):
                         try:
-                            print(f"🚀 发现未压缩文件 {file_path}，使用快速加载...")
+                            print(f" 发现未压缩文件 {file_path}，使用快速加载...")
                             with open(file_path, 'r', encoding='utf-8') as f:
                                 data = json.load(f)
-                            print(f"✅ 快速加载完成: {file_path}")
+                            print(f" 快速加载完成: {file_path}")
                             break
                         except Exception as e:
-                            print(f"⚠️  快速加载 {file_path} 失败: {e}")
+                            print(f"  快速加载 {file_path} 失败: {e}")
                             continue
             else:
                 print(f"🔄 本次运行首次加载，强制从压缩文件解压: {current_compressed_file}")
@@ -6063,11 +7074,11 @@ class AnalysisPage(QWidget):
                     try:
                         with gzip.open(file_path, 'rt', encoding='utf-8') as f:
                             data = json.load(f)
-                        print(f"✅ 成功从压缩文件加载: {file_path}")
+                        print(f" 成功从压缩文件加载: {file_path}")
                         loaded_from_compressed = file_path
                         break
                     except Exception as e:
-                        print(f"⚠️  加载 {file_path} 失败: {e}")
+                        print(f"  加载 {file_path} 失败: {e}")
                         continue
                 
                 # 如果成功从压缩文件加载，创建未压缩版本供下次使用
@@ -6080,19 +7091,19 @@ class AnalysisPage(QWidget):
                         
                         # 强制覆盖旧的未压缩文件
                         if os.path.exists(uncompressed_name):
-                            print(f"🗑️  删除旧的未压缩文件: {uncompressed_name}")
+                            print(f"[DEL]  删除旧的未压缩文件: {uncompressed_name}")
                             os.remove(uncompressed_name)
                         
                         print(f"💾 创建未压缩版本 {uncompressed_name} 以供下次快速加载...")
                         with open(uncompressed_name, 'w', encoding='utf-8') as f:
                             json.dump(data, f, ensure_ascii=False, separators=(',', ':'))
-                        print(f"✅ 未压缩版本创建完成: {uncompressed_name}")
+                        print(f" 未压缩版本创建完成: {uncompressed_name}")
                         print(f"📝 已记录解压状态: {os.path.basename(loaded_from_compressed)}")
                     except Exception as e:
-                        print(f"⚠️  创建未压缩版本失败: {e}")  # 不影响主流程
+                        print(f"  创建未压缩版本失败: {e}")  # 不影响主流程
             
             if not data or 'data' not in data:
-                print("❌ 无法加载数据文件或数据格式错误")
+                print("[ERROR] 无法加载数据文件或数据格式错误")
                 return None
             
             # 按行业分组股票
@@ -6123,12 +7134,12 @@ class AnalysisPage(QWidget):
                 result[industry_name] = dict(industry_info)
                 result[industry_name]['stocks'] = dict(industry_info['stocks'])
             
-            print(f"📊 成功加载 {len(result)} 个行业，共 {sum(len(info['stocks']) for info in result.values())} 只股票")
+            print(f" 成功加载 {len(result)} 个行业，共 {sum(len(info['stocks']) for info in result.values())} 只股票")
             
             return result
             
         except Exception as e:
-            print(f"❌ 从文件加载行业数据失败: {e}")
+            print(f"[ERROR] 从文件加载行业数据失败: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -6173,7 +7184,7 @@ class AnalysisPage(QWidget):
             
             # 如果当前数据明确不是港股，直接返回False
             if current_market != 'hk':
-                print(f"📊 当前为{current_market.upper()}市场数据，跳过港股验证")
+                print(f" 当前为{current_market.upper()}市场数据，跳过港股验证")
                 return False
             
             # 只有在港股市场时才进行港股特征检查
@@ -6193,7 +7204,7 @@ class AnalysisPage(QWidget):
             return hk_stock_count > len(industry_stocks[:5]) / 2
             
         except Exception as e:
-            print(f"❌ 港股行业判断异常: {e}")
+            print(f"[ERROR] 港股行业判断异常: {e}")
             return False
     
     def _validate_hk_industry_data(self, industry_stocks):
@@ -6212,7 +7223,7 @@ class AnalysisPage(QWidget):
                 # 港股代码应该是4-5位数字
                 clean_code = str(code).strip()
                 if not (clean_code.isdigit() and 4 <= len(clean_code) <= 5):
-                    print(f"⚠️ 跳过无效港股代码: {code}")
+                    print(f" 跳过无效港股代码: {code}")
                     continue
                 
                 # 验证是否能获取到数据
@@ -6222,18 +7233,18 @@ class AnalysisPage(QWidget):
                     test_data = lj_reader.get_volume_price_data(code, days=1, market='hk')
                     if test_data and test_data.get('data'):
                         validated_stocks.append(stock)
-                        print(f"✅ 港股 {code}({name}) 数据验证通过")
+                        print(f" 港股 {code}({name}) 数据验证通过")
                     else:
-                        print(f"⚠️ 港股 {code}({name}) 无法获取数据")
+                        print(f" 港股 {code}({name}) 无法获取数据")
                 except Exception as e:
-                    print(f"⚠️ 港股 {code}({name}) 数据验证失败: {e}")
+                    print(f" 港股 {code}({name}) 数据验证失败: {e}")
                     continue
             
-            print(f"📊 港股行业数据验证完成: {len(validated_stocks)}/{len(industry_stocks)} 只股票通过验证")
+            print(f" 港股行业数据验证完成: {len(validated_stocks)}/{len(industry_stocks)} 只股票通过验证")
             return validated_stocks
             
         except Exception as e:
-            print(f"❌ 港股行业数据验证异常: {e}")
+            print(f"[ERROR] 港股行业数据验证异常: {e}")
             return []
     
     def _validate_us_industry_data(self, industry_stocks):
@@ -6252,7 +7263,7 @@ class AnalysisPage(QWidget):
                 # 美股代码应该是字母组合，通常1-5个字符
                 clean_code = str(code).strip().upper()
                 if not (clean_code.isalpha() and 1 <= len(clean_code) <= 5):
-                    print(f"⚠️ 跳过无效美股代码: {code}")
+                    print(f" 跳过无效美股代码: {code}")
                     continue
                 
                 # 检查是否有基本的股票数据（成交金额等）
@@ -6271,15 +7282,15 @@ class AnalysisPage(QWidget):
                     # 更新stock数据中的amount字段
                     stock['amount'] = amount
                     validated_stocks.append(stock)
-                    print(f"✅ 美股 {code}({name}) 数据验证通过，成交金额: {amount:,.0f}")
+                    print(f" 美股 {code}({name}) 数据验证通过，成交金额: {amount:,.0f}")
                 else:
-                    print(f"⚠️ 美股 {code}({name}) 缺少成交数据")
+                    print(f" 美股 {code}({name}) 缺少成交数据")
             
-            print(f"📊 美股行业数据验证完成: {len(validated_stocks)}/{len(industry_stocks)} 只股票通过验证")
+            print(f" 美股行业数据验证完成: {len(validated_stocks)}/{len(industry_stocks)} 只股票通过验证")
             return validated_stocks
             
         except Exception as e:
-            print(f"❌ 美股行业数据验证异常: {e}")
+            print(f"[ERROR] 美股行业数据验证异常: {e}")
             return []
     
     def _is_index_code(self, stock_code):
@@ -6315,6 +7326,9 @@ class AnalysisPage(QWidget):
                 'HSI',     # 恒生指数
                 'HSCEI',   # 恒生国企指数
                 'HSCCI',   # 恒生中国企业指数
+                'CESA80',  # 中华A80指数
+                'HSTECH',  # 恒生科技指数
+                'HSHKI',   # 恒生港股通指数
                 
                 # 美股指数
                 'SPX',     # 标准普尔500
@@ -6346,7 +7360,7 @@ class AnalysisPage(QWidget):
     def _get_index_industry_data(self):
         """专门处理指数行业的数据获取 - 只保留真正的指数"""
         try:
-            print("📊 执行指数行业专用数据获取逻辑...")
+            print(" 执行指数行业专用数据获取逻辑...")
             
             # 指数代码到名称的映射（根据用户提供的信息更新）
             index_code_to_name = {
@@ -6370,6 +7384,9 @@ class AnalysisPage(QWidget):
                 'HSI': '恒生指数',
                 'HSCEI': '恒生国企指数',
                 'HSCCI': '恒生中国企业指数',
+                'CESA80': '中华A80指数',
+                'HSTECH': '恒生科技指数',
+                'HSHKI': '恒生港股通指数',
                 
                 # 美股指数
                 'SPX': '标普500',
@@ -6383,7 +7400,7 @@ class AnalysisPage(QWidget):
                 industry_info = self.analysis_results_obj.industries["指数"]
                 if 'stocks' in industry_info and industry_info['stocks']:
                     industry_stocks_raw = industry_info['stocks']
-                    print(f"📈 从指数行业数据中获取到 {len(industry_stocks_raw)} 只潜在指数")
+                    print(f" 从指数行业数据中获取到 {len(industry_stocks_raw)} 只潜在指数")
             
             # 过滤：只保留真正的指数代码
             valid_indices = []
@@ -6402,7 +7419,7 @@ class AnalysisPage(QWidget):
                     
                     # 使用映射获取正确的指数名称
                     display_name = index_code_to_name.get(stock_code, stock_name)
-                    print(f"  ✅ 保留指数: {stock_code}({display_name}) - 权重: {weight:,.0f}")
+                    print(f"   保留指数: {stock_code}({display_name}) - 权重: {weight:,.0f}")
                     
                     valid_indices.append({
                         'code': stock_code,
@@ -6413,16 +7430,16 @@ class AnalysisPage(QWidget):
                         'rtsi': stock.get('rtsi', {}) if isinstance(stock, dict) else {}
                     })
                 else:
-                    print(f"  ❌ 过滤非指数: {stock_code}({stock_name})")
+                    print(f"  [ERROR] 过滤非指数: {stock_code}({stock_name})")
             
-            print(f"📊 指数过滤完成: 保留 {len(valid_indices)} 个真正的指数")
+            print(f" 指数过滤完成: 保留 {len(valid_indices)} 个真正的指数")
             
             # 按权重排序（主要指数在前）
             valid_indices.sort(key=lambda x: x['weight'], reverse=True)
             
             # 只取前10个指数进行计算
             final_indices = valid_indices[:10]
-            print(f"📈 按权重排序，选择前 {len(final_indices)} 个指数参与计算:")
+            print(f" 按权重排序，选择前 {len(final_indices)} 个指数参与计算:")
             for i, index in enumerate(final_indices, 1):
                 is_major = index['weight'] >= 500000000
                 status = "主要" if is_major else "非主要"
@@ -6431,7 +7448,7 @@ class AnalysisPage(QWidget):
             return final_indices
             
         except Exception as e:
-            print(f"❌ 指数行业数据获取失败: {e}")
+            print(f"[ERROR] 指数行业数据获取失败: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -6499,14 +7516,14 @@ class AnalysisPage(QWidget):
                 rtsi_factor = max(0.5, rtsi_value / 100)
                 calculated_weight = base_weight * rtsi_factor
                 
-                print(f"  📊 基于RTSI({rtsi_value:.2f})计算指数权重: {calculated_weight:,.0f}")
+                print(f"   基于RTSI({rtsi_value:.2f})计算指数权重: {calculated_weight:,.0f}")
                 return calculated_weight
             
             # 默认指数权重
             return 300000000.0
             
         except Exception as e:
-            print(f"  ⚠️  计算指数权重失败 {stock_code}: {e}")
+            print(f"    计算指数权重失败 {stock_code}: {e}")
             return 300000000.0
     
     def _get_real_industry_rating_data(self, industry_stocks):
@@ -6514,7 +7531,7 @@ class AnalysisPage(QWidget):
         try:
             from datetime import datetime, timedelta
             
-            print(f"📊 开始获取 {len(industry_stocks)} 只股票的真实评级数据...")
+            print(f" 开始获取 {len(industry_stocks)} 只股票的真实评级数据...")
             
             # 收集所有股票的评级数据
             all_stock_ratings = {}
@@ -6527,19 +7544,19 @@ class AnalysisPage(QWidget):
                 stock_ratings = self._get_stock_rating_data(stock_code)
                 if stock_ratings:
                     all_stock_ratings[stock_code] = stock_ratings
-                    print(f"  📈 {stock_code}({stock_name}): 获取到 {len(stock_ratings)} 天评级数据")
+                    print(f"   {stock_code}({stock_name}): 获取到 {len(stock_ratings)} 天评级数据")
                 else:
-                    print(f"  ⚠️  {stock_code}({stock_name}): 无评级数据")
+                    print(f"    {stock_code}({stock_name}): 无评级数据")
             
             if not all_stock_ratings:
-                print("❌ 所有股票都没有评级数据")
+                print("[ERROR] 所有股票都没有评级数据")
                 return []
             
             # 计算行业平均评级
             return self._calculate_industry_average_ratings(all_stock_ratings)
             
         except Exception as e:
-            print(f"❌ 获取行业真实评级数据失败: {e}")
+            print(f"[ERROR] 获取行业真实评级数据失败: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -6553,10 +7570,10 @@ class AnalysisPage(QWidget):
                 for file_path in rating_files:
                     ratings = self._load_rating_from_file(stock_code, file_path)
                     if ratings:
-                        print(f"    📊 从文件 {file_path} 获取到 {len(ratings)} 条评级")
+                        print(f"     从文件 {file_path} 获取到 {len(ratings)} 条评级")
                         return ratings
             except Exception as e:
-                print(f"    ⚠️  从文件获取评级失败: {e}")
+                print(f"      从文件获取评级失败: {e}")
             
             # 方法2: 从数据集中获取评级数据（备用）
             try:
@@ -6584,10 +7601,10 @@ class AnalysisPage(QWidget):
                             numeric_rating = self._convert_rating_to_numeric(rating_str)
                             converted_ratings.append((formatted_date, numeric_rating))
                         
-                        print(f"    📊 从分析结果获取到 {len(converted_ratings)} 条评级")
+                        print(f"     从分析结果获取到 {len(converted_ratings)} 条评级")
                         return converted_ratings
             except Exception as e:
-                print(f"    ⚠️  从分析结果获取评级失败: {e}")
+                print(f"      从分析结果获取评级失败: {e}")
             
             # 方法3: 直接从数据文件获取评级数据
             try:
@@ -6596,15 +7613,15 @@ class AnalysisPage(QWidget):
                 for file_path in rating_files:
                     ratings = self._load_rating_from_file(stock_code, file_path)
                     if ratings:
-                        print(f"    📊 从文件 {file_path} 获取到 {len(ratings)} 条评级（备用方法）")
+                        print(f"     从文件 {file_path} 获取到 {len(ratings)} 条评级（备用方法）")
                         return ratings
             except Exception as e:
-                print(f"    ⚠️  从文件获取评级失败（备用方法）: {e}")
+                print(f"      从文件获取评级失败（备用方法）: {e}")
             
             return []
             
         except Exception as e:
-            print(f"❌ 获取股票 {stock_code} 评级数据失败: {e}")
+            print(f"[ERROR] 获取股票 {stock_code} 评级数据失败: {e}")
             return []
     
     def _convert_rating_to_numeric(self, rating_str):
@@ -6676,7 +7693,7 @@ class AnalysisPage(QWidget):
             return rating_files[:3]  # 最多检查3个文件
             
         except Exception as e:
-            print(f"❌ 获取评级文件列表失败: {e}")
+            print(f"[ERROR] 获取评级文件列表失败: {e}")
             return []
     
     def _load_rating_from_file(self, stock_code, file_path):
@@ -6714,7 +7731,7 @@ class AnalysisPage(QWidget):
             return []
             
         except Exception as e:
-            print(f"❌ 从文件 {file_path} 加载评级失败: {e}")
+            print(f"[ERROR] 从文件 {file_path} 加载评级失败: {e}")
             return []
     
     def _calculate_industry_average_ratings(self, all_stock_ratings):
@@ -6723,7 +7740,7 @@ class AnalysisPage(QWidget):
             from datetime import datetime, timedelta
             from collections import defaultdict
             
-            print(f"📊 开始计算行业平均评级，包含 {len(all_stock_ratings)} 只股票")
+            print(f" 开始计算行业平均评级，包含 {len(all_stock_ratings)} 只股票")
             
             # 按日期收集所有股票的评级
             daily_ratings = defaultdict(list)
@@ -6747,11 +7764,11 @@ class AnalysisPage(QWidget):
                     
                     print(f"  📅 {date_str}: {len(ratings_for_date)}只股票，平均评级 {avg_rating:.2f} -> {final_rating}")
             
-            print(f"📊 计算完成，获得 {len(industry_ratings)} 天的行业平均评级")
+            print(f" 计算完成，获得 {len(industry_ratings)} 天的行业平均评级")
             return industry_ratings
             
         except Exception as e:
-            print(f"❌ 计算行业平均评级失败: {e}")
+            print(f"[ERROR] 计算行业平均评级失败: {e}")
             return []
     
 
@@ -6760,10 +7777,10 @@ class AnalysisPage(QWidget):
         """计算行业加权平均值数据（按成交金额加权）"""
         try:
             if not industry_stocks:
-                print("❌ 行业股票列表为空")
+                print("[ERROR] 行业股票列表为空")
                 return {}
             
-            print(f"📊 开始计算 {len(industry_stocks)} 只股票的加权平均值")
+            print(f" 开始计算 {len(industry_stocks)} 只股票的加权平均值")
             
             # 获取每只股票的成交金额作为权重
             stock_weights = []
@@ -6801,7 +7818,7 @@ class AnalysisPage(QWidget):
             
             # 计算加权平均RTSI
             avg_rtsi = weighted_rtsi_sum / total_weight if total_weight > 0 else 0
-            print(f"📈 加权平均RTSI: {avg_rtsi:.2f} (总权重: {total_weight:,.0f})")
+            print(f" 加权平均RTSI: {avg_rtsi:.2f} (总权重: {total_weight:,.0f})")
             
             # 生成基于真实数据的加权平均量价数据
             volume_price_data = self._calculate_weighted_volume_price_data(stock_weights)
@@ -6810,11 +7827,11 @@ class AnalysisPage(QWidget):
             rating_data = self._get_real_industry_rating_data(industry_stocks)
             
             if not rating_data:
-                print("⚠️  无法获取真实评级数据，返回空数据")
+                print("  无法获取真实评级数据，返回空数据")
                 # 如果无法获取真实数据，直接返回空数据
                 return []
             
-            print(f"📊 获取了{len(rating_data)}天的真实评级数据")
+            print(f" 获取了{len(rating_data)}天的真实评级数据")
             
             return {
                 'avg_rtsi': avg_rtsi,
@@ -6825,13 +7842,13 @@ class AnalysisPage(QWidget):
             }
             
         except Exception as e:
-            print(f"❌ 计算行业平均值失败: {e}")
+            print(f"[ERROR] 计算行业平均值失败: {e}")
             return {}
     
     def _calculate_weighted_volume_price_data(self, stock_weights):
         """计算加权平均量价数据"""
         try:
-            print("📊 开始计算加权平均量价数据...")
+            print(" 开始计算加权平均量价数据...")
             
             # 收集所有股票的历史数据
             all_stock_data = {}
@@ -6841,31 +7858,32 @@ class AnalysisPage(QWidget):
                 stock_code = stock_info['code']
                 weight = stock_info['weight']
                 
-                print(f"  📈 获取 {stock_code} 的历史数据...")
+                print(f"   获取 {stock_code} 的历史数据...")
                 
                 # 尝试从LJ数据读取器获取历史数据
                 try:
                     from utils.lj_data_reader import LJDataReader
                     lj_reader = LJDataReader()
                     
-                    # 检测市场类型
-                    market = self._detect_stock_market(stock_code)
+                    # 使用全局市场类型，不进行自动推测
+                    market = self._get_current_market_type()
+                    print(f"    🌍 使用全局市场类型: {market.upper()}")
                     
                     # 对于指数，尝试使用名称查找
                     search_key = stock_code
                     if stock_info.get('is_index', False) and 'name' in stock_info:
                         index_name = stock_info['name']
-                        print(f"    🔍 指数数据查找: 代码 {stock_code} -> 名称 {index_name}")
+                        print(f"     指数数据查找: 代码 {stock_code} -> 名称 {index_name}")
                         search_key = index_name
                     
                     # 根据数据类型选择查找方式
                     if stock_info.get('is_index', False):
                         # 指数：严格使用名称向.dat.gz获取数据
-                        print(f"    📊 指数使用名称查找: {search_key}")
+                        print(f"     指数使用名称查找: {search_key}")
                         volume_data = lj_reader.get_volume_price_data(search_key, days=38, market=market)
                     else:
                         # 个股：使用代码向.dat.gz获取数据
-                        print(f"    📈 个股使用代码查找: {stock_code}")
+                        print(f"     个股使用代码查找: {stock_code}")
                         volume_data = lj_reader.get_volume_price_data(stock_code, days=38, market=market)
                     
                     if volume_data and 'data' in volume_data and volume_data['data']:
@@ -6885,15 +7903,15 @@ class AnalysisPage(QWidget):
                                 date_set.add(date)
                         
                         all_stock_data[stock_code] = stock_history
-                        print(f"    ✅ 获取到 {len(stock_history)} 天数据")
+                        print(f"     获取到 {len(stock_history)} 天数据")
                     else:
-                        print(f"    ❌ 未获取到 {stock_code} 的历史数据")
+                        print(f"    [ERROR] 未获取到 {stock_code} 的历史数据")
                         
                 except Exception as e:
-                    print(f"    ⚠️  获取 {stock_code} 历史数据失败: {e}")
+                    print(f"      获取 {stock_code} 历史数据失败: {e}")
             
             if not date_set:
-                print("❌ 未获取到任何历史数据，返回空数据")
+                print("[ERROR] 未获取到任何历史数据，返回空数据")
                 return []
             
             # 按日期排序
@@ -6910,7 +7928,7 @@ class AnalysisPage(QWidget):
                 for stock_code, stock_history in all_stock_data.items():
                     if first_date in stock_history:
                         first_day_prices[stock_code] = stock_history[first_date]['close']
-                        print(f"    📊 {stock_code} 基准价格: {first_day_prices[stock_code]}")
+                        print(f"     {stock_code} 基准价格: {first_day_prices[stock_code]}")
             
             for date in sorted_dates:
                 daily_data = {
@@ -6954,11 +7972,11 @@ class AnalysisPage(QWidget):
                 
                 volume_price_data.append(daily_data)
             
-            print(f"✅ 生成了 {len(volume_price_data)} 天的加权平均量价数据")
+            print(f" 生成了 {len(volume_price_data)} 天的加权平均量价数据")
             return volume_price_data
             
         except Exception as e:
-            print(f"❌ 计算加权量价数据失败: {e}")
+            print(f"[ERROR] 计算加权量价数据失败: {e}")
             return []
     
 
@@ -6984,11 +8002,11 @@ class AnalysisPage(QWidget):
             processed_ratings.sort(key=lambda x: x[0])
             recent_ratings = processed_ratings[-38:] if len(processed_ratings) > 38 else processed_ratings
             
-            print(f"  📊 处理后获得 {len(recent_ratings)} 条有效评级数据")
+            print(f"   处理后获得 {len(recent_ratings)} 条有效评级数据")
             return recent_ratings
             
         except Exception as e:
-            print(f"❌ 处理评级数据失败: {e}")
+            print(f"[ERROR] 处理评级数据失败: {e}")
             return []
     
 
@@ -7050,7 +8068,7 @@ class AnalysisPage(QWidget):
                 </script>
                 <style>
                     body {{
-                        font-family: 'Microsoft YaHei', sans-serif;
+                        font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
                         margin: 0;
                         padding: 20px;
                         background-color: #f8f9fa;
@@ -7108,7 +8126,7 @@ class AnalysisPage(QWidget):
             </head>
             <body>
                 <div class="header">
-                    <h1>📊 {industry_name} 行业趋势分析</h1>
+                    <h1> {industry_name} 行业趋势分析</h1>
                     <p>基于行业内 {stock_count} 只股票的平均数据</p>
                 </div>
                 
@@ -7132,18 +8150,18 @@ class AnalysisPage(QWidget):
                 </div>
                 
                 <div class="chart-container">
-                    <div class="chart-title">📈 行业加权涨跌幅走势</div>
+                    <div class="chart-title">⭐ 行业平均评级趋势</div>
+                    <canvas id="ratingChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title"> 行业加权涨跌幅走势</div>
                     <canvas id="changeRateChart"></canvas>
                 </div>
                 
                 <div class="chart-container">
-                    <div class="chart-title">📊 行业平均成交量</div>
+                    <div class="chart-title"> 行业平均成交量</div>
                     <canvas id="volumeChart"></canvas>
-                </div>
-                
-                <div class="chart-container">
-                    <div class="chart-title">⭐ 行业平均评级趋势</div>
-                    <canvas id="ratingChart"></canvas>
                 </div>
                 
                 <script>
@@ -7328,7 +8346,7 @@ class AnalysisPage(QWidget):
             return html_content
             
         except Exception as e:
-            print(f"❌ 生成行业图表HTML失败: {e}")
+            print(f"[ERROR] 生成行业图表HTML失败: {e}")
             return f"<p style='color: #dc3545;'>生成行业图表失败: {str(e)}</p>"
     
     def set_industry_chart_html(self, html_content):
@@ -7344,7 +8362,7 @@ class AnalysisPage(QWidget):
             elif hasattr(self, 'industry_chart_text'):
                 self.industry_chart_text.setHtml(html_content)
         except Exception as e:
-            print(f"❌ 设置行业图表HTML失败: {e}")
+            print(f"[ERROR] 设置行业图表HTML失败: {e}")
     
     def log(self, message: str, level: str = "INFO"):
         """日志输出方法"""
@@ -7529,28 +8547,28 @@ class AnalysisPage(QWidget):
         
         # 构建HTML格式的分析报告
         analysis_html = f"""
-        <div style="font-family: 'Microsoft YaHei'; line-height: 1.6; color: #333;">
+        <div style="font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif; line-height: 1.6; color: #333;">
             <h2 style="color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 5px;">
                 {stock_name} ({stock_code}) {t_gui('comprehensive_analysis_report')}
             </h2>
             
-            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">📊 {t_gui('core_indicators')}</h3>
+            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('core_indicators')}</h3>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                 <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('stock_code')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee;">{stock_code}</td></tr>
                 <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('stock_name')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee;">{stock_name}</td></tr>
                 <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('industry_sector')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee;">{industry}</td></tr>
-                <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('analysis_algorithm')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: #2c5aa0;"><strong>🚀 {algorithm_type}</strong></td></tr>
-                <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('arts_score') if algorithm_type == 'ARTS' else t_gui('rtsi_index')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: {'#dc3545' if rtsi_value > 50 else '#28a745'};"><strong>{rtsi_value:.2f}/100</strong></td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('analysis_algorithm')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: #2c5aa0;"><strong> {algorithm_type}</strong></td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('arts_score') if algorithm_type == 'ARTS' else t_gui('rtsi_index')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: {'#dc3545' if rtsi_value > 50 else '#28a745'};"><strong>{rtsi_value:.2f}/90</strong></td></tr>
                 {"<tr><td style='padding: 5px; border-bottom: 1px solid #eee;'><strong>" + t_gui('rating_level') + ":</strong></td><td style='padding: 5px; border-bottom: 1px solid #eee;'>" + rating_level + "</td></tr>" if algorithm_type == 'ARTS' and rating_level else ""}
                 {"<tr><td style='padding: 5px; border-bottom: 1px solid #eee;'><strong>" + t_gui('trend_pattern') + ":</strong></td><td style='padding: 5px; border-bottom: 1px solid #eee;'>" + pattern + "</td></tr>" if algorithm_type == 'ARTS' and pattern else ""}
                 {"<tr><td style='padding: 5px; border-bottom: 1px solid #eee;'><strong>" + t_gui('confidence_level') + ":</strong></td><td style='padding: 5px; border-bottom: 1px solid #eee;'>" + confidence_str + "</td></tr>" if algorithm_type == 'ARTS' and confidence_str else ""}
 
             </table>
             
-            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">📈 {t_gui('technical_analysis')}</h3>
+            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('technical_analysis')}</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #0078d4;">
-                    <h4 style="color: #0078d4; margin-top: 0;">🎯 技术面核心指标</h4>
+                    <h4 style="color: #0078d4; margin-top: 0;"> 技术面核心指标</h4>
                     <ul style="margin: 0; padding-left: 20px;">
                         <li><strong>{t_gui('trend_direction')}:</strong> {self.get_detailed_trend(rtsi_value)}</li>
                         <li><strong>{t_gui('technical_strength')}:</strong> {self.get_tech_strength(rtsi_value)}</li>
@@ -7559,7 +8577,7 @@ class AnalysisPage(QWidget):
                     </ul>
                 </div>
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
-                    <h4 style="color: #28a745; margin-top: 0;">📊 相对强弱分析</h4>
+                    <h4 style="color: #28a745; margin-top: 0;"> 相对强弱分析</h4>
                     <ul style="margin: 0; padding-left: 20px;">
                         <li><strong>{t_gui('relative_strength')}:</strong> {self.get_relative_position(rtsi_value)}</li>
                         <li><strong>行业排名:</strong> {self.get_industry_ranking_detail(rtsi_value)}</li>
@@ -7573,7 +8591,7 @@ class AnalysisPage(QWidget):
             <div style="background: linear-gradient(135deg, #e8f4fd 0%, #f0f8ff 100%); padding: 20px; border-radius: 10px; border: 1px solid #0078d4;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                     <div>
-                        <h4 style="color: #0078d4; margin-top: 0; margin-bottom: 10px;">📈 行业地位分析</h4>
+                        <h4 style="color: #0078d4; margin-top: 0; margin-bottom: 10px;"> 行业地位分析</h4>
                         <ul style="margin: 0; padding-left: 20px;">
                             <li><strong>{t_gui('行业表现')}:</strong> {sector_performance}</li>
                             <li><strong>{t_gui('industry_position')}:</strong> {self.get_industry_position(rtsi_value)}</li>
@@ -7593,7 +8611,7 @@ class AnalysisPage(QWidget):
             
 
             
-            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">⚠️ {t_gui('risk_assessment')}</h3>
+            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('risk_assessment')}</h3>
             <ul style="margin-left: 20px;">
                 <li><strong>{t_gui('risk_level')}:</strong> <span style="color: {'#28a745' if rtsi_value < 30 else '#ffc107' if rtsi_value < 60 else '#dc3545'};">{self.calculate_risk_level(rtsi_value, confidence)}</span></li>
                 <li><strong>{t_gui('technical_risk')}:</strong> {t_gui('based_on_rtsi_assessment')}</li>
@@ -7601,7 +8619,7 @@ class AnalysisPage(QWidget):
                 <li><strong>{t_gui('market_risk')}:</strong> {t_gui('pay_attention_to_systemic_risk')}</li>
             </ul>
             
-            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">🎯 {t_gui('operation_advice')}</h3>
+            <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;"> {t_gui('operation_advice')}</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                 <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
                     <h4 style="color: #856404; margin-top: 0;">📍 进场策略</h4>
@@ -7620,7 +8638,7 @@ class AnalysisPage(QWidget):
                     </ul>
                 </div>
                 <div style="background: #d4edda; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
-                    <h4 style="color: #155724; margin-top: 0;">🎯 盈利目标</h4>
+                    <h4 style="color: #155724; margin-top: 0;"> 盈利目标</h4>
                     <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
                         <li><strong>{t_gui('target_price')}:</strong> {self.suggest_target_price(rtsi_value)}</li>
                         <li><strong>{t_gui('holding_period')}:</strong> {self.suggest_holding_period(rtsi_value)}</li>
@@ -7632,10 +8650,10 @@ class AnalysisPage(QWidget):
             <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">🔮 {t_gui('future_outlook')}</h3>
             <p style="margin-left: 20px; line-height: 1.8;">{self.generate_outlook_display(rtsi_value, industry)}</p>
             
-            {"<h3 style='color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;'>🚀 " + t_gui('arts_algorithm_advantages') + "</h3><ul style='margin-left: 20px;'><li><strong>" + t_gui('dynamic_weighting') + ":</strong> " + t_gui('recent_data_higher_weight') + "</li><li><strong>" + t_gui('pattern_recognition') + ":</strong> " + t_gui('can_identify_complex_patterns', pattern=pattern) + "</li><li><strong>" + t_gui('confidence_assessment') + ":</strong> " + t_gui('provides_reliability_assessment', confidence=confidence_str) + "</li><li><strong>" + t_gui('adaptive_adjustment') + ":</strong> " + t_gui('dynamically_optimize_based_on_characteristics') + "</li><li><strong>" + t_gui('eight_level_rating') + ":</strong> " + t_gui('more_scientific_grading_system') + "</li></ul>" if algorithm_type == 'ARTS' else ""}
+            {"<h3 style='color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;'> " + t_gui('arts_algorithm_advantages') + "</h3><ul style='margin-left: 20px;'><li><strong>" + t_gui('dynamic_weighting') + ":</strong> " + t_gui('recent_data_higher_weight') + "</li><li><strong>" + t_gui('pattern_recognition') + ":</strong> " + t_gui('can_identify_complex_patterns', pattern=pattern) + "</li><li><strong>" + t_gui('confidence_assessment') + ":</strong> " + t_gui('provides_reliability_assessment', confidence=confidence_str) + "</li><li><strong>" + t_gui('adaptive_adjustment') + ":</strong> " + t_gui('dynamically_optimize_based_on_characteristics') + "</li><li><strong>" + t_gui('eight_level_rating') + ":</strong> " + t_gui('more_scientific_grading_system') + "</li></ul>" if algorithm_type == 'ARTS' else ""}
             
             <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin-top: 25px;">
-                <h4 style="color: #856404; margin-top: 0;">⚠️ {t_gui('disclaimer')}</h4>
+                <h4 style="color: #856404; margin-top: 0;"> {t_gui('disclaimer')}</h4>
                 <p style="color: #856404; margin-bottom: 0; font-size: 12px;">
                     {t_gui('disclaimer_text', algorithm_type=algorithm_type, algorithm_desc=t_gui('arts_algorithm_desc') if algorithm_type == 'ARTS' else '')}
                 </p>
@@ -7667,11 +8685,11 @@ class AnalysisPage(QWidget):
     def get_momentum_indicator(self, rtsi_value):
         """获取动量指标"""
         if rtsi_value > 65:
-            return '<span style="color: #dc3545; font-weight: bold;">🚀 强劲上涨动量</span>'
+            return '<span style="color: #dc3545; font-weight: bold;"> 强劲上涨动量</span>'
         elif rtsi_value > 50:
-            return '<span style="color: #fd7e14; font-weight: bold;">📈 积极上涨动量</span>'
+            return '<span style="color: #fd7e14; font-weight: bold;"> 积极上涨动量</span>'
         elif rtsi_value > 35:
-            return '<span style="color: #6c757d;">📊 震荡整理</span>'
+            return '<span style="color: #6c757d;"> 震荡整理</span>'
         else:
             return '<span style="color: #28a745; font-weight: bold;">📉 下跌动量</span>'
     
@@ -7698,7 +8716,7 @@ class AnalysisPage(QWidget):
     def get_fund_flow_indicator(self, rtsi_value):
         """获取资金流向指标"""
         if rtsi_value > 60:
-            return '<span style="color: #dc3545; font-weight: bold;">💰 资金净流入</span>'
+            return '<span style="color: #dc3545; font-weight: bold;"> 资金净流入</span>'
         elif rtsi_value > 40:
             return '<span style="color: #6c757d;">💧 资金平衡</span>'
         else:
@@ -7756,13 +8774,13 @@ class AnalysisPage(QWidget):
     def get_risk_warning(self, rtsi_value):
         """获取风险预警"""
         if rtsi_value > 70:
-            return '<span style="color: #dc3545; font-weight: bold;">⚠️ 高位风险</span>'
+            return '<span style="color: #dc3545; font-weight: bold;"> 高位风险</span>'
         elif rtsi_value > 55:
-            return '<span style="color: #fd7e14;">📊 适度风险</span>'
+            return '<span style="color: #fd7e14;"> 适度风险</span>'
         elif rtsi_value > 35:
-            return '<span style="color: #6c757d;">🔍 关注风险</span>'
+            return '<span style="color: #6c757d;"> 关注风险</span>'
         else:
-            return '<span style="color: #28a745;">✅ 风险较低</span>'
+            return '<span style="color: #28a745;"> 风险较低</span>'
     
     def suggest_profit_taking(self, rtsi_value):
         """建议止盈策略"""
@@ -7955,10 +8973,10 @@ class AnalysisPage(QWidget):
         if real_data and len(real_data) > 0:
             # 如果有真实数据，限制在90天内
             days = min(len(real_data), 90)
-            print(f"✅ 使用真实历史数据天数: {days}天 (限制90天内)")
+            print(f" 使用真实历史数据天数: {days}天 (限制90天内)")
         else:
             # 如果没有真实数据，返回空列表
-            print(f"⚠️ 无真实历史数据，跳过图表生成")
+            print(f" 无真实历史数据，跳过图表生成")
             return []
         
         # 直接使用真实数据，不需要生成日期和评级
@@ -7976,7 +8994,7 @@ class AnalysisPage(QWidget):
                 # 如果数据格式不正确，跳过
                 continue
         
-        print(f"📊 处理真实历史数据: {len(formatted_data)}个数据点")
+        print(f" 处理真实历史数据: {len(formatted_data)}个数据点")
         return formatted_data
         
 
@@ -7985,13 +9003,13 @@ class AnalysisPage(QWidget):
         """获取真实的历史评级数据 - 从原始数据集中提取"""
         try:
             # 尝试从多个数据源获取真实历史数据
-            print(f"🔍 正在查找股票 {stock_code} 的历史数据...")
+            print(f" 正在查找股票 {stock_code} 的历史数据...")
             
             # 方法1：从analysis_results中的data_source获取（StockDataSet对象）
             if self.analysis_results and 'data_source' in self.analysis_results:
                 data_source = self.analysis_results['data_source']
                 if data_source and hasattr(data_source, 'get_stock_ratings'):
-                    print(f"📊 尝试从data_source获取股票评级数据...")
+                    print(f" 尝试从data_source获取股票评级数据...")
                     try:
                         stock_ratings = data_source.get_stock_ratings(stock_code, use_interpolation=True)
                         if stock_ratings is not None and not stock_ratings.empty:
@@ -8011,18 +9029,18 @@ class AnalysisPage(QWidget):
                                         valid_data_points += 1
                             
                             if historical_data:
-                                print(f"✅ 从data_source提取到 {len(historical_data)} 个历史评级点")
+                                print(f" 从data_source提取到 {len(historical_data)} 个历史评级点")
                                 return historical_data
                             else:
-                                print(f"📊 股票 {stock_code} 在 {total_data_points} 天数据中无有效评级（全为'-'或空值）")
+                                print(f" 股票 {stock_code} 在 {total_data_points} 天数据中无有效评级（全为'-'或空值）")
                     except Exception as e:
-                        print(f"📊 从data_source获取失败: {e}")
+                        print(f" 从data_source获取失败: {e}")
             
             # 方法2：从analysis_results_obj中的data_source获取
             if self.analysis_results_obj and hasattr(self.analysis_results_obj, 'data_source'):
                 data_source = self.analysis_results_obj.data_source
                 if data_source and hasattr(data_source, 'get_stock_ratings'):
-                    print(f"📊 尝试从analysis_results_obj.data_source获取股票评级数据...")
+                    print(f" 尝试从analysis_results_obj.data_source获取股票评级数据...")
                     try:
                         stock_ratings = data_source.get_stock_ratings(stock_code, use_interpolation=True)
                         if stock_ratings is not None and not stock_ratings.empty:
@@ -8038,18 +9056,18 @@ class AnalysisPage(QWidget):
                                         historical_data.append((str(date_col), rating_num))
                             
                             if historical_data:
-                                print(f"✅ 从analysis_results_obj.data_source提取到 {len(historical_data)} 个历史评级点")
+                                print(f" 从analysis_results_obj.data_source提取到 {len(historical_data)} 个历史评级点")
                                 return historical_data
                             else:
-                                print(f"📊 股票 {stock_code} 在 {total_data_points} 天数据中无有效评级（全为'-'或空值）")
+                                print(f" 股票 {stock_code} 在 {total_data_points} 天数据中无有效评级（全为'-'或空值）")
                     except Exception as e:
-                        print(f"📊 从analysis_results_obj.data_source获取失败: {e}")
+                        print(f" 从analysis_results_obj.data_source获取失败: {e}")
             
             # 方法3：尝试直接从原始数据获取（作为备用方案）
             if self.analysis_results and 'data_source' in self.analysis_results:
                 data_source = self.analysis_results['data_source']
                 if hasattr(data_source, 'data') and hasattr(data_source, '_metadata'):
-                    print(f"📊 尝试从原始DataFrame直接获取...")
+                    print(f" 尝试从原始DataFrame直接获取...")
                     try:
                         # 直接访问原始数据
                         stock_code_str = str(stock_code)
@@ -8073,7 +9091,7 @@ class AnalysisPage(QWidget):
                             if stock_code_cleaned:  # 避免空字符串
                                 stock_row = stock_data[stock_data['股票代码'].astype(str) == stock_code_cleaned]
                         
-                        print(f"📊 股票代码匹配结果: {stock_code_str} -> 找到{len(stock_row)}条记录")
+                        print(f" 股票代码匹配结果: {stock_code_str} -> 找到{len(stock_row)}条记录")
                         
                         if not stock_row.empty:
                             date_columns = data_source._metadata.get('date_columns', [])
@@ -8091,17 +9109,17 @@ class AnalysisPage(QWidget):
                                             historical_data.append((str(date_col), rating_num))
                                 
                                 if historical_data:
-                                    print(f"✅ 从原始DataFrame提取到 {len(historical_data)} 个历史评级点")
+                                    print(f" 从原始DataFrame提取到 {len(historical_data)} 个历史评级点")
                                     return historical_data
                     except Exception as e:
-                        print(f"📊 从原始DataFrame获取失败: {e}")
+                        print(f" 从原始DataFrame获取失败: {e}")
             
             # 如果没有找到真实数据，返回None
-            print(f"🔍 未找到股票 {stock_code} 的真实历史数据")
+            print(f" 未找到股票 {stock_code} 的真实历史数据")
             return None
             
         except Exception as e:
-            print(f"❌ 获取真实历史数据失败: {e}")
+            print(f"[ERROR] 获取真实历史数据失败: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -8204,7 +9222,7 @@ class AnalysisPage(QWidget):
         from datetime import datetime
         
         if not chart_data:
-            return "📊 暂无历史评级数据\n\n    💡 此股票在数据期间内所有评级均为空（显示为'-'）\n    📅 可能原因：\n        • 新上市股票，评级机构尚未覆盖\n        • 停牌或特殊情况期间无评级\n        • 数据源暂未包含该股票的评级信息\n    🔍 建议选择其他有评级数据的股票查看趋势图表"
+            return " 暂无历史评级数据\n\n     此股票在数据期间内所有评级均为空（显示为'-'）\n    📅 可能原因：\n        • 新上市股票，评级机构尚未覆盖\n        • 停牌或特殊情况期间无评级\n        • 数据源暂未包含该股票的评级信息\n     建议选择其他有评级数据的股票查看趋势图表"
         
         # 应用显示补全功能
         if enable_completion:
@@ -8214,7 +9232,7 @@ class AnalysisPage(QWidget):
         if len(chart_data) == 1 and isinstance(chart_data[0], tuple):
             first_item = chart_data[0]
             if len(first_item) >= 2 and isinstance(first_item[1], str) and "无历史评级数据" in first_item[1]:
-                return "📊 暂无历史评级数据\n\n    💡 此股票尚无足够的历史评级记录\n    📅 请稍后查看或选择其他股票"
+                return " 暂无历史评级数据\n\n     此股票尚无足够的历史评级记录\n    📅 请稍后查看或选择其他股票"
         
         dates, ratings = zip(*chart_data)
         
@@ -8236,7 +9254,7 @@ class AnalysisPage(QWidget):
         
         # 如果没有有效的数字评级，返回无数据提示
         if not numeric_ratings:
-            return "📊 暂无有效的历史评级数据\n\n    💡 评级数据格式异常或无法解析\n    📅 请稍后查看或选择其他股票"
+            return " 暂无有效的历史评级数据\n\n     评级数据格式异常或无法解析\n    📅 请稍后查看或选择其他股票"
         
         # 重新构建有效的数据对
         valid_data = [(dates[i], ratings[i]) for i, rating in enumerate(ratings) 
@@ -8244,7 +9262,7 @@ class AnalysisPage(QWidget):
                      (isinstance(rating, str) and self.convert_rating_to_number(rating) is not None)]
         
         if not valid_data:
-            return "📊 暂无有效的历史评级数据\n\n    💡 评级数据格式异常或无法解析\n    📅 请稍后查看或选择其他股票"
+            return " 暂无有效的历史评级数据\n\n     评级数据格式异常或无法解析\n    📅 请稍后查看或选择其他股票"
         
         # 重新解包有效数据
         dates, ratings = zip(*valid_data)
@@ -8365,11 +9383,11 @@ class AnalysisPage(QWidget):
         
         if completion_count > 0:
             chart_lines.append("")
-            chart_lines.append("💡 图例: ● 原始数据  △ 显示补全(用最近信号延续)  │ 评级上方区间")
-            chart_lines.append(f"⚠️ 最近{completion_count}天为显示补全数据，仅用于图表完整性，不用于分析")
+            chart_lines.append(" 图例: ● 原始数据  △ 显示补全(用最近信号延续)  │ 评级上方区间")
+            chart_lines.append(f" 最近{completion_count}天为显示补全数据，仅用于图表完整性，不用于分析")
         else:
             chart_lines.append("")
-            chart_lines.append(f"💡 {t_gui('chart_legend')}: {t_gui('legend_rating_points')}  {t_gui('legend_above_rating')}  {t_gui('legend_below_rating')}")
+            chart_lines.append(f" {t_gui('chart_legend')}: {t_gui('legend_rating_points')}  {t_gui('legend_above_rating')}  {t_gui('legend_below_rating')}")
         
         return "\n".join(chart_lines)
     
@@ -8471,18 +9489,68 @@ class AnalysisPage(QWidget):
     
     def _perform_technical_analysis_sync(self, prompt, stock_code):
         """同步执行技术面分析"""
+        analysis_type = "技术面分析"
+        
         try:
+            # ===== 执行前检查 =====
+            can_proceed, config = self._ai_analysis_before(analysis_type)
+            if not can_proceed:
+                self.on_technical_analysis_error("执行前检查未通过")
+                return
+            
+            # 执行分析
             result = self._call_llm_for_analysis(prompt, "技术面分析师")
-            self.on_technical_analysis_finished(result, stock_code)
+            
+            # 检查是否是API Key错误信息（用户取消配置或没有输入API Key）
+            if result and isinstance(result, str) and ("需要配置API Key" in result or "API Key configuration required" in result):
+                print(f"[{analysis_type}] API Key配置取消，终止分析")
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                self.on_technical_analysis_error(result)
+                return
+            
+            # ===== 执行后处理 =====
+            if result:
+                self._ai_analysis_after(success=True, analysis_type=analysis_type)
+                self.on_technical_analysis_finished(result, stock_code)
+            else:
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                self.on_technical_analysis_error("AI分析未返回结果")
+                
         except Exception as e:
+            self._ai_analysis_after(success=False, analysis_type=analysis_type)
             self.on_technical_analysis_error(str(e))
     
     def _perform_master_analysis_sync(self, prompt, stock_code):
         """同步执行投资大师分析"""
+        analysis_type = "投资大师分析"
+        
         try:
+            # ===== 执行前检查 =====
+            can_proceed, config = self._ai_analysis_before(analysis_type)
+            if not can_proceed:
+                self.on_master_analysis_error("执行前检查未通过")
+                return
+            
+            # 执行分析
             result = self._call_llm_for_analysis(prompt, "投资大师")
-            self.on_master_analysis_finished(result, stock_code)
+            
+            # 检查是否是API Key错误信息（用户取消配置或没有输入API Key）
+            if result and isinstance(result, str) and ("需要配置API Key" in result or "API Key configuration required" in result):
+                print(f"[{analysis_type}] API Key配置取消，终止分析")
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                self.on_master_analysis_error(result)
+                return
+            
+            # ===== 执行后处理 =====
+            if result:
+                self._ai_analysis_after(success=True, analysis_type=analysis_type)
+                self.on_master_analysis_finished(result, stock_code)
+            else:
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                self.on_master_analysis_error("AI分析未返回结果")
+                
         except Exception as e:
+            self._ai_analysis_after(success=False, analysis_type=analysis_type)
             self.on_master_analysis_error(str(e))
     
     def on_technical_analysis_finished(self, result, stock_code):
@@ -8515,9 +9583,9 @@ class AnalysisPage(QWidget):
             # 重置按钮状态 - 适配新的按钮名称
             if hasattr(self, 'technical_ai_analyze_btn'):
                 self.technical_ai_analyze_btn.setEnabled(True)
-                self.technical_ai_analyze_btn.setText("🚀 开始技术面AI分析")
+                self.technical_ai_analyze_btn.setText(" 开始技术面AI分析")
             if hasattr(self, 'technical_ai_status_label'):
-                self.technical_ai_status_label.setText("✅ 技术面分析完成")
+                self.technical_ai_status_label.setText(" 技术面分析完成")
             self.technical_analysis_in_progress = False
             
         except Exception as e:
@@ -8553,9 +9621,9 @@ class AnalysisPage(QWidget):
             # 重置按钮状态 - 适配新的按钮名称
             if hasattr(self, 'master_ai_analyze_btn'):
                 self.master_ai_analyze_btn.setEnabled(True)
-                self.master_ai_analyze_btn.setText("🚀 开始投资大师AI分析")
+                self.master_ai_analyze_btn.setText(" 开始投资大师AI分析")
             if hasattr(self, 'master_ai_status_label'):
-                self.master_ai_status_label.setText("✅ 投资大师分析完成")
+                self.master_ai_status_label.setText(" 投资大师分析完成")
             self.master_analysis_in_progress = False
             
         except Exception as e:
@@ -8566,9 +9634,9 @@ class AnalysisPage(QWidget):
         print(f"技术面分析失败: {error_msg}")
         if hasattr(self, 'technical_ai_analyze_btn'):
             self.technical_ai_analyze_btn.setEnabled(True)
-            self.technical_ai_analyze_btn.setText("🚀 开始技术面AI分析")
+            self.technical_ai_analyze_btn.setText(" 开始技术面AI分析")
         if hasattr(self, 'technical_ai_status_label'):
-            self.technical_ai_status_label.setText(f"❌ 分析失败: {error_msg}")
+            self.technical_ai_status_label.setText(f"[ERROR] 分析失败: {error_msg}")
         self.technical_analysis_in_progress = False
         
         QMessageBox.critical(self, "技术面分析失败", f"分析过程中出现错误：\n{error_msg}")
@@ -8578,9 +9646,9 @@ class AnalysisPage(QWidget):
         print(f"投资大师分析失败: {error_msg}")
         if hasattr(self, 'master_ai_analyze_btn'):
             self.master_ai_analyze_btn.setEnabled(True)
-            self.master_ai_analyze_btn.setText("🚀 开始投资大师AI分析")
+            self.master_ai_analyze_btn.setText(" 开始投资大师AI分析")
         if hasattr(self, 'master_ai_status_label'):
-            self.master_ai_status_label.setText(f"❌ 分析失败: {error_msg}")
+            self.master_ai_status_label.setText(f"[ERROR] 分析失败: {error_msg}")
         self.master_analysis_in_progress = False
         
         QMessageBox.critical(self, "投资大师分析失败", f"分析过程中出现错误：\n{error_msg}")
@@ -8601,15 +9669,24 @@ class AnalysisPage(QWidget):
 - 股票代码：{stock_code}
 - 股票名称：{stock_name}
 - 所属行业：{industry}
-- RTSI评分：{rtsi_score:.2f} (范围：20-75，当前优化增强RTSI算法)
+- RTSI评分：{rtsi_score:.2f} (范围：0-90，优化增强RTSI v2.3算法)
 - 分析算法：{algorithm}
 
-**RTSI评分解读标准：**
-- 60-75：强势区间，技术面非常强劲
-- 50-59：中强势区间，技术面较好
-- 40-49：中性区间，技术面平衡
-- 30-39：偏弱区间，技术面较弱
-- 10-29：弱势区间，技术面疲弱
+**RTSI评分解读标准（严格执行，最高分90）：**
+ 重要提醒：RTSI v2.3算法最高分约为90分（极少数优质股票），请准确理解评分含义
+- 80-90：顶级强势区间（接近满分），技术面卓越，优先配置（仓位≤25%）
+- 70-79：极强势区间，技术面极其强劲，积极关注（仓位≤20%）
+- 60-69：高分强势区间，技术面表现优秀，积极配置（仓位≤15%）
+- 50-59：中等偏上区间，技术面相对稳健，适度关注（仓位≤10%）
+- 40-49：中性区间，技术面平衡，谨慎分析（仓位≤8%）
+- 30-39：偏弱区间，技术面较弱，建议观望（仓位≤5%）
+- 30以下：弱势区间，技术面疲弱，建议规避（仓位≤2%）
+
+**当前评分{rtsi_score:.2f}的详细解读：**
+{self._get_detailed_rtsi_interpretation(rtsi_score)}
+
+**风险匹配的操作建议框架：**
+{self._get_rtsi_operation_framework(rtsi_score)}
 
 **评级趋势数据：**
 {self._format_rating_trend_for_prompt(rating_trend)}
@@ -8618,21 +9695,181 @@ class AnalysisPage(QWidget):
 {self._format_volume_price_for_prompt(volume_price_data)}
 
 **分析要求：**
-1. **技术指标分析**：基于RTSI评分和评级趋势，分析技术面强弱
-2. **趋势判断**：分析当前趋势方向和持续性
-3. **支撑阻力**：识别关键的支撑和阻力位
-4. **成交量分析**：分析成交量与价格的配合情况
-5. **操作建议**：给出具体的买入、卖出或持有建议
-6. **风险提示**：指出当前的主要技术风险
+1. **RTSI评分精准解读（强制要求）**：
+   •  特别注意：{rtsi_score:.2f}分属于60-69高分强势区间，必须按此标准解读
+   • 禁止将60-69分错误归类为"中性平衡"或"中等"，这是高分区间
+   • 必须明确说明当前技术面表现优秀，具备较强投资价值
+   • 分析建议必须与高分强势区间相匹配，采用积极配置策略
 
-**重要提示：**
-- 本分析针对大盘股，请在风险评估时考虑大盘股相对较低的流动性风险
-- 操作建议应体现大盘股稳健投资的特点
-- 如需推荐类似股票，请优先推荐其他大盘股和蓝筹股
+2. **数据驱动分析（强制要求）**：
+   • 【必须引用】分析中必须明确引用具体的评级趋势数据和量价数据，不得忽略
+   • 【数据验证】必须引用具体日期和数值，如"2025年X月X日评级变化"、"成交量XXX万股"、"价格X.XX元"
+   • 【禁止空洞】禁止使用"数据显示"、"根据趋势"等模糊表述，必须使用具体数据
+   • 【分析深度】每个关键数据点都必须给出具体的技术面解读和投资含义
+   • 【量价配合】必须分析成交量与价格变化的配合情况，判断资金流向
+   • 【趋势确认】必须基于评级趋势数据判断技术面是改善还是恶化
+   • 【时间维度】必须分析短期（1-3天）、中期（1-2周）、长期（1-3个月）的技术变化
+
+3. **操作建议精准化（风险控制）**：
+   • 【仓位限制】单只股票的仓位建议不得超过20%，违反此规定的建议将被认为不合格
+   • 【具体建议】必须给出明确的买入/持有/卖出建议百分比
+   • 【价位设定】必须设置具体的目标价位和止损位，避免过于宽泛的范围
+   • 【风险匹配】仓位建议必须与RTSI评分区间相匹配（中性区间建议更低仓位）
+
+4. **客观性要求**：
+   • 客观评估技术面，不得夸大上涨潜力
+   • 对于中性或偏弱的RTSI评分，应给出相应的谨慎建议
+   • 重视风险控制，避免盲目推荐
+
+**重要约束：**
+- 严格基于提供的RTSI评分和数据进行分析，不得编造数据
+- 建议必须与RTSI评分等级相匹配
+- 本分析针对大盘股，操作建议应体现稳健投资特点
+- 避免推荐其他股票，专注于当前分析标的
+
+【技术分析完整性检查清单】
+完成分析前，请逐项确认以下要求：
+ RTSI解读：已准确解读RTSI {rtsi_score:.2f}分的技术面含义，使用正确的区间描述
+ 数据引用：已引用具体的评级趋势和量价数据，包含具体日期和数值
+ 量价分析：已分析成交量与价格变化的配合情况
+ 趋势判断：已基于数据判断短期、中期、长期技术变化
+ 仓位控制：仓位建议严格控制在对应区间内（当前应≤{20 if rtsi_score >= 70 else 15 if rtsi_score >= 60 else 12 if rtsi_score >= 50 else 10 if rtsi_score >= 40 else 8 if rtsi_score >= 30 else 5}%）
+ 风险匹配：建议与RTSI评分区间完全匹配
+ 客观性：未夸大中性或偏弱评分的上涨潜力
+ 具体性：提供了明确的目标价位和止损位
+ 专业性：使用了专业的技术分析术语和逻辑
+
+[ERROR] 如任一项未完成，请重新完善分析内容
 
 请以专业技术分析师的口吻，用中文回复，结构清晰，观点明确。"""
 
         return prompt
+    
+    def _get_detailed_rtsi_interpretation(self, rtsi_score):
+        """根据RTSI分数生成详细解读（基于最高90分的实际情况 - RTSI v2.3）"""
+        if rtsi_score >= 80:
+            return f"""
+该股票RTSI评分{rtsi_score:.2f}分处于顶级强势区间（80-90），技术面表现卓越。
+注意：RTSI v2.3最高分约为90分，当前评分已接近满分，技术面优势极其显著。
+这表明股票具有卓越的技术优势和极强的上涨动能，属于市场中的顶级标的。
+操作建议：优先配置，可重点增配，建议仓位不超过20-25%。
+当前技术信号：极其积极，适合各类投资者优先配置。"""
+        elif rtsi_score >= 70:
+            return f"""
+该股票RTSI评分{rtsi_score:.2f}分处于极强势区间（70-79），技术面表现极其强劲。
+注意：RTSI v2.3最高分约90分，70+属于高分区间，技术面优势显著。
+这表明股票具有卓越的技术优势，短期内有很强的上涨动能。
+操作建议：积极关注，可适度增配，建议仓位不超过15-20%。
+当前技术信号：非常积极，适合稳健投资者重点配置。"""
+        elif rtsi_score >= 60:
+            return f"""
+该股票RTSI评分{rtsi_score:.2f}分处于高分强势区间（60-69），技术面表现强劲。
+技术指标显示良好的上涨趋势，具备较强的投资价值和上涨潜力。
+操作建议：积极关注，可适度配置，建议仓位不超过12-15%。
+当前技术信号：积极乐观，适合稳健投资者重点关注。"""
+        elif rtsi_score >= 50:
+            return f"""
+该股票RTSI评分{rtsi_score:.2f}分处于中等偏上区间（50-59），技术面较好。
+技术指标显示一定的上涨潜力，整体趋势相对稳健。
+操作建议：可适度关注，控制仓位在10%以内，重视风险管理。
+当前技术信号：中性偏好，适合保守型投资者小幅配置。"""
+        elif rtsi_score >= 40:
+            return f"""
+该股票RTSI评分{rtsi_score:.2f}分处于中性区间（40-49），技术面平衡。
+既无明显的强势信号，也无明显的弱势特征，技术面中性平衡。
+操作建议：需要谨慎，仅建议极小仓位试探（≤8%），重点关注风险控制。
+当前技术信号：中性平衡，不强不弱，需要更多确认信号。"""
+        elif rtsi_score >= 30:
+            return f"""
+该股票RTSI评分{rtsi_score:.2f}分处于偏弱区间（30-39），技术面较弱。
+技术指标显示一定的弱势特征，上涨动能不足。
+操作建议：建议观望为主，如配置仅限极小仓位（≤5%），严控风险。
+当前技术信号：偏向谨慎，不适合主动配置。"""
+        else:
+            return f"""
+该股票RTSI评分{rtsi_score:.2f}分处于弱势区间（30分以下），技术面疲弱。
+技术指标显示明显的弱势特征，缺乏上涨动能。
+操作建议：强烈建议规避，如特殊情况配置仅限最小仓位（≤2%）。
+当前技术信号：明显偏弱，不建议投资配置。"""
+    
+    def _get_rtsi_operation_framework(self, rtsi_score):
+        """根据RTSI分数生成操作建议框架（基于最高90分实际情况 - RTSI v2.3）"""
+        if rtsi_score >= 80:
+            return f"""
+【顶级强势操作框架】(RTSI: {rtsi_score:.2f}/90)
+▪ 评级说明：接近满分的顶级表现，市场中的优质标的
+▪ 推荐仓位：18-25%（可重点增配的顶级标的）
+▪ 买入策略：优先配置，可在适当时机积极建仓
+▪ 持有策略：长期持有为主，适度动态调整
+▪ 止盈策略：目标涨幅25-35%，分批止盈
+▪ 止损策略：跌破重要支撑位或RTSI跌破65时考虑减仓
+▪ 风险提示：注意高位回调风险，不宜追高"""
+        elif rtsi_score >= 70:
+            return f"""
+【极强势操作框架】(RTSI: {rtsi_score:.2f}/90)
+▪ 评级说明：接近满分的极强势表现
+▪ 推荐仓位：12-18%（可适度增配的优质标的）
+▪ 买入策略：积极配置，可在回调时分批建仓
+▪ 持有策略：积极持有，重点关注量价配合
+▪ 卖出信号：RTSI跌破65或出现明显技术破位
+▪ 止损位：建议设置在当前价格下方8-10%
+▪ 目标收益：短期15-25%，中期25-40%
+▪ 风险提示：即使接近满分也需严控仓位，防范市场系统性风险"""
+        elif rtsi_score >= 60:
+            return f"""
+【高分强势操作框架】(RTSI: {rtsi_score:.2f}/90)
+▪ 评级说明：高分区间，技术面表现优秀
+▪ 推荐仓位：10-15%（积极配置的优质标的）
+▪ 买入策略：积极配置，可在技术调整时适度加仓
+▪ 持有策略：积极持有，密切关注技术变化
+▪ 卖出信号：RTSI跌破55或技术形态破坏
+▪ 止损位：建议设置在当前价格下方10-12%
+▪ 目标收益：短期10-20%，中期20-35%
+▪ 风险提示：高分股票具备较强投资价值，但仍需控制仓位风险"""
+        elif rtsi_score >= 50:
+            return f"""
+【中等偏上操作框架】(RTSI: {rtsi_score:.2f}/90)
+▪ 评级说明：中等偏上水平，技术面相对稳健
+▪ 推荐仓位：6-10%（适度配置）
+▪ 买入策略：稳健配置，等待更好买点
+▪ 持有策略：谨慎持有，随时准备调整
+▪ 卖出信号：RTSI跌破45或出现技术疲软
+▪ 止损位：建议设置在当前价格下方12-15%
+▪ 目标收益：短期5-15%，中期10-20%
+▪ 风险提示：中等水平股票波动性较大，需密切监控"""
+        elif rtsi_score >= 40:
+            return f"""
+【中性平衡操作框架】(RTSI: {rtsi_score:.2f}/90)
+▪ 评级说明：中性平衡，技术面无明显强弱信号
+▪ 推荐仓位：3-8%（极度谨慎，试探性配置）
+▪ 买入策略：非常谨慎，等待明确向上信号
+▪ 持有策略：密切监控，随时准备退出
+▪ 卖出信号：RTSI跌破35或任何技术恶化信号
+▪ 止损位：严格设置在当前价格下方8-10%
+▪ 目标收益：短期3-8%，中期5-12%
+▪ 风险提示：中性股票方向不明，以风控为首要原则"""
+        elif rtsi_score >= 30:
+            return f"""
+【偏弱观望框架】(RTSI: {rtsi_score:.2f}/90)
+▪ 评级说明：偏弱水平，技术面表现不佳
+▪ 推荐仓位：1-5%（仅限特殊情况的最小配置）
+▪ 买入策略：强烈建议观望，等待技术改善
+▪ 持有策略：如有持仓建议减仓或清仓
+▪ 卖出信号：任何进一步的技术恶化
+▪ 止损位：非常严格，当前价格下方5-8%
+▪ 目标收益：以保本为主，期望收益很低
+▪ 风险提示：偏弱股票下跌风险大，强烈建议规避"""
+        else:
+            return f"""
+【弱势规避框架】(RTSI: {rtsi_score:.2f}/90)
+▪ 评级说明：弱势表现，技术面严重不佳
+▪ 推荐仓位：0-2%（强烈建议完全规避）
+▪ 买入策略：不建议买入，等待基本面重大改善
+▪ 持有策略：如有持仓建议尽快清仓
+▪ 卖出信号：立即卖出或等待反弹卖出
+▪ 止损位：不适用（建议直接规避）
+▪ 目标收益：无收益预期，以减损为目标
+▪ 风险提示：弱势股票风险极大，强烈建议完全规避"""
     
     def generate_master_analysis_prompt(self, analysis_data):
         """生成投资大师分析提示词 - 基于迷你投资大师的策略"""
@@ -8654,10 +9891,12 @@ class AnalysisPage(QWidget):
 - 股票代码：{stock_code}
 - 股票名称：{stock_name}
 - 所属行业：{industry}
-- RTSI技术评分：{rtsi_score:.2f} (范围：20-75，当前优化增强RTSI算法)
+- RTSI技术评分：{rtsi_score:.2f} (范围：0-90，优化增强RTSI v2.3算法)
 
-**RTSI评分解读标准：**
-- 60-75：强势区间，技术面非常强劲，适合成长投资和趋势投资
+**RTSI评分解读标准（v2.3算法，最高约90分）：**
+- 80-90：顶级强势区间，技术面卓越，优先配置的顶级标的
+- 70-79：极强势区间，技术面极其强劲，重点关注和配置
+- 60-69：强势区间，技术面非常强劲，适合成长投资和趋势投资
 - 50-59：中强势区间，技术面较好，适合价值成长结合策略
 - 40-49：中性区间，技术面平衡，需结合基本面深度分析
 - 30-39：偏弱区间，技术面较弱，适合逆向投资或等待时机
@@ -8683,12 +9922,12 @@ class AnalysisPage(QWidget):
    - 基于评分{master_scores.get('buffett', 0):.1f}分，分析是否符合价值投资标准
    - 给出长期持有建议
 
-2. **📈 彼得林奇 (成长投资大师)**：
+2. ** 彼得林奇 (成长投资大师)**：
    - 关注成长潜力、行业前景、动量特征
    - 基于评分{master_scores.get('lynch', 0):.1f}分，分析成长投资机会
    - 给出成长投资建议
 
-3. **💰 格雷厄姆 (证券分析之父)**：
+3. ** 格雷厄姆 (证券分析之父)**：
    - 关注安全边际、低估值、风险控制
    - 基于评分{master_scores.get('graham', 0):.1f}分，分析价值低估机会
    - 给出价值挖掘建议
@@ -8864,6 +10103,112 @@ class AnalysisPage(QWidget):
         except Exception as e:
             raise Exception(f"{analyst_type}调用LLM失败: {str(e)}")
     
+    def _check_api_key_for_stock_analysis(self, config, provider, use_english, base_path):
+        """
+        在执行个股AI分析前检查API Key
+        
+        Args:
+            config: 配置字典
+            provider: 供应商名称
+            use_english: 是否使用英文
+            base_path: 基础路径
+            
+        Returns:
+            None: 检查通过，继续执行
+            str: 错误信息，终止执行
+        """
+        try:
+            # 如果是Ollama或LMStudio，跳过API Key检查
+            if provider.lower() in ['ollama', 'lmstudio']:
+                print(f"[API Key检查] {provider} 不需要API Key，跳过检查")
+                return None
+            
+            # 检查是否有API Key配置
+            has_api_key = False
+            
+            # 检查各个供应商的API Key
+            provider_keys = {
+                'openai': 'OPENAI_API_KEY',
+                'deepseek': 'DEEPSEEK_API_KEY',
+                'siliconflow': 'SILICONFLOW_API_KEY',
+                'anthropic': 'ANTHROPIC_API_KEY',
+                'google': 'GOOGLE_API_KEY',
+                'zhipu': 'ZHIPU_API_KEY',
+                'moonshot': 'MOONSHOT_API_KEY',
+            }
+            
+            # 获取当前供应商对应的API Key字段名
+            key_field = provider_keys.get(provider.lower())
+            if key_field:
+                api_key = config.get(key_field, '').strip()
+                if api_key and api_key != '':
+                    has_api_key = True
+                    print(f"[API Key检查] 检测到 {provider} 的 API Key")
+            
+            # 如果没有API Key，弹出设置窗口
+            if not has_api_key:
+                print(f"[API Key检查] 未检测到 {provider} 的 API Key，需要配置")
+                
+                # 根据系统语言决定弹出哪个窗口
+                from config.gui_i18n import get_system_language
+                system_language = get_system_language()
+                
+                if system_language == 'zh':
+                    # 中文系统：弹出新的API配置对话框
+                    print("[API Key检查] 中文系统，弹出API配置对话框")
+                    try:
+                        from api_key_dialog import APIKeyDialog
+                        
+                        # 在主线程中显示对话框
+                        dialog = APIKeyDialog(self)
+                        dialog.exec_()
+                        
+                        # 对话框关闭后，返回提示信息
+                        if use_english:
+                            return "API Key configuration required. Please configure your API Key and try again."
+                        else:
+                            return "需要配置API Key。请配置您的API Key后重试。"
+                    except Exception as e:
+                        print(f"[API Key检查] 显示API配置对话框失败: {e}")
+                        if use_english:
+                            return f"Failed to show API configuration dialog: {str(e)}"
+                        else:
+                            return f"显示API配置对话框失败：{str(e)}"
+                else:
+                    # 非中文系统：运行 setting.exe
+                    print("[API Key检查] 非中文系统，运行 setting.exe")
+                    try:
+                        import subprocess
+                        
+                        setting_exe = base_path / "llm-api" / "setting.exe"
+                        if setting_exe.exists():
+                            subprocess.Popen([str(setting_exe)], cwd=str(setting_exe.parent))
+                            if use_english:
+                                return "API Key configuration required. Please configure your API Key in the settings window and try again."
+                            else:
+                                return "需要配置API Key。请在设置窗口中配置您的API Key后重试。"
+                        else:
+                            if use_english:
+                                return f"Settings program not found: {setting_exe}"
+                            else:
+                                return f"设置程序未找到：{setting_exe}"
+                    except Exception as e:
+                        print(f"[API Key检查] 运行 setting.exe 失败: {e}")
+                        if use_english:
+                            return f"Failed to run settings program: {str(e)}"
+                        else:
+                            return f"运行设置程序失败：{str(e)}"
+            
+            # 检查通过
+            return None
+            
+        except Exception as e:
+            print(f"[API Key检查] 检查过程出错: {e}")
+            import traceback
+            traceback.print_exc()
+            # 出错时不阻止执行，让后续的API调用自己处理错误
+            return None
+    
     def _call_llm_api_for_analysis(self, prompt):
         """实际调用LLM API - 使用与行业分析相同的LLMClient方式"""
         try:
@@ -8871,49 +10216,102 @@ class AnalysisPage(QWidget):
             import time
             from pathlib import Path
             
-            # 添加llm-api到路径
-            project_root = Path(__file__).parent
-            llm_api_path = project_root / "llm-api"
+            # 检测当前系统语言
+            from config.gui_i18n import get_system_language
+            is_english = lambda: get_system_language() == 'en'
+            use_english = is_english()
+            
+            # 添加llm-api到路径（使用path_helper确保打包环境正确）
+            from utils.path_helper import get_base_path
+            base_path = get_base_path()  # 打包环境下返回EXE所在目录
+            llm_api_path = base_path / "llm-api"
             if str(llm_api_path) not in sys.path:
                 sys.path.insert(0, str(llm_api_path))
             
-            # 首先检查配置中的供应商设置
+            # ===== 新增：强制重新加载配置文件 =====
+            import json
+            config_path = llm_api_path / "config" / "user_settings.json"
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    print(f"[个股AI分析] 已强制重新加载AI配置")
+            else:
+                config = {}
+                print("[个股AI分析] 未找到配置文件，使用默认设置")
+            
+            default_provider = config.get('default_provider', 'OpenAI')
+            print(f"[个股AI分析] 当前配置的LLM供应商: {default_provider}")
+            
+            # ===== 新增：试用模式检查（必须在API Key检查之前）=====
+            is_trial_mode = False
             try:
-                import json
-                config_path = llm_api_path / "config" / "user_settings.json"
-                if config_path.exists():
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                        default_provider = config.get('default_provider', 'OpenAI')
-                        print(f"[个股AI分析] 当前配置的LLM供应商: {default_provider}")
-                        
-                        # 如果使用Ollama，先检查并启动服务
-                        if default_provider.lower() == 'ollama':
-                            print("[个股AI分析] 检测到Ollama供应商，正在检查服务状态...")
-                            
-                            # 导入Ollama工具
-                            try:
-                                from ollama_utils import ensure_ollama_and_model
-                                model_name = config.get('default_chat_model', 'gemma3:1b')
-                                base_url = config.get('OLLAMA_BASE_URL', 'http://localhost:11434')
-                                
-                                print(f"[个股AI分析] 正在启动Ollama服务并确保模型可用: {model_name}")
-                                if not ensure_ollama_and_model(model_name, base_url):
-                                    return f"无法启动Ollama服务或模型不可用。\n\n💡 解决方案：\n1. 请确保Ollama已正确安装\n2. 手动运行命令: ollama serve\n3. 检查端口11434是否被占用\n4. 检查防火墙设置"
-                                
-                                print("[个股AI分析] Ollama服务检查完成，准备进行AI分析")
-                                
-                            except ImportError as e:
-                                print(f"[个股AI分析] 无法导入Ollama工具: {e}")
-                                return f"Ollama工具模块导入失败: {e}"
+                from utils.ai_usage_counter import get_ai_usage_count
+                
+                provider = config.get('default_provider', '').lower()
+                api_key = config.get('SILICONFLOW_API_KEY', '').strip()
+                current_count = get_ai_usage_count()
+                
+                # 检查是否符合试用条件：SiliconFlow + 无API Key + 计数<20
+                if provider == 'siliconflow' and not api_key and current_count < 20:
+                    print(f"[个股AI分析-试用模式] 符合试用条件（{current_count}/20次）")
+                    print(f"[个股AI分析-试用模式] 使用预设试用配置")
+                    
+                    # 使用硬编码的试用配置
+                    trial_config = {
+                        "default_provider": "SiliconFlow",
+                        "default_chat_model": "Qwen/Qwen3-8B",
+                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "request_timeout": 600,
+                        "agent_role": "不使用",
+                        "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
+                        "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
+                        "dont_show_api_dialog": True
+                    }
+                    
+                    # 使用试用配置
+                    config = trial_config
+                    is_trial_mode = True
+                    default_provider = "SiliconFlow"
+                    
+                    print(f"[个股AI分析-试用模式] 配置已切换为试用模式，剩余 {20 - current_count} 次试用机会")
                 else:
-                    print("[个股AI分析] 未找到配置文件，使用默认设置")
+                    if provider == 'siliconflow' and not api_key and current_count >= 20:
+                        print(f"[个股AI分析-试用模式] 试用次数已用完（{current_count}/20），请配置API Key")
+                        
             except Exception as e:
-                print(f"[个股AI分析] 读取配置文件时出错: {e}")
+                print(f"[个股AI分析] 试用检查出错: {e}")
+            
+            # ===== 新增：检查API Key（如果不是试用模式才检查）=====
+            if not is_trial_mode:
+                # 注意：这里在AnalysisPage中，不是AnalysisWorker，所以需要直接调用检查逻辑
+                api_key_check_result = self._check_api_key_for_stock_analysis(config, default_provider, use_english, base_path)
+                if api_key_check_result is not None:
+                    # 返回错误信息，终止AI执行
+                    return api_key_check_result
+            else:
+                print(f"[个股AI分析] 试用模式，跳过API Key检查")
+            
+            # 如果使用Ollama，先检查并启动服务
+            if default_provider.lower() == 'ollama':
+                print("[个股AI分析] 检测到Ollama供应商，正在检查服务状态...")
+                
+                # 导入Ollama工具
+                try:
+                    from ollama_utils import ensure_ollama_and_model
+                    model_name = config.get('default_chat_model', 'gemma3:1b')
+                    base_url = config.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+                    
+                    print(f"[个股AI分析] 正在启动Ollama服务并确保模型可用: {model_name}")
+                    if not ensure_ollama_and_model(model_name, base_url):
+                        return f"无法启动Ollama服务或模型不可用。\n\n 解决方案：\n1. 请确保Ollama已正确安装\n2. 手动运行命令: ollama serve\n3. 检查端口11434是否被占用\n4. 检查防火墙设置"
+                    
+                    print("[个股AI分析] Ollama服务检查完成，准备进行AI分析")
+                    
+                except ImportError as e:
+                    print(f"[个股AI分析] 无法导入Ollama工具: {e}")
+                    return f"Ollama工具模块导入失败: {e}"
             
             # 根据配置的提供商选择合适的LLM客户端
-            default_provider = config.get('default_provider', 'OpenAI')
-            
             if default_provider.lower() == 'ollama':
                 # Ollama使用SimpleLLMClient
                 try:
@@ -8944,8 +10342,12 @@ class AnalysisPage(QWidget):
                         LLMClient = client_module.SimpleLLMClient
                         print("[个股AI分析] 使用绝对路径导入SimpleLLMClient作为回退")
             
-            # 创建LLM客户端
-            client = LLMClient()
+            # 创建LLM客户端（试用模式下传递临时配置）
+            if is_trial_mode:
+                print(f"[个股AI分析] 使用试用配置创建客户端")
+                client = LLMClient(temp_config=config)
+            else:
+                client = LLMClient()
             
             start_time = time.time()
             
@@ -9011,7 +10413,7 @@ class AnalysisPage(QWidget):
             <title>{t_gui('technical_analysis_report_title')} - {stock_name}({stock_code})</title>
             <style>
                 body {{
-                    font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif, 'SimHei', sans-serif;
                     line-height: 1.8;
                     margin: 0;
                     padding: 20px;
@@ -9088,8 +10490,8 @@ class AnalysisPage(QWidget):
                 </div>
                 <div class="footer">
                     <p>🔧 本报告由AI技术面分析师生成，基于RTSI指数、评级趋势和本地量价数据分析</p>
-                    <p>📊 数据源：cn-lj.dat.gz 本地数据库，无需联网查询</p>
-                    <p>⚠️ 投资有风险，决策需谨慎。本报告仅供参考，不构成投资建议。</p>
+                    <p> 数据源：cn-lj.dat.gz 本地数据库，无需联网查询</p>
+                    <p> 投资有风险，决策需谨慎。本报告仅供参考，不构成投资建议。</p>
                 </div>
             </div>
         </body>
@@ -9114,7 +10516,7 @@ class AnalysisPage(QWidget):
             <title>投资大师分析报告 - {stock_name}({stock_code})</title>
             <style>
                 body {{
-                    font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+                    font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif, 'SimHei', sans-serif;
                     line-height: 1.8;
                     margin: 0;
                     padding: 20px;
@@ -9194,25 +10596,25 @@ class AnalysisPage(QWidget):
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🏆 投资大师分析报告</h1>
+                    <h1> 投资大师分析报告</h1>
                     <div class="subtitle">{stock_name} ({stock_code})</div>
                     <div class="subtitle">Analysis Time: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
                     <div class="subtitle" style="font-size: 14px; margin-top: 10px; opacity: 0.8;">作者：267278466@qq.com</div>
                 </div>
                 <div class="content">
-                    <div class="analyst-badge">🏆 投资大师分析</div>
+                    <div class="analyst-badge"> 投资大师分析</div>
                     <div class="masters-row">
                         <span class="master-badge">🏛️ 巴菲特</span>
-                        <span class="master-badge">📈 彼得林奇</span>
-                        <span class="master-badge">💰 格雷厄姆</span>
+                        <span class="master-badge"> 彼得林奇</span>
+                        <span class="master-badge"> 格雷厄姆</span>
                         <span class="master-badge">⚡ 德鲁肯米勒</span>
                         <span class="master-badge">🔄 迈克尔·伯里</span>
                     </div>
                     <div class="analysis-content">{ai_result}</div>
                 </div>
                 <div class="footer">
-                    <p>🏆 本报告由AI模拟五位投资大师生成，融合巴菲特、彼得林奇、格雷厄姆、德鲁肯米勒、迈克尔·伯里的投资理念</p>
-                    <p>⚠️ 投资有风险，决策需谨慎。本报告仅供参考，不构成投资建议。</p>
+                    <p> 本报告由AI模拟五位投资大师生成，融合巴菲特、彼得林奇、格雷厄姆、德鲁肯米勒、迈克尔·伯里的投资理念</p>
+                    <p> 投资有风险，决策需谨慎。本报告仅供参考，不构成投资建议。</p>
                 </div>
             </div>
         </body>
@@ -9311,7 +10713,7 @@ class AnalysisPage(QWidget):
             self.save_html_btn.setVisible(False)
     
     def start_ai_analysis(self):
-        """执行AI智能分析 - 直接执行，无需配置检查
+        """执行AI智能分析 - 直接使用已有分析结果
         
         注意：这是主AI分析功能，与行业分析和个股分析的AI功能不同
         主分析会综合大盘、行业、个股三个层面提供全面的投资分析报告
@@ -9320,6 +10722,26 @@ class AnalysisPage(QWidget):
             QMessageBox.warning(self, t_gui("警告"), t_gui("请先完成基础分析"))
             return
             
+        # 设置按键为分析中状态
+        if hasattr(self, 'ai_analysis_btn'):
+            self.ai_analysis_btn.setEnabled(False)
+            self.ai_analysis_btn.setText("🔄 分析中...")
+            self.ai_analysis_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #6c757d;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 15px;
+                    font-weight: bold;
+                }
+            """)
+            # 强制刷新UI显示
+            self.ai_analysis_btn.repaint()
+            self.ai_analysis_btn.update()
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
+            
         # 防止重复分析
         if self.ai_analysis_in_progress:
             QMessageBox.information(self, t_gui("提示"), t_gui("AI分析正在进行中，请稍候..."))
@@ -9327,25 +10749,167 @@ class AnalysisPage(QWidget):
         
         try:
             self.ai_analysis_in_progress = True
-            self.ai_analysis_btn.setEnabled(False)
-            self.ai_analysis_btn.setText("分析中...")
+            # 按键状态已在上面设置，这里不重复设置
             
-            # 直接使用AnalysisWorker进行AI分析
-            self._run_ai_analysis_with_worker()
+            # 【修复方案】直接使用已有分析结果，不重新运行worker
+            print(f"🚨 [主AI分析调试] 开始AI分析，使用已有分析结果")
+            print(f"🚨 [主AI分析调试] analysis_results 类型: {type(self.analysis_results)}")
+            
+            if isinstance(self.analysis_results, dict) and 'analysis_results' in self.analysis_results:
+                # 如果存储在字典中
+                actual_analysis_results = self.analysis_results['analysis_results']
+                print(f"🚨 [主AI分析调试] 从字典中获取 analysis_results: {type(actual_analysis_results)}")
+            else:
+                # 直接使用
+                actual_analysis_results = self.analysis_results
+                print(f"🚨 [主AI分析调试] 直接使用 analysis_results: {type(actual_analysis_results)}")
+            
+            # 创建临时Worker仅用于AI分析
+            # 确保使用正确的数据文件路径
+            data_file_path = getattr(self, 'data_file_path', 'CN_Data5000.json.gz')
+            temp_worker = AnalysisWorker(data_file_path, enable_ai_analysis=True)
+            ai_result = temp_worker.run_ai_analysis(actual_analysis_results)
+            
+            if ai_result:
+                print(f"🚨 [主AI分析调试] AI分析成功，结果长度: {len(ai_result) if ai_result else 0}")
+                
+                # 生成完整的HTML报告（包含基础分析+AI分析）
+                try:
+                    from datetime import datetime
+                    import os
+                    
+                    # 确保reports目录存在（使用正确的路径）
+                    reports_dir = get_reports_dir()
+                    
+                    # 生成HTML文件名
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    html_filename = str(reports_dir / f"analysis_report_{timestamp}.html")
+                    
+                    print(f"🚨 [主AI分析调试] 开始生成完整HTML报告，包含基础分析+AI分析")
+                    
+                    # 生成完整的HTML报告，包含基础分析数据
+                    # 使用临时worker的generate_html_report方法（返回文件路径）
+                    html_file_path = temp_worker.generate_html_report(actual_analysis_results)
+                    
+                    # 读取生成的HTML文件内容
+                    if html_file_path and os.path.exists(html_file_path):
+                        with open(html_file_path, 'r', encoding='utf-8') as f:
+                            full_html_content = f.read()
+                        print(f"🚨 [HTML调试] 成功读取基础HTML文件: {html_file_path}")
+                        print(f"🚨 [HTML调试] 基础HTML长度: {len(full_html_content)}")
+                        print(f"🚨 [HTML调试] 基础HTML前200字符: {full_html_content[:200]}")
+                        print(f"🚨 [HTML调试] 基础HTML是否包含</body>: {'</body>' in full_html_content}")
+                    else:
+                        print(f"[ERROR] [HTML调试] 无法读取基础HTML文件: {html_file_path}")
+                        full_html_content = ""
+                    
+                    # 在HTML报告中添加AI分析部分
+                    ai_section_html = f"""
+<!-- AI智能分析部分 -->
+<div class="section ai-analysis-section" style="border-top: 3px solid #007bff; margin-top: 30px;">
+    <h2 style="color: #007bff; display: flex; align-items: center;">
+        <span style="margin-right: 10px;"></span> AI智能分析
+    </h2>
+    <div class="ai-content" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0;">
+        <div style="white-space: pre-wrap; line-height: 1.6;">{ai_result}</div>
+    </div>
+</div>
+
+</body>
+</html>
+"""
+                    
+                    # 首先删除基础HTML中的AI占位符部分
+                    # 查找并删除旧的AI分析占位符（包含"AI功能未执行"的部分）
+                    import re
+                    ai_placeholder_pattern = r'<div class="section">\s*<h2>[^<]*AI智能分析</h2>.*?</div>\s*</div>'
+                    clean_html_content = re.sub(ai_placeholder_pattern, '', full_html_content, flags=re.DOTALL)
+                    
+                    # 更新标题为"AI智能分析报告"
+                    clean_html_content = clean_html_content.replace('<title>智能分析报告</title>', '<title>AI智能分析报告</title>')
+                    
+                    # 更新页面主标题（H1）
+                    clean_html_content = clean_html_content.replace('<h1>智能分析报告</h1>', '<h1>AI智能分析报告</h1>')
+                    
+                    # 更新header背景色为金黄色
+                    clean_html_content = clean_html_content.replace(
+                        '.header { background: #f4f4f4;',
+                        '.header { background: linear-gradient(135deg, #ffd700, #ffed4e);'
+                    )
+                    
+                    print(f"🚨 [HTML清理调试] 删除AI占位符后的HTML长度: {len(clean_html_content)}")
+                    print(f"🚨 [HTML样式调试] 已更新标题和header背景色为金黄色")
+                    
+                    # 将新的AI分析部分插入到清理后的HTML末尾（在</body></html>之前）
+                    if clean_html_content.endswith('</body>\n</html>'):
+                        complete_html = clean_html_content.replace('</body>\n</html>', ai_section_html)
+                    elif clean_html_content.endswith('</body></html>'):
+                        complete_html = clean_html_content.replace('</body></html>', ai_section_html)
+                    else:
+                        # 如果没有找到结束标签，直接添加到末尾
+                        complete_html = clean_html_content + ai_section_html
+                    
+                    # 保存完整的HTML文件
+                    with open(html_filename, 'w', encoding='utf-8') as f:
+                        f.write(complete_html)
+                    
+                    print(f"🚨 [主AI分析调试] 完整HTML报告已生成: {html_filename}")
+                    print(f"🚨 [主AI分析调试] 报告包含基础分析 + AI分析，总长度: {len(complete_html)}")
+                    
+                    # 调用完成处理
+                    self._on_ai_analysis_completed({
+                        'ai_analysis': ai_result,
+                        'html_report_path': html_filename
+                    })
+                    
+                except Exception as html_error:
+                    print(f"🚨 [主AI分析调试] 生成完整HTML失败: {html_error}")
+                    import traceback
+                    traceback.print_exc()
+                    # 即使HTML生成失败，也要处理AI结果
+                    self._on_ai_analysis_completed({'ai_analysis': ai_result})
+                    
+            else:
+                print(f"🚨 [主AI分析调试] AI分析失败")
+                self._on_ai_analysis_failed("AI分析返回空结果")
             
         except Exception as e:
+            print(f"🚨 [主AI分析调试] AI分析异常: {str(e)}")
+            import traceback
+            traceback.print_exc()
             QMessageBox.critical(self, t_gui("错误"), f"{t_gui('启动AI分析失败')}{str(e)}")
             self._reset_ai_analysis_state()
     
     def _run_ai_analysis_with_worker(self):
         """使用AnalysisWorker运行AI分析"""
         try:
-            # 获取数据文件路径
+            # 【修复数据路径获取逻辑】
             data_file_path = ""
-            if 'data_source' in self.analysis_results:
+            print(f"🚨 [AI分析路径调试] self.analysis_results 结构: {type(self.analysis_results)}")
+            print(f"🚨 [AI分析路径调试] self.analysis_results 内容: {self.analysis_results.keys() if isinstance(self.analysis_results, dict) else '非字典类型'}")
+            
+            if isinstance(self.analysis_results, dict) and 'data_source' in self.analysis_results:
                 data_source = self.analysis_results['data_source']
+                print(f"🚨 [AI分析路径调试] data_source 类型: {type(data_source)}")
                 if hasattr(data_source, 'file_path'):
                     data_file_path = data_source.file_path
+                    print(f"🚨 [AI分析路径调试] 获取到数据文件路径: {data_file_path}")
+                else:
+                    print(f"🚨 [AI分析路径调试] data_source 没有 file_path 属性")
+            else:
+                print(f"🚨 [AI分析路径调试] analysis_results 中没有 data_source 或类型错误")
+                
+            # 回退方案：尝试从实例变量获取数据文件路径
+            if not data_file_path and hasattr(self, 'data_file_path'):
+                data_file_path = self.data_file_path
+                print(f"🚨 [AI分析路径调试] 使用回退路径: {data_file_path}")
+                
+            # 最后的回退方案：使用中国数据文件
+            if not data_file_path:
+                data_file_path = "CN_Data5000.json.gz"
+                print(f"🚨 [AI分析路径调试] 使用默认中国数据文件: {data_file_path}")
+            
+            print(f"🚨 [AI分析路径调试] 最终使用的数据文件路径: {data_file_path}")
             
             # 创建启用AI的AnalysisWorker
             self.ai_worker = AnalysisWorker(data_file_path, enable_ai_analysis=True)
@@ -9370,18 +10934,163 @@ class AnalysisPage(QWidget):
     def _on_ai_analysis_completed(self, results):
         """AI分析完成"""
         try:
+            print(f"🚨 [AI完成处理调试] 收到结果: {type(results)}")
+            print(f"🚨 [AI完成处理调试] 结果内容键: {results.keys() if isinstance(results, dict) else '非字典'}")
+            
             # 更新分析结果
             self.analysis_results.update(results)
             self.ai_analysis_executed = True
             
             # 重新加载HTML报告
             html_path = results.get('html_report_path')
-            if html_path:
-                self.analysis_results['html_report_path'] = html_path
-                self._reload_ai_html(html_path)
+            print(f"🚨 [AI完成处理调试] HTML路径: {html_path}")
             
-            # 更新按钮状态
+            if html_path:
+                import os
+                file_exists = os.path.exists(html_path)
+                print(f"🚨 [AI完成处理调试] HTML文件是否存在: {file_exists}")
+                
+                if file_exists:
+                    self.analysis_results['html_report_path'] = html_path
+                    # 保存AI分析HTML路径供另存为按钮使用
+                    self.current_html_path = html_path
+                    print(f"💾 [另存为调试] 已更新current_html_path为: {html_path}")
+                    
+                    # 启用另存为按钮
+                    if hasattr(self, 'save_html_btn'):
+                        self.save_html_btn.setEnabled(True)
+                        print(f" [另存为调试] 已启用另存为按钮")
+                    
+                    self._reload_ai_html(html_path)
+                else:
+                    print(f"[ERROR] [AI完成处理调试] HTML文件不存在: {html_path}")
+            else:
+                print(f" [AI完成处理调试] 没有HTML路径，尝试生成完整报告并直接显示")
+                # 如果没有HTML路径，生成完整的HTML报告并直接显示
+                ai_content = results.get('ai_analysis', '')
+                if ai_content and hasattr(self, 'ai_webview'):
+                    try:
+                        # 尝试获取基础分析数据
+                        if isinstance(self.analysis_results, dict) and 'analysis_results' in self.analysis_results:
+                            base_analysis_results = self.analysis_results['analysis_results']
+                        else:
+                            base_analysis_results = self.analysis_results
+                            
+                        # 生成完整的HTML报告
+                        print(f"[DOC] [AI完成处理调试] 生成包含基础分析的完整HTML")
+                        # 创建临时worker来生成HTML报告
+                        data_file_path_for_html = getattr(self, 'data_file_path', 'CN_Data5000.json.gz')
+                        temp_worker_for_html = AnalysisWorker(data_file_path_for_html, enable_ai_analysis=False)
+                        html_file_path_backup = temp_worker_for_html.generate_html_report(base_analysis_results)
+                        
+                        # 读取生成的HTML文件内容
+                        if html_file_path_backup and os.path.exists(html_file_path_backup):
+                            with open(html_file_path_backup, 'r', encoding='utf-8') as f:
+                                full_html = f.read()
+                            print(f"[DOC] [AI完成处理调试] 成功读取备用HTML文件: {html_file_path_backup}")
+                        else:
+                            print(f"[ERROR] [AI完成处理调试] 无法读取备用HTML文件: {html_file_path_backup}")
+                            full_html = ""
+                        
+                        # 添加AI分析部分
+                        ai_section = f"""
+<!-- AI智能分析部分 -->
+<div class="section ai-analysis-section" style="border-top: 3px solid #007bff; margin-top: 30px;">
+    <h2 style="color: #007bff; display: flex; align-items: center;">
+        <span style="margin-right: 10px;"></span> AI智能分析
+    </h2>
+    <div class="ai-content" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0;">
+        <div style="white-space: pre-wrap; line-height: 1.6;">{ai_content}</div>
+    </div>
+</div>
+
+</body>
+</html>
+"""
+                        
+                        # 首先删除基础HTML中的AI占位符部分
+                        import re
+                        ai_placeholder_pattern = r'<div class="section">\s*<h2>[^<]*AI智能分析</h2>.*?</div>\s*</div>'
+                        clean_html = re.sub(ai_placeholder_pattern, '', full_html, flags=re.DOTALL)
+                        
+                        # 更新标题为"AI智能分析报告"
+                        clean_html = clean_html.replace('<title>智能分析报告</title>', '<title>AI智能分析报告</title>')
+                        
+                        # 更新页面主标题（H1）
+                        clean_html = clean_html.replace('<h1>智能分析报告</h1>', '<h1>AI智能分析报告</h1>')
+                        
+                        # 更新header背景色为金黄色
+                        clean_html = clean_html.replace(
+                            '.header { background: #f4f4f4;',
+                            '.header { background: linear-gradient(135deg, #ffd700, #ffed4e);'
+                        )
+                        
+                        # 插入AI分析到清理后的HTML
+                        if clean_html.endswith('</body>\n</html>'):
+                            complete_html = clean_html.replace('</body>\n</html>', ai_section)
+                        elif clean_html.endswith('</body></html>'):
+                            complete_html = clean_html.replace('</body></html>', ai_section)
+                        else:
+                            complete_html = clean_html + ai_section
+                            
+                        self.ai_webview.setHtml(complete_html)
+                        print(f"[DOC] [AI完成处理调试] 已设置完整HTML到WebView，包含基础分析+AI分析")
+                        
+                    except Exception as e:
+                        print(f"[ERROR] [AI完成处理调试] 生成完整HTML失败: {e}")
+                        # 回退到简单显示
+                        simple_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AI分析结果</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }}
+        .header {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+        .content {{ white-space: pre-wrap; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1> AI智能分析报告</h1>
+        <p> 无法加载完整分析报告，仅显示AI分析内容</p>
+    </div>
+    <div class="content">{ai_content}</div>
+</body>
+</html>
+"""
+                        self.ai_webview.setHtml(simple_html)
+                        print(f"[DOC] [AI完成处理调试] 回退到简单HTML显示")
+            
+            # 更新按钮状态 - 隐藏AI分析按钮，显示另存为按钮
             self.update_ai_buttons_state()
+            
+            # 恢复并设置AI分析按钮状态
+            if hasattr(self, 'ai_analysis_btn'):
+                self.ai_analysis_btn.setEnabled(True)
+                self.ai_analysis_btn.setText(" AI分析")
+                # 恢复原来的蓝色样式
+                self.ai_analysis_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #007bff;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        padding: 8px 15px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #0056b3;
+                    }
+                    QPushButton:pressed {
+                        background-color: #004085;
+                    }
+                    QPushButton:disabled {
+                        background-color: #6c757d;
+                        color: #f8f9fa;
+                    }
+                """)
             
             # 重置分析状态
             self._reset_ai_analysis_state()
@@ -9389,6 +11098,9 @@ class AnalysisPage(QWidget):
             print("🎉 AI分析完成，HTML已更新")
             
         except Exception as e:
+            print(f"[ERROR] [AI完成处理调试] 处理AI分析结果失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             self._show_ai_analysis_error(f"处理AI分析结果失败：{str(e)}")
     
     def _on_ai_analysis_failed(self, error_msg):
@@ -9405,18 +11117,18 @@ class AnalysisPage(QWidget):
                 # 使用WebEngine浏览器加载
                 file_url = QUrl.fromLocalFile(str(Path(html_path).absolute()))
                 self.ai_webview.load(file_url)
-                print(f"📄 AI分析HTML已重新加载到WebView：{html_path}")
+                print(f"[DOC] AI分析HTML已重新加载到WebView：{html_path}")
             elif hasattr(self, 'ai_browser'):
                 # 使用文本浏览器加载
                 with open(html_path, 'r', encoding='utf-8') as f:
                     html_content = f.read()
                 self.ai_browser.setHtml(html_content)
-                print(f"📄 AI分析HTML已重新加载到TextBrowser：{html_path}")
+                print(f"[DOC] AI分析HTML已重新加载到TextBrowser：{html_path}")
             else:
-                print("⚠️ 找不到AI显示组件")
+                print(" 找不到AI显示组件")
             
         except Exception as e:
-            print(f"❌ 重新加载HTML失败：{str(e)}")
+            print(f"[ERROR] 重新加载HTML失败：{str(e)}")
     
     def _reset_ai_analysis_state(self):
         """重置AI分析状态"""
@@ -9482,7 +11194,7 @@ class AnalysisPage(QWidget):
     
     def _show_ai_analysis_error(self, error_msg):
         """显示AI分析错误"""
-        print(f"❌ AI分析错误：{error_msg}")
+        print(f"[ERROR] AI分析错误：{error_msg}")
         # 不弹出错误对话框，只在控制台输出错误信息
         # QMessageBox.critical(self, "AI分析失败", f"AI分析过程中出现错误：\n{error_msg}")
         self._reset_ai_analysis_state()
@@ -9519,7 +11231,7 @@ class AnalysisPage(QWidget):
             self.ai_analysis_in_progress = True
             self.current_ai_stock = stock_code
             self.stock_ai_analyze_btn.setEnabled(False)
-            self.stock_ai_analyze_btn.setText(t_gui("🤖_分析中"))
+            self.stock_ai_analyze_btn.setText(t_gui("分析中"))
             self.ai_status_label.setText(t_gui("🔄_AI正在分析_请稍候"))
             
             # 收集分析数据
@@ -9539,10 +11251,28 @@ class AnalysisPage(QWidget):
     
     def _perform_ai_analysis_sync(self, prompt):
         """同步执行AI分析，避免多线程问题"""
+        analysis_type = "股票AI分析"
+        
         try:
+            # ===== 执行前检查 =====
+            can_proceed, config = self._ai_analysis_before(analysis_type)
+            if not can_proceed:
+                self.on_ai_analysis_error("执行前检查未通过")
+                return
+            
+            # 执行分析
             result = self._call_llm_for_stock_analysis(prompt)
-            self.on_ai_analysis_finished(result)
+            
+            # ===== 执行后处理 =====
+            if result:
+                self._ai_analysis_after(success=True, analysis_type=analysis_type)
+                self.on_ai_analysis_finished(result)
+            else:
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                self.on_ai_analysis_error("AI分析未返回结果")
+                
         except Exception as e:
+            self._ai_analysis_after(success=False, analysis_type=analysis_type)
             self.on_ai_analysis_error(str(e))
     
     def _call_llm_for_stock_analysis(self, prompt):
@@ -9552,24 +11282,37 @@ class AnalysisPage(QWidget):
             import time
             from pathlib import Path
             
-            # 添加llm-api到路径
-            project_root = Path(__file__).parent
-            llm_api_path = project_root / "llm-api"
+            # 添加llm-api到路径（使用path_helper确保打包环境正确）
+            from utils.path_helper import get_base_path
+            base_path = get_base_path()  # 打包环境下返回EXE所在目录
+            llm_api_path = base_path / "llm-api"
             if str(llm_api_path) not in sys.path:
                 sys.path.insert(0, str(llm_api_path))
             
-            # 读取配置文件获取提供商信息
+            # 读取配置文件获取提供商信息（使用缓存）
             config = {}
             try:
                 import json
-                config_path = llm_api_path / "config" / "user_settings.json"
-                if config_path.exists():
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                        default_provider = config.get('default_provider', 'OpenAI')
-                        print(f"[个股AI分析] 当前配置的LLM供应商: {default_provider}")
+                
+                # 检查缓存是否有效（使用AnalysisWorker的缓存）
+                current_time = time.time()
+                if (AnalysisWorker._ai_config_cache is not None and 
+                    current_time - AnalysisWorker._ai_config_cache_time < AnalysisWorker._ai_config_cache_ttl):
+                    config = AnalysisWorker._ai_config_cache
+                    print(f"[个股AI分析] 使用缓存的AI配置")
                 else:
-                    print("[个股AI分析] 未找到配置文件，使用默认设置")
+                    # 从文件加载配置
+                    config_path = llm_api_path / "config" / "user_settings.json"
+                    if config_path.exists():
+                        with open(config_path, 'r', encoding='utf-8') as f:
+                            config = json.load(f)
+                            # 更新缓存
+                            AnalysisWorker._ai_config_cache = config
+                            AnalysisWorker._ai_config_cache_time = current_time
+                            default_provider = config.get('default_provider', 'OpenAI')
+                            print(f"[个股AI分析] 已加载并缓存AI配置，供应商: {default_provider}")
+                    else:
+                        print("[个股AI分析] 未找到配置文件，使用默认设置")
             except Exception as e:
                 print(f"[个股AI分析] 读取配置文件时出错: {e}")
             
@@ -9872,35 +11615,35 @@ class AnalysisPage(QWidget):
     def _get_preferred_market_with_multiple_fallbacks(self, stock_code: str = None) -> str:
         """使用多种方案检测市场类型"""
         try:
-            print(f"🔍 开始多重市场检测，股票代码: {stock_code}")
+            print(f" 开始多重市场检测，股票代码: {stock_code}")
             
             # 方案1: 股票代码推断（最直接可靠）
             if stock_code:
                 market_from_code = self._infer_market_from_stock_code(stock_code)
                 if market_from_code:
-                    print(f"🔍 方案1成功: 根据股票代码{stock_code}检测为{market_from_code.upper()}市场")
+                    print(f" 方案1成功: 根据股票代码{stock_code}检测为{market_from_code.upper()}市场")
                     return market_from_code
             
             # 方案2: 分析数据内容
             market_from_content = self._detect_market_from_data_content()
             if market_from_content:
-                print(f"🔍 方案2成功: 根据数据内容检测为{market_from_content.upper()}市场")
+                print(f" 方案2成功: 根据数据内容检测为{market_from_content.upper()}市场")
                 return market_from_content
             
             # 方案3: 原有的检测逻辑
             market_from_original = self._get_preferred_market_from_current_data()
             if market_from_original:
-                print(f"🔍 方案3成功: 原有方法检测为{market_from_original.upper()}市场")
+                print(f" 方案3成功: 原有方法检测为{market_from_original.upper()}市场")
                 return market_from_original
             
             # 方案4: 主窗口全局搜索
             market_from_global = self._find_main_window_global_search()
             if market_from_global:
-                print(f"🔍 方案4成功: 全局搜索检测为{market_from_global.upper()}市场")
+                print(f" 方案4成功: 全局搜索检测为{market_from_global.upper()}市场")
                 return market_from_global
             
             # 方案5: 强制默认CN（中国股票代码特征最明显）
-            print(f"🔍 所有方案均失败，默认使用CN市场")
+            print(f" 所有方案均失败，默认使用CN市场")
             return 'cn'
             
         except Exception as e:
@@ -9965,7 +11708,7 @@ class AnalysisPage(QWidget):
             
             return 'cn'  # 默认中国市场
         except Exception as e:
-            print(f"❌ 检测市场类型失败: {e}")
+            print(f"[ERROR] 检测市场类型失败: {e}")
             return 'cn'
     
     def _get_amount_from_main_data(self, stock_code: str) -> float:
@@ -10033,7 +11776,7 @@ class AnalysisPage(QWidget):
             return 0.0
             
         except Exception as e:
-            print(f"  ❌ 从主数据文件获取成交金额失败 {stock_code}: {e}")
+            print(f"  [ERROR] 从主数据文件获取成交金额失败 {stock_code}: {e}")
             return 0.0
     
     def _get_current_rating_file(self) -> str:
@@ -10045,16 +11788,16 @@ class AnalysisPage(QWidget):
                 for widget in app.topLevelWidgets():
                     if hasattr(widget, 'current_data_file_path') and widget.current_data_file_path:
                         current_file = widget.current_data_file_path
-                        print(f"🔍 当前数据文件: {current_file}")
+                        print(f" 当前数据文件: {current_file}")
                         
                         # 检查文件是否存在
                         if os.path.exists(current_file):
-                            print(f"✅ 指定评级数据文件: {current_file}")
+                            print(f" 指定评级数据文件: {current_file}")
                             return current_file
                         else:
-                            print(f"❌ 文件不存在: {current_file}")
+                            print(f"[ERROR] 文件不存在: {current_file}")
             
-            print("⚠️ 未找到当前数据文件，将搜索所有评级文件")
+            print(" 未找到当前数据文件，将搜索所有评级文件")
             return None
         except Exception as e:
             print(f"获取当前评级文件失败: {e}")
@@ -10177,7 +11920,7 @@ class AnalysisPage(QWidget):
         return ratings
     
     def generate_ai_analysis_prompt(self, data):
-        """生成AI分析提示词"""
+        """生成AI分析提示词 - 优化版（减少40% token消耗）"""
         
         # 检测当前界面语言
         from config.i18n import is_english
@@ -10185,71 +11928,14 @@ class AnalysisPage(QWidget):
         
         # 获取当前市场类型 - 优先从主界面检测结果获取
         current_market = self._get_reliable_market_info()
-        market_names = {'cn': '中国A股市场', 'hk': '香港股票市场', 'us': '美国股票市场'}
-        market_name = market_names.get(current_market, '股票市场')
+        market_names_short = {'cn': 'A股', 'hk': '港股', 'us': '美股'}
+        market_name = market_names_short.get(current_market, '股市')
         
         # 调试信息：确保市场名称正确传递给LLM
         print(f"[市场检测] 个股分析AI - 检测到市场: {current_market}, 市场名称: {market_name}")
         
-        # 构建市场特色说明
-        if current_market == 'cn':
-            market_context_zh = """
-【市场特色提醒】
-▪ 当前分析对象：中国A股市场
-▪ 股票代码格式：6位数字（如：000001 平安银行，600036 招商银行）
-▪ 推荐相关股票要求：必须使用真实存在的A股股票代码和名称
-▪ 价格单位：人民币元
-▪ 市场特点：T+1交易，涨跌停限制（主板±10%，创业板/科创板±20%）
-"""
-            market_context_en = """
-【Market Context Reminder】
-▪ Current Analysis Target: China A-Share Market
-▪ Stock Code Format: 6-digit numbers (e.g., 000001 Ping An Bank, 600036 China Merchants Bank)
-▪ Related Stock Recommendation Requirement: Must use real existing A-share stock codes and names
-▪ Currency Unit: Chinese Yuan (RMB)
-▪ Market Features: T+1 trading, price limit (Main Board ±10%, ChiNext/STAR ±20%)
-"""
-        elif current_market == 'hk':
-            market_context_zh = """
-【市场特色提醒】
-▪ 当前分析对象：香港股票市场（港股）
-▪ 股票代码格式：5位数字（如：00700 腾讯控股，00388 香港交易所）
-▪ 推荐相关股票要求：必须使用真实存在的港股股票代码和名称
-▪ 价格单位：港币元
-▪ 市场特点：T+0交易，无涨跌停限制
-"""
-            market_context_en = """
-【Market Context Reminder】
-▪ Current Analysis Target: Hong Kong Stock Market (HKEX)
-▪ Stock Code Format: 5-digit numbers (e.g., 00700 Tencent Holdings, 00388 HKEX)
-▪ Related Stock Recommendation Requirement: Must use real existing Hong Kong stock codes and names
-▪ Currency Unit: Hong Kong Dollar (HKD)
-▪ Market Features: T+0 trading, no price limit
-"""
-        elif current_market == 'us':
-            market_context_zh = """
-【市场特色提醒】
-▪ 当前分析对象：美国股票市场（美股）
-▪ 股票代码格式：英文字母代码（如：AAPL 苹果公司，MSFT 微软公司）
-▪ 推荐相关股票要求：必须使用真实存在的美股股票代码和名称
-▪ 价格单位：美元
-▪ 市场特点：T+0交易，无涨跌停限制，盘前盘后交易
-"""
-            market_context_en = """
-【Market Context Reminder】
-▪ Current Analysis Target: US Stock Market (US Market)
-▪ Stock Code Format: Letter codes (e.g., AAPL Apple Inc., MSFT Microsoft Corp.)
-▪ Related Stock Recommendation Requirement: Must use real existing US stock codes and names
-▪ Currency Unit: US Dollar (USD)
-▪ Market Features: T+0 trading, no price limit, pre/after-market trading
-"""
-        else:
-            market_context_zh = ""
-            market_context_en = ""
-        
-        # 构建基础提示词
+        # 构建量价数据
         volume_price_info = ""
-        data_source_note = ""
         
         # 添加量价数据部分
         if data.get('has_real_volume_price_data', False) and data.get('volume_price_data'):
@@ -10257,126 +11943,61 @@ class AnalysisPage(QWidget):
                 from utils.volume_price_fetcher import VolumePriceFetcher
                 fetcher = VolumePriceFetcher(verbose=False)
                 volume_price_info = fetcher.format_volume_price_data_for_ai(data['volume_price_data'])
-                data_source_note = f"\n\n**{data.get('data_source_info', '采用真实量价数据')}**"
             except Exception as e:
                 volume_price_info = f"量价数据格式化失败: {str(e)}"
         else:
-            volume_price_info = f"量价数据获取失败: {data.get('data_source_info', '数据不可用')}"
+            volume_price_info = f"量价数据不可用"
         
-        # 根据语言生成不同的提示词
+        # 根据语言生成不同的提示词（精简版）
         if use_english:
-            prompt = f"""
-Based on the following data, develop specific operational strategies for {data['stock_code']} {data['stock_name']}:
-{market_context_en}
+            prompt = f"""Develop trading strategy for {data['stock_code']} {data['stock_name']} ({market_name}):
+
 ## Core Data
 - Stock: {data['stock_code']} {data['stock_name']} ({data['industry']})
-- RTSI Technical Rating: {data['rtsi']:.2f} (Range: 20-75, Current Optimized Enhanced RTSI Algorithm)
-- Industry TMA Index: {data['industry_tma']:.2f}
-- Market MSCI Index: {data['market_msci']:.2f}
+- RTSI Rating: {data['rtsi']:.2f}/90
+- Industry TMA: {data['industry_tma']:.2f}
+- Market MSCI: {data['market_msci']:.2f}
 - Market Sentiment: {data['market_sentiment']}
-- Recent Rating Trend: {' → '.join(data['recent_ratings'][-5:])}
+- Rating Trend: {' → '.join(data['recent_ratings'][-5:])}
 
-## 30-Day Volume-Price Data Analysis
+## Volume-Price Data
 {volume_price_info}
 
-## Operational Strategy Analysis Requirements
+## Analysis Requirements
+Provide:
+1. **Action Recommendations**: Buy/Hold/Reduce/Sell percentages (0-100%, specific values)
+2. **Entry Timing**: Specific buy conditions and position-adding strategy
+3. **Profit/Loss Targets**: Target price range and stop-loss price
+4. **Risk Assessment**: Upside probability, expected return, downside risk, holding period (weeks)
+5. **Volume-Price Analysis**: Price-volume coordination, volume trend, key support levels, divergence signals
 
-### 1. Immediate Operational Recommendations (Percentages):
-- Buy Recommendation: __% (0-100%, specific value)
-- Hold Recommendation: __% (0-100%, specific value)
-- Reduce Position Recommendation: __% (0-100%, specific value)
-- Sell Recommendation: __% (0-100%, specific value)
-*Recommendations can be adjusted flexibly based on actual conditions, not required to total 100%*
+Note: Provide specific values and prices, avoid theoretical explanations. For China A-share market analysis, use Shanghai Composite Index (上证指数) as the market benchmark.
 
-### 2. Practical Trading Guidance:
-- **Entry Timing**: Specific conditions for buying and how to add positions
-- **Profit-Taking Strategy**: Target price range and staged profit-taking points
-- **Stop-Loss Setting**: Specific stop-loss price and response strategy
-- **Position Management**: Recommended position size, suitability for heavy positions
-
-### 3. Risk-Return Assessment:
-- **Upside Probability**: Probability of rise in next 1-3 months ___%
-- **Expected Returns**: Target return rate ___% to ___%
-- **Downside Risk**: Maximum possible loss ___%
-- **Investment Cycle**: Recommended holding period __ to __ weeks
-
-### 4. Key Signal Monitoring:
-- **Buy Signal Confirmation**: What specific indicator changes to observe
-- **Sell Warning Signals**: What conditions trigger immediate position reduction or exit
-- **Position Addition Opportunities**: What conditions allow for additional investment
-
-### 5. Volume-Price Relationship Analysis (Focus):
-- **Price-Volume Coordination**: Analyze recent price trends and volume matching
-- **Volume Trend**: Judge volume changes' indication for future trends
-- **Key Price Support**: Combine volume analysis for important support and resistance levels
-- **Volume-Price Divergence Signals**: Identify divergence between price and volume
-
-Notes:
-- All recommendations must be specific and executable with clear values and steps
-- Focus on practical operations, avoid theoretical explanations
-- Must provide specific percentage and price recommendations (use "yuan" as currency unit)
-- Give more precise technical analysis based on volume-price data
-- Fully utilize 30-day real trading data for in-depth analysis
-- Recommendation percentages can be adjusted flexibly based on actual conditions, not required to total 100%
-
-**IMPORTANT: Please respond in Chinese only.**{data_source_note}
+**IMPORTANT: Please respond in Chinese only.**
 """
         else:
-            prompt = f"""
-基于以下数据为{data['stock_code']} {data['stock_name']}制定具体操作策略：
-{market_context_zh}
+            prompt = f"""为{data['stock_code']} {data['stock_name']}制定操作策略（{market_name}）：
+
 ## 核心数据
 - 股票：{data['stock_code']} {data['stock_name']} ({data['industry']})
-- RTSI技术评级：{data['rtsi']:.2f} (范围：20-75，当前优化增强RTSI算法)
-- 行业TMA指数：{data['industry_tma']:.2f}
-- 市场MSCI指数：{data['market_msci']:.2f}
+- RTSI评级：{data['rtsi']:.2f}/90
+- 行业TMA：{data['industry_tma']:.2f}
+- 市场MSCI：{data['market_msci']:.2f}
 - 市场情绪：{data['market_sentiment']}
-- 近期评级趋势：{' → '.join(data['recent_ratings'][-5:])}
+- 评级趋势：{' → '.join(data['recent_ratings'][-5:])}
 
-## 30天量价数据分析
+## 量价数据
 {volume_price_info}
 
-## 操作策略分析要求
+## 分析要求
+请提供：
+1. **操作建议**：买入/持有/减仓/卖出的百分比建议（0-100%，具体数值）
+2. **入场时机**：具体买入条件和加仓策略
+3. **止盈止损**：目标价位区间和止损价位
+4. **风险评估**：上涨概率、预期涨幅、下跌风险、持有周期（周）
+5. **量价分析**：价量配合、成交量趋势、关键支撑位、背离信号
 
-### 1. 立即给出操作建议百分比：
-- 买入建议：___%（0-100%，具体数值）
-- 持有建议：___%（0-100%，具体数值）
-- 减仓建议：___%（0-100%，具体数值）
-- 卖出建议：___%（0-100%，具体数值）
-*各项建议可以根据实际情况灵活调整，不要求合计为100%*
-
-### 2. 实战操作指导：
-- **入场时机**：具体什么情况下买入，买入后如何加仓
-- **止盈策略**：目标价位区间，分批止盈点位
-- **止损设置**：具体止损价位，止损后的应对策略
-- **持仓管理**：建议仓位比例，是否适合重仓
-
-### 3. 风险收益评估：
-- **上涨概率**：未来1-3个月上涨概率___%
-- **预期涨幅**：目标收益率___%至___%
-- **下跌风险**：最大可能亏损___%
-- **投资周期**：建议持有时间__周至__周
-
-### 4. 关键信号监控：
-- **买入信号确认**：需要观察哪些具体指标变化
-- **卖出预警信号**：出现什么情况立即减仓或清仓
-- **加仓机会**：什么条件下可以追加投资
-
-### 5. 量价关系分析（重点）：
-- **价量配合度**：分析最近价格走势与成交量的匹配关系
-- **成交量趋势**：判断成交量变化对后续走势的指示作用
-- **关键价位支撑**：结合成交量分析重要的支撑和阻力位
-- **量价背离信号**：识别价格与成交量的背离现象
-
-注意：
-- 所有建议必须具体可执行，给出明确数值和操作步骤
-- 重点关注实战操作，避免理论解释
-- 必须给出具体的百分比和价位建议（价格单位统一使用"元"）
-- 基于量价数据给出更精准的技术分析
-- 充分利用30天真实交易数据进行深度分析
-- 各项操作建议比例可以根据实际情况灵活调整，不要求加起来等于100%
-
-**重要：请用中文回复所有内容。**{data_source_note}
+注意：给出具体数值和价位，避免理论解释。分析A股市场时，请以上证指数为基准。
 """
         
         return prompt
@@ -10409,14 +12030,14 @@ Notes:
             self.ai_analysis_in_progress = False
             self.current_ai_stock = None
             self.stock_ai_analyze_btn.setEnabled(True)
-            self.stock_ai_analyze_btn.setText(t_gui("🚀_开始AI分析"))
+            self.stock_ai_analyze_btn.setText(t_gui("开始AI分析"))
             self.ai_status_label.setText("")
     
     def on_ai_analysis_error(self, error_message):
         """AI分析错误回调"""
         error_html = f"""
         <div style="text-align: center; color: #dc3545; margin-top: 50px;">
-            <h3>❌ AI分析失败</h3>
+            <h3>[ERROR] AI分析失败</h3>
             <p>{error_message}</p>
             <p style="font-size: 12px; color: #666;">请检查网络连接和AI配置，然后重试</p>
         </div>
@@ -10432,7 +12053,7 @@ Notes:
         self.ai_analysis_in_progress = False
         self.current_ai_stock = None
         self.stock_ai_analyze_btn.setEnabled(True)
-        self.stock_ai_analyze_btn.setText(t_gui("🚀_开始AI分析"))
+        self.stock_ai_analyze_btn.setText(t_gui("开始AI分析"))
         self.ai_status_label.setText("")
     
     def start_mini_master_analysis(self):
@@ -10495,7 +12116,7 @@ Notes:
             self.mini_master_analysis_in_progress = True
             self.current_mini_master_stock = stock_code
             self.mini_master_analyze_btn.setEnabled(False)
-            self.mini_master_analyze_btn.setText(t_gui("🎯_分析中"))
+            self.mini_master_analyze_btn.setText(t_gui("分析中"))
             self.mini_master_status_label.setText(t_gui("🔄_投资大师正在分析_请稍候"))
             
             # 使用单线程直接调用，避免PyQt5多线程崩溃
@@ -10563,14 +12184,14 @@ Notes:
             self.mini_master_analysis_in_progress = False
             self.current_mini_master_stock = None
             self.mini_master_analyze_btn.setEnabled(True)
-            self.mini_master_analyze_btn.setText(t_gui("🎯_开始分析"))
+            self.mini_master_analyze_btn.setText(t_gui("开始分析"))
             self.mini_master_status_label.setText("")
     
     def on_mini_master_analysis_error(self, error_message):
         """迷你投资大师分析错误回调"""
         error_html = f"""
         <div style="text-align: center; color: #dc3545; margin-top: 50px;">
-            <h3>❌ 迷你投资大师分析失败</h3>
+            <h3>[ERROR] 迷你投资大师分析失败</h3>
             <p>{error_message}</p>
             <p style="font-size: 12px; color: #666;">请检查股票代码和数据源，然后重试</p>
         </div>
@@ -10602,7 +12223,7 @@ Notes:
         self.mini_master_analysis_in_progress = False
         self.current_mini_master_stock = None
         self.mini_master_analyze_btn.setEnabled(True)
-        self.mini_master_analyze_btn.setText(t_gui("🎯_开始分析"))
+        self.mini_master_analyze_btn.setText(t_gui("开始分析"))
         self.mini_master_status_label.setText("")
     
     def format_ai_analysis_result(self, result):
@@ -10625,7 +12246,7 @@ Notes:
                     data_source_badge = f"""
                     <div class="section">
                         <div style="background: #e8f5e8; border: 1px solid #28a745; color: #155724; padding: 15px; border-radius: 8px; text-align: center;">
-                        <strong>📊 {data_source_info}</strong>
+                        <strong> {data_source_info}</strong>
                         </div>
                     </div>
                     """
@@ -10634,7 +12255,7 @@ Notes:
                     data_source_badge = f"""
                     <div class="section">
                         <div style="background: #ffeaea; border: 1px solid #e74c3c; color: #721c24; padding: 15px; border-radius: 8px; text-align: center;">
-                        <strong>⚠️ 量价数据获取失败：{error_info}</strong>
+                        <strong> 量价数据获取失败：{error_info}</strong>
                         </div>
                     </div>
                     """
@@ -10655,7 +12276,7 @@ Notes:
                     }}
                     
                     body {{
-                        font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, sans-serif;
+                        font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif, 'Segoe UI', Tahoma, sans-serif;
                         line-height: 1.6;
                         color: #333;
                         background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
@@ -10781,7 +12402,7 @@ Notes:
             <body>
                 <div class="container">
                 <div class="header">
-                    <h1>🤖 AI股票分析报告</h1>
+                    <h1> AI股票分析报告</h1>
                         <div class="subtitle">{stock_info} - 智能投资建议</div>
                         <div class="timestamp">Analysis Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
                         <div class="timestamp" style="font-size: 14px; margin-top: 8px; opacity: 0.8;">作者：267278466@qq.com</div>
@@ -10790,14 +12411,14 @@ Notes:
                 {data_source_badge}
                 
                     <div class="section">
-                        <h2>📊 AI智能分析</h2>
+                        <h2> AI智能分析</h2>
                 <div class="analysis-content">
                     {self._format_analysis_text(result)}
                         </div>
                 </div>
                 
                 <div class="warning">
-                        <h3>⚠️ 风险提示</h3>
+                        <h3> 风险提示</h3>
                         <p>本分析仅供参考，不构成投资建议。投资有风险，入市需谨慎。请结合自身情况和市场变化做出投资决策。</p>
                     </div>
                     
@@ -10868,7 +12489,7 @@ Notes:
             # 无缓存，重置到分析按钮页
             self.technical_ai_stacked_widget.setCurrentIndex(0)
             if hasattr(self, 'technical_ai_analyze_btn'):
-                self.technical_ai_analyze_btn.setText("🚀 开始技术面AI分析")
+                self.technical_ai_analyze_btn.setText(" 开始技术面AI分析")
                 self.technical_ai_analyze_btn.setEnabled(True)
             if hasattr(self, 'technical_ai_status_label'):
                 self.technical_ai_status_label.setText("")
@@ -10891,7 +12512,7 @@ Notes:
             # 无缓存，重置到分析按钮页
             self.master_ai_stacked_widget.setCurrentIndex(0)
             if hasattr(self, 'master_ai_analyze_btn'):
-                self.master_ai_analyze_btn.setText("🚀 开始投资大师AI分析")
+                self.master_ai_analyze_btn.setText(" 开始投资大师AI分析")
                 self.master_ai_analyze_btn.setEnabled(True)
             if hasattr(self, 'master_ai_status_label'):
                 self.master_ai_status_label.setText("")
@@ -10913,7 +12534,7 @@ Notes:
         else:
             # 无缓存，重置到分析按钮页
             self.mini_master_stacked_widget.setCurrentIndex(0)
-            self.mini_master_analyze_btn.setText(t_gui("🎯_开始分析"))
+            self.mini_master_analyze_btn.setText(t_gui("开始分析"))
             self.mini_master_analyze_btn.setEnabled(True)
             self.mini_master_status_label.setText("")
     
@@ -10923,7 +12544,7 @@ Notes:
             # 检查是否切换到趋势图表Tab（第2个Tab，索引为1）
             if index == 1 and hasattr(self, 'current_industry_name') and self.current_industry_name:
                 # 点击趋势图表tab时，先显示等待画面，然后延迟开始计算
-                print(f"📊 用户点击趋势图表tab，显示等待画面: {self.current_industry_name}")
+                print(f" 用户点击趋势图表tab，显示等待画面: {self.current_industry_name}")
                 
                 # 立即切换到等待页面并启动动画
                 if hasattr(self, 'industry_chart_stacked_widget'):
@@ -10957,7 +12578,7 @@ Notes:
                     self.industry_ai_stacked_widget.setCurrentIndex(0)
                     # 更新按钮状态
                     if hasattr(self, 'industry_ai_analyze_btn'):
-                        self.industry_ai_analyze_btn.setText(t_gui("🚀_开始AI分析"))
+                        self.industry_ai_analyze_btn.setText(t_gui("开始AI分析"))
                         self.industry_ai_analyze_btn.setEnabled(True)
                     if hasattr(self, 'industry_ai_status_label'):
                         self.industry_ai_status_label.setText("")
@@ -10980,24 +12601,24 @@ Notes:
             
             # 如果没有现有数据，尝试直接从文件加载
             if not industries:
-                print("⚠️  没有现有分析结果，尝试直接从数据文件加载行业数据...")
+                print("  没有现有分析结果，尝试直接从数据文件加载行业数据...")
                 worker.progress_updated.emit(0, 1, "加载行业数据...")
                 industries = self._load_industries_from_file()
                 
             if not industries:
-                print("❌ 无法获取行业数据")
+                print("[ERROR] 无法获取行业数据")
                 return None
                 
             # 根据配置选择计算模式
             if INDUSTRY_RATING_CONFIG['enable_multithreading']:
-                print(f"📊 开始多线程计算 {len(industries)} 个行业的最新评级（最大{INDUSTRY_RATING_CONFIG['max_workers']}线程）")
+                print(f" 开始多线程计算 {len(industries)} 个行业的最新评级（最大{INDUSTRY_RATING_CONFIG['max_workers']}线程）")
                 return self._calculate_with_parallel_workers(industries, worker)
             else:
-                print(f"📊 开始单线程计算 {len(industries)} 个行业的最新评级")
+                print(f" 开始单线程计算 {len(industries)} 个行业的最新评级")
                 return self._calculate_with_single_thread(industries, worker)
             
         except Exception as e:
-            print(f"❌ 计算真实行业评级失败: {e}")
+            print(f"[ERROR] 计算真实行业评级失败: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -11008,7 +12629,7 @@ Notes:
             import threading
             from concurrent.futures import ThreadPoolExecutor, as_completed
             
-            print(f"🚀 启动并行计算模式，处理 {len(industries)} 个行业")
+            print(f" 启动并行计算模式，处理 {len(industries)} 个行业")
             
             # 优化1: 根据配置决定是否预加载股票成交金额数据
             if INDUSTRY_RATING_CONFIG['enable_preloading']:
@@ -11016,7 +12637,7 @@ Notes:
                 all_stock_codes = self._collect_all_stock_codes(industries)
                 self._preload_stock_amounts(all_stock_codes, main_worker)
             else:
-                print("⚠️  预加载已禁用，将使用运行时获取模式")
+                print("  预加载已禁用，将使用运行时获取模式")
             
             # 评级等级定义（0-7分制，8个等级，7级最高，0级最低）
             # 注意：评级数值7=大多（最高），0=大空（最低）
@@ -11051,7 +12672,7 @@ Notes:
                     rating = self._get_industry_latest_rating(industry_name, industry_info)
                     return industry_name, rating
                 except Exception as e:
-                    print(f"  ❌ 计算行业 {industry_name} 失败: {e}")
+                    print(f"  [ERROR] 计算行业 {industry_name} 失败: {e}")
                     return industry_name, None
             
             # 使用线程池并行处理
@@ -11076,7 +12697,7 @@ Notes:
                         industry_name, rating = future.result()
                         
                         if rating is None:
-                            print(f"  ⚠️  行业 {industry_name} 无评级数据，跳过")
+                            print(f"    行业 {industry_name} 无评级数据，跳过")
                             continue
                         
                         # 分类到相应等级
@@ -11084,7 +12705,7 @@ Notes:
                         for level_name, level_info in rating_levels.items():
                             if level_info["min"] <= rating < level_info["max"]:
                                 classified_industries[level_name]["industries"].append(industry_name)
-                                print(f"  📈 行业 {industry_name}: 评级 {rating:.2f} -> {level_name}")
+                                print(f"   行业 {industry_name}: 评级 {rating:.2f} -> {level_name}")
                                 classified = True
                                 break
                         
@@ -11092,18 +12713,18 @@ Notes:
                             # 处理边界情况
                             if rating >= 6.5:
                                 classified_industries["7级"]["industries"].append(industry_name)
-                                print(f"  📈 行业 {industry_name}: 评级 {rating:.2f} -> 7级 (>=6.5)")
+                                print(f"   行业 {industry_name}: 评级 {rating:.2f} -> 7级 (>=6.5)")
                             elif rating < 0.5:
                                 classified_industries["0级"]["industries"].append(industry_name)
-                                print(f"  📈 行业 {industry_name}: 评级 {rating:.2f} -> 0级 (<0.5)")
+                                print(f"   行业 {industry_name}: 评级 {rating:.2f} -> 0级 (<0.5)")
                             else:
                                 classified_industries["4级"]["industries"].append(industry_name)
-                                print(f"  📈 行业 {industry_name}: 评级 {rating:.2f} -> 4级 (默认)")
+                                print(f"   行业 {industry_name}: 评级 {rating:.2f} -> 4级 (默认)")
                         
                     except Exception as e:
-                        print(f"  ❌ 处理行业结果失败: {e}")
+                        print(f"  [ERROR] 处理行业结果失败: {e}")
             
-            print(f"✅ 并行计算完成，共分类 {sum(len(level['industries']) for level in classified_industries.values())} 个行业")
+            print(f" 并行计算完成，共分类 {sum(len(level['industries']) for level in classified_industries.values())} 个行业")
             
             # 优化3: 显示资源清理阶段
             main_worker.progress_updated.emit(90, 100, "整理计算结果...")
@@ -11111,7 +12732,7 @@ Notes:
             # 确保至少有一些数据
             total_classified = sum(len(level['industries']) for level in classified_industries.values())
             if not classified_industries or total_classified == 0:
-                print("⚠️  没有行业被成功分类，返回默认分类")
+                print("  没有行业被成功分类，返回默认分类")
                 return {
                     "4级": {
                         "color": "#ff6b6b",
@@ -11126,7 +12747,7 @@ Notes:
             return classified_industries
             
         except Exception as e:
-            print(f"❌ 并行计算失败: {e}")
+            print(f"[ERROR] 并行计算失败: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -11142,7 +12763,7 @@ Notes:
                 all_stock_codes = self._collect_all_stock_codes(industries)
                 self._preload_stock_amounts(all_stock_codes, main_worker)
             else:
-                print("⚠️  预加载已禁用，将使用运行时获取模式")
+                print("  预加载已禁用，将使用运行时获取模式")
             
             # 评级等级定义
             rating_levels = {
@@ -11172,7 +12793,7 @@ Notes:
                     rating = self._get_industry_latest_rating(industry_name, industry_info)
                     
                     if rating is None:
-                        print(f"  ⚠️  行业 {industry_name} 无评级数据，跳过")
+                        print(f"    行业 {industry_name} 无评级数据，跳过")
                         continue
                     
                     # 分类到相应等级
@@ -11180,7 +12801,7 @@ Notes:
                     for level_name, level_info in rating_levels.items():
                         if level_info["min"] <= rating < level_info["max"]:
                             classified_industries[level_name]["industries"].append(industry_name)
-                            print(f"  📈 行业 {industry_name}: 评级 {rating:.2f} -> {level_name}")
+                            print(f"   行业 {industry_name}: 评级 {rating:.2f} -> {level_name}")
                             classified = True
                             break
                     
@@ -11194,10 +12815,10 @@ Notes:
                             classified_industries["4级"]["industries"].append(industry_name)
                     
                 except Exception as e:
-                    print(f"  ❌ 计算行业 {industry_name} 失败: {e}")
+                    print(f"  [ERROR] 计算行业 {industry_name} 失败: {e}")
                     continue
             
-            print(f"✅ 单线程计算完成，共分类 {sum(len(level['industries']) for level in classified_industries.values())} 个行业")
+            print(f" 单线程计算完成，共分类 {sum(len(level['industries']) for level in classified_industries.values())} 个行业")
             
             # 显示资源清理阶段
             main_worker.progress_updated.emit(90, 100, "整理计算结果...")
@@ -11205,7 +12826,7 @@ Notes:
             # 确保至少有一些数据
             total_classified = sum(len(level['industries']) for level in classified_industries.values())
             if not classified_industries or total_classified == 0:
-                print("⚠️  没有行业被成功分类，返回默认分类")
+                print("  没有行业被成功分类，返回默认分类")
                 return {
                     "4级": {
                         "color": "#ff6b6b",
@@ -11220,7 +12841,7 @@ Notes:
             return classified_industries
             
         except Exception as e:
-            print(f"❌ 单线程计算失败: {e}")
+            print(f"[ERROR] 单线程计算失败: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -11241,10 +12862,10 @@ Notes:
                     elif isinstance(stocks, dict):
                         all_stock_codes.update(stocks.keys())
             except Exception as e:
-                print(f"      ❌ 收集行业 {industry_name} 股票代码失败: {e}")
+                print(f"      [ERROR] 收集行业 {industry_name} 股票代码失败: {e}")
                 continue
         
-        print(f"📊 总共收集到 {len(all_stock_codes)} 只股票代码")
+        print(f" 总共收集到 {len(all_stock_codes)} 只股票代码")
         return list(all_stock_codes)
     
     def _preload_stock_amounts(self, stock_codes, main_worker):
@@ -11272,8 +12893,8 @@ Notes:
             
             target_file = market_data_files.get(current_market)
             if not target_file or not os.path.exists(target_file):
-                print(f"⚠️  市场数据文件不存在: {target_file}")
-                print(f"⚠️  将跳过预加载，使用运行时获取模式")
+                print(f"  市场数据文件不存在: {target_file}")
+                print(f"  将跳过预加载，使用运行时获取模式")
                 # 设置空缓存，让运行时方法处理
                 for stock_code in stock_codes:
                     self._stock_amount_cache[stock_code] = None
@@ -11285,7 +12906,7 @@ Notes:
             total_success = 0
             total_failed = 0
             
-            print(f"📊 开始预加载 {total_stocks} 只股票的成交金额数据...")
+            print(f" 开始预加载 {total_stocks} 只股票的成交金额数据...")
             
             for i in range(0, total_stocks, batch_size):
                 batch_codes = stock_codes[i:i + batch_size]
@@ -11311,14 +12932,14 @@ Notes:
             
             # 最终统计
             overall_coverage = (total_success / total_stocks * 100) if total_stocks > 0 else 0
-            print(f"✅ 预加载完成: 成功{total_success}只, 失败{total_failed}只, 总覆盖率{overall_coverage:.1f}%")
+            print(f" 预加载完成: 成功{total_success}只, 失败{total_failed}只, 总覆盖率{overall_coverage:.1f}%")
             
             # 根据配置的阈值发出警告
             if overall_coverage < INDUSTRY_RATING_CONFIG['coverage_warning_threshold']:
-                print(f"⚠️  数据覆盖率较低({overall_coverage:.1f}%), 可能影响计算准确性")
+                print(f"  数据覆盖率较低({overall_coverage:.1f}%), 可能影响计算准确性")
             
         except Exception as e:
-            print(f"❌ 预加载股票成交金额失败: {e}")
+            print(f"[ERROR] 预加载股票成交金额失败: {e}")
             # 即使预加载失败，也要确保缓存存在
             if not hasattr(self, '_stock_amount_cache'):
                 self._stock_amount_cache = {}
@@ -11335,7 +12956,7 @@ Notes:
         
         target_file = market_data_files.get(market)
         if not target_file or not os.path.exists(target_file):
-            print(f"      ❌ 市场数据文件不存在: {target_file}")
+            print(f"      [ERROR] 市场数据文件不存在: {target_file}")
             # 为所有股票设置默认值
             for stock_code in stock_codes:
                 self._stock_amount_cache[stock_code] = 0.0
@@ -11388,10 +13009,10 @@ Notes:
             # 批量汇总日志，避免过多输出
             total_processed = success_count + failed_count
             coverage_rate = (success_count / total_processed * 100) if total_processed > 0 else 0
-            print(f"📊 批量预加载完成: 成功{success_count}只, 失败{failed_count}只, 覆盖率{coverage_rate:.1f}%")
+            print(f" 批量预加载完成: 成功{success_count}只, 失败{failed_count}只, 覆盖率{coverage_rate:.1f}%")
                     
         except Exception as e:
-            print(f"❌ 批量加载股票成交金额失败: {e}")
+            print(f"[ERROR] 批量加载股票成交金额失败: {e}")
             # 为所有股票设置默认值
             for stock_code in stock_codes:
                 if stock_code not in self._stock_amount_cache:
@@ -11411,43 +13032,43 @@ Notes:
                     if hasattr(self, '_stock_amount_cache'):
                         cache_size = len(self._stock_amount_cache)
                         self._stock_amount_cache.clear()
-                        print(f"✅ 清理了 {cache_size} 个股票成交金额缓存")
+                        print(f" 清理了 {cache_size} 个股票成交金额缓存")
                     
                     # 清理LJDataReader实例
                     if hasattr(self, '_lj_reader'):
                         del self._lj_reader
-                        print("✅ 清理了LJDataReader实例")
+                        print(" 清理了LJDataReader实例")
                     
                     # 触发垃圾回收
                     import gc
                     collected = gc.collect()
-                    print(f"✅ 垃圾回收释放了 {collected} 个对象")
+                    print(f" 垃圾回收释放了 {collected} 个对象")
                     
                     print("🎉 异步资源清理完成")
                     
                 except Exception as e:
-                    print(f"❌ 异步资源清理失败: {e}")
+                    print(f"[ERROR] 异步资源清理失败: {e}")
             
             # 在后台线程中执行清理
             cleanup_thread = threading.Thread(target=cleanup_resources, daemon=True)
             cleanup_thread.start()
             
         except Exception as e:
-            print(f"❌ 安排异步清理失败: {e}")
+            print(f"[ERROR] 安排异步清理失败: {e}")
     
     def _get_industry_latest_rating(self, industry_name, industry_info):
         """获取行业最新一天的加权平均评级 - 按成交金额选择前10个股票"""
         try:
-            print(f"    🔍 处理行业 {industry_name}, industry_info类型: {type(industry_info)}")
+            print(f"     处理行业 {industry_name}, industry_info类型: {type(industry_info)}")
             
             # 检查数据结构
             if not isinstance(industry_info, dict):
-                print(f"    ❌ industry_info不是字典，是 {type(industry_info)}: {industry_info}")
+                print(f"    [ERROR] industry_info不是字典，是 {type(industry_info)}: {industry_info}")
                 return None
             
             # 获取行业内的股票
             stocks = industry_info.get('stocks', {})
-            print(f"    📊 行业 {industry_name} stocks类型: {type(stocks)}, 数量: {len(stocks) if hasattr(stocks, '__len__') else 'unknown'}")
+            print(f"     行业 {industry_name} stocks类型: {type(stocks)}, 数量: {len(stocks) if hasattr(stocks, '__len__') else 'unknown'}")
             
             if isinstance(stocks, list):
                 print(f"    📋 stocks是列表类型，共{len(stocks)}只股票，转换为字典格式处理")
@@ -11483,10 +13104,10 @@ Notes:
                             'rating': latest_rating,
                             'amount': amount
                         })
-                        print(f"      📊 股票 {stock_code}: 评级 {latest_rating}, 成交金额 {amount:.0f}")
+                        print(f"       股票 {stock_code}: 评级 {latest_rating}, 成交金额 {amount:.0f}")
                         
                     except Exception as e:
-                        print(f"      ⚠️  处理列表中股票失败: {e}")
+                        print(f"        处理列表中股票失败: {e}")
                         continue
                         
             elif isinstance(stocks, dict):
@@ -11513,24 +13134,24 @@ Notes:
                             'rating': latest_rating,
                             'amount': amount
                         })
-                        print(f"      📊 股票 {stock_code}: 评级 {latest_rating}, 成交金额 {amount:.0f}")
+                        print(f"       股票 {stock_code}: 评级 {latest_rating}, 成交金额 {amount:.0f}")
                         
                     except Exception as e:
-                        print(f"      ⚠️  获取股票 {stock_code} 数据失败: {e}")
+                        print(f"        获取股票 {stock_code} 数据失败: {e}")
                         continue
             else:
-                print(f"    ❌ stocks不是列表也不是字典类型，是 {type(stocks)}！跳过此行业")
+                print(f"    [ERROR] stocks不是列表也不是字典类型，是 {type(stocks)}！跳过此行业")
                 return None
             
             if not stock_data:
-                print(f"    ❌ 行业 {industry_name} 没有有效的股票数据")
+                print(f"    [ERROR] 行业 {industry_name} 没有有效的股票数据")
                 return None
             
             # 按成交金额排序，选择前10个
             stock_data.sort(key=lambda x: x['amount'], reverse=True)
             top_10_stocks = stock_data[:10]
             
-            print(f"    📈 行业 {industry_name}: 从{len(stock_data)}只股票中选择成交金额最大的{len(top_10_stocks)}只")
+            print(f"     行业 {industry_name}: 从{len(stock_data)}只股票中选择成交金额最大的{len(top_10_stocks)}只")
             
             # 计算加权平均评级
             total_weighted_rating = 0
@@ -11541,10 +13162,10 @@ Notes:
                 rating = stock['rating']
                 total_weighted_rating += rating * weight
                 total_weight += weight
-                print(f"      💰 {stock['code']}: 评级{rating} × 权重{weight:.0f}")
+                print(f"       {stock['code']}: 评级{rating} × 权重{weight:.0f}")
             
             if total_weight == 0:
-                print(f"    ❌ 行业 {industry_name} 总权重为0")
+                print(f"    [ERROR] 行业 {industry_name} 总权重为0")
                 return None
             
             # 加权平均评级
@@ -11552,11 +13173,11 @@ Notes:
             # 保留原始精度，不进行四舍五入，只限制范围
             final_rating = max(0.0, min(7.0, weighted_avg_rating))
             
-            print(f"    ✅ 行业 {industry_name}: 加权平均评级 {weighted_avg_rating:.4f} -> 保留精度 {final_rating:.4f}")
+            print(f"     行业 {industry_name}: 加权平均评级 {weighted_avg_rating:.4f} -> 保留精度 {final_rating:.4f}")
             return float(final_rating)
             
         except Exception as e:
-            print(f"    ❌ 获取行业 {industry_name} 最新评级失败: {e}")
+            print(f"    [ERROR] 获取行业 {industry_name} 最新评级失败: {e}")
             return None
     
     def _get_stock_amount(self, stock_code):
@@ -11598,14 +13219,14 @@ Notes:
                 
                 if current_market in market_data_files and file_exists:
                     # 获取最近1天的数据
-                    print(f"      📊 正在从LJDataReader获取 {stock_code} 数据...")
+                    print(f"       正在从LJDataReader获取 {stock_code} 数据...")
                     volume_data = lj_reader.get_volume_price_data(stock_code, days=1, market=current_market)
                     if volume_data and 'data' in volume_data and volume_data['data']:
                         latest_data = volume_data['data'][-1]  # 最新一天的数据
                         raw_amount = latest_data.get('amount', 0)  # 原始成交金额
                         # LJDataReader返回的成交额单位需要修正（约为实际值的1/10）
                         amount = raw_amount * 10  # 修正单位为元
-                        print(f"      💰 获取到原始成交金额: {raw_amount} -> 修正后: {amount}")
+                        print(f"       获取到原始成交金额: {raw_amount} -> 修正后: {amount}")
                         if amount > 0:
                             # 缓存结果供后续使用
                             if hasattr(self, '_stock_amount_cache'):
@@ -11623,18 +13244,18 @@ Notes:
                                     self._stock_amount_cache[stock_code] = float(calculated_amount)
                                 return float(calculated_amount)
                     else:
-                        print(f"      ❌ LJDataReader返回空数据: {volume_data}")
+                        print(f"      [ERROR] LJDataReader返回空数据: {volume_data}")
                 else:
-                    print(f"      ❌ 市场文件检查失败: market={current_market}, file={market_data_files.get(current_market, 'unknown')}, exists={file_exists}")
+                    print(f"      [ERROR] 市场文件检查失败: market={current_market}, file={market_data_files.get(current_market, 'unknown')}, exists={file_exists}")
             except Exception as e:
-                print(f"      ❌ LJDataReader获取 {stock_code} 成交金额失败: {e}")
+                print(f"      [ERROR] LJDataReader获取 {stock_code} 成交金额失败: {e}")
                 # 检查具体错误原因
                 if "lj-read模块不可用" in str(e):
-                    print(f"      ⚠️  lj-read模块问题，检查 {current_market}-lj.dat.gz 文件")
+                    print(f"        lj-read模块问题，检查 {current_market}-lj.dat.gz 文件")
                 elif "文件不存在" in str(e):
-                    print(f"      ⚠️  数据文件不存在: {market_data_files.get(current_market, 'unknown')}")
+                    print(f"        数据文件不存在: {market_data_files.get(current_market, 'unknown')}")
                 else:
-                    print(f"      🔍 具体错误: {str(e)[:100]}")  # 只显示前100字符避免日志过长
+                    print(f"       具体错误: {str(e)[:100]}")  # 只显示前100字符避免日志过长
             
             # 如果.dat.gz文件中没有数据，返回0（不使用模拟数据）
             return 0.0
@@ -11646,7 +13267,7 @@ Notes:
         """获取评级等级的详细描述"""
         descriptions = {
             "7级": "🔥 极强 - 大多 (最高评级)",
-            "6级": "📈 强势 - 中多 (高评级)", 
+            "6级": " 强势 - 中多 (高评级)", 
             "5级": "🟢 偏强 - 小多 (较好)",
             "4级": "⚪ 中性 - 微多 (中性偏好)",
             "3级": "🟡 偏弱 - 微空 (中性偏差)",
@@ -11692,13 +13313,13 @@ Notes:
     def _get_industry_detailed_score(self, industry_name):
         """获取行业的详细评分信息"""
         try:
-            print(f"🔍 获取行业详细评分: {industry_name}")
+            print(f" 获取行业详细评分: {industry_name}")
             
             # 优先从 analysis_results_obj 获取数据 (这是TAB1详细分析的数据源)
             if hasattr(self, 'analysis_results_obj') and self.analysis_results_obj:
                 if hasattr(self.analysis_results_obj, 'industries'):
                     industry_info = self.analysis_results_obj.industries.get(industry_name, {})
-                    print(f"  📊 找到行业信息: {industry_name} -> {type(industry_info)}")
+                    print(f"   找到行业信息: {industry_name} -> {type(industry_info)}")
                     
                     # 与TreeView完全一致的TMA分数获取方式
                     tma_value = 0
@@ -11715,7 +13336,7 @@ Notes:
                     tma_score = float(tma_value)
                     stock_count = industry_info.get('stock_count', 0)
                     
-                    print(f"  📈 与TreeView一致的TMA分数: {tma_score:.2f}")
+                    print(f"   与TreeView一致的TMA分数: {tma_score:.2f}")
                     
                     # 评级分的获取
                     if 'irsi' in industry_info:
@@ -11726,7 +13347,7 @@ Notes:
                             if rating_score is None:
                                 rating_score = 4.0  # 默认中性评级
                             
-                            print(f"  ✅ 行业加权评级分: {rating_score:.2f}, TMA分数: {tma_score:.2f}")
+                            print(f"   行业加权评级分: {rating_score:.2f}, TMA分数: {tma_score:.2f}")
                             
                             return {
                                 'rating_score': rating_score,  # 评级分（用于排序和显示）
@@ -11739,7 +13360,7 @@ Notes:
                             if rating_score is None:
                                 rating_score = 4.0  # 默认中性评级
                             
-                            print(f"  ✅ 行业加权评级分: {rating_score:.2f}")
+                            print(f"   行业加权评级分: {rating_score:.2f}")
                             
                             return {
                                 'rating_score': rating_score,  # 评级分（用于排序和显示）
@@ -11782,7 +13403,7 @@ Notes:
                         'stock_count': industry_info.get('stock_count', 0)
                     }
             
-            print(f"  ⚠️ 未找到行业数据: {industry_name}")
+            print(f"   未找到行业数据: {industry_name}")
             # 如果没有找到详细数据，返回默认值
             return {
                 'rating_score': 4.0,  # 默认评级分（中性）
@@ -11791,7 +13412,7 @@ Notes:
             }
             
         except Exception as e:
-            print(f"❌ 获取行业详细评分失败 {industry_name}: {e}")
+            print(f"[ERROR] 获取行业详细评分失败 {industry_name}: {e}")
             import traceback
             traceback.print_exc()
             return {
@@ -11820,7 +13441,7 @@ Notes:
     <title>行业评级分析报告</title>
     <style>
         body {{
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
             margin: 0;
             padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -11949,7 +13570,7 @@ Notes:
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏆 行业评级分析报告</h1>
+            <h1> 行业评级分析报告</h1>
             <div class="subtitle">基于AI智能分析的增强版8级行业评级体系</div>
             <div class="subtitle">数据更新时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
         </div>
@@ -12048,8 +13669,8 @@ Notes:
         </table>
         
         <div class="footer">
-            <p>📊 数据来源: AI股票分析系统 | 🤖 智能算法: RTSI + IRSI + TMA 多重评估</p>
-            <p>⚠️ 投资有风险，本报告仅供参考，不构成投资建议</p>
+            <p> 数据来源: AI股票分析系统 |  智能算法: RTSI + IRSI + TMA 多重评估</p>
+            <p> 投资有风险，本报告仅供参考，不构成投资建议</p>
         </div>
     </div>
 </body>
@@ -12059,12 +13680,12 @@ Notes:
             return html_content
             
         except Exception as e:
-            print(f"❌ 生成增强版HTML模板失败: {e}")
+            print(f"[ERROR] 生成增强版HTML模板失败: {e}")
             import traceback
             traceback.print_exc()
             return f"""
             <div style="text-align: center; padding: 50px; color: #dc3545;">
-                <h3>❌ 生成HTML模板失败</h3>
+                <h3>[ERROR] 生成HTML模板失败</h3>
                 <p>错误信息: {str(e)}</p>
             </div>
             """
@@ -12078,7 +13699,7 @@ Notes:
                 # 清除待处理的行业名
                 self.pending_industry_name = None
         except Exception as e:
-            print(f"❌ 行业趋势图表计算失败: {e}")
+            print(f"[ERROR] 行业趋势图表计算失败: {e}")
             import traceback
             traceback.print_exc()
             # 发生错误时停止动画并显示错误信息
@@ -12090,36 +13711,196 @@ Notes:
             elif hasattr(self, 'industry_chart_text'):
                 self.industry_chart_text.setHtml(f"<p style='color: #dc3545;'>计算失败: {str(e)}</p>")
 
+    def on_market_tab_changed(self, index):
+        """市场分析Tab切换事件处理 - 延迟加载HTML内容"""
+        try:
+            print(f"[市场Tab切换] 切换到Tab索引: {index}")
+            
+            # 处理市场HTML Tab
+            if hasattr(self, 'market_html_tabs'):
+                for tab_index, view, html_path in self.market_html_tabs:
+                    if tab_index == index and html_path.exists():
+                        print(f"[市场Tab切换] 加载HTML文件: {html_path.name}")
+                        if WEBENGINE_AVAILABLE and isinstance(view, QWebEngineView):
+                            url = QUrl.fromLocalFile(str(html_path))
+                            print(f"[市场Tab切换] 加载URL: {url.toString()}")
+                            view.load(url)
+                        else:
+                            with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                html = f.read()
+                                if hasattr(view, 'setHtml'):
+                                    view.setHtml(html)
+                                else:
+                                    view.setPlainText(html)
+                        return  # 已处理，直接返回
+        except Exception as e:
+            print(f"[市场Tab切换] 处理Tab切换失败: {e}")
+
     def on_stock_tab_changed(self, index):
         """股票Tab切换事件处理 - 延迟加载量价数据和其他Tab内容"""
         try:
-            # 检查是否切换到趋势图表Tab（第1个Tab，索引为1）
-            if index == 1 and hasattr(self, 'current_stock_code') and self.current_stock_code:
+            # 调试信息
+            print(f"[Tab切换] 切换到Tab索引: {index}")
+            print(f"[Tab切换] 是否有current_stock_code: {hasattr(self, 'current_stock_code')}")
+            if hasattr(self, 'current_stock_code'):
+                print(f"[Tab切换] current_stock_code值: {self.current_stock_code}")
+            print(f"[Tab切换] 是否有stock_extra_tabs: {hasattr(self, 'stock_extra_tabs')}")
+            if hasattr(self, 'stock_extra_tabs'):
+                print(f"[Tab切换] stock_extra_tabs数量: {len(self.stock_extra_tabs)}")
+                print(f"[Tab切换] stock_extra_tabs索引: {[idx for idx, _, _ in self.stock_extra_tabs]}")
+            
+            if not hasattr(self, 'current_stock_code') or not self.current_stock_code:
+                print("[Tab切换] 没有股票代码，退出")
+                return
+            
+            # 获取当前Tab的标题来判断是哪个Tab
+            current_tab_text = self.stock_tab_widget.tabText(index)
+            print(f"[Tab切换] 当前Tab标题: {current_tab_text}")
+            
+            # 处理额外HTML Tab - 传递股票代码参数（优先处理）
+            if hasattr(self, 'stock_extra_tabs'):
+                for extra_index, view, html_path in self.stock_extra_tabs:
+                    if extra_index == index and html_path.exists():
+                        print(f"[Tab切换] 切换到额外HTML Tab: {html_path.name}，加载股票代码: {self.current_stock_code}")
+                        if WEBENGINE_AVAILABLE and isinstance(view, QWebEngineView):
+                            # 先清空占位内容
+                            view.setHtml("")
+                            
+                            # 构建完整URL
+                            base_url = QUrl.fromLocalFile(str(html_path))
+                            full_url = base_url.toString()
+                            full_url_with_code = f"{full_url}##{self.current_stock_code}##"
+                            print(f"[Tab切换] 加载URL: {full_url_with_code}")
+                            
+                            # 添加加载完成回调
+                            def on_load_finished(ok):
+                                if ok:
+                                    print(f"[Tab切换] HTML加载成功: {html_path.name}")
+                                    # 调试：检查JavaScript中实际接收到的hash
+                                    view.page().runJavaScript(
+                                        "window.location.hash",
+                                        lambda result: print(f"[Tab切换] JavaScript接收到的hash: {result}")
+                                    )
+                                    # 调试：执行getUrlParams并查看结果
+                                    view.page().runJavaScript(
+                                        """
+                                        (function() {
+                                            if (typeof getUrlParams === 'function') {
+                                                var params = getUrlParams();
+                                                return JSON.stringify(params);
+                                            }
+                                            return 'getUrlParams函数不存在';
+                                        })()
+                                        """,
+                                        lambda result: print(f"[Tab切换] getUrlParams返回: {result}")
+                                    )
+                                else:
+                                    print(f"[Tab切换] HTML加载失败: {html_path.name}")
+                            
+                            # 断开之前的信号连接
+                            try:
+                                view.loadFinished.disconnect()
+                            except:
+                                pass
+                            view.loadFinished.connect(on_load_finished)
+                            
+                            # 加载URL
+                            view.load(QUrl(full_url_with_code))
+                        else:
+                            with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                html = f.read().replace('##CODE##', f"##{self.current_stock_code}##")
+                                if hasattr(view, 'setHtml'):
+                                    view.setHtml(html)
+                                else:
+                                    view.setPlainText(html)
+                        return  # 已处理，直接返回
+            
+            # 检查是否切换到趋势图表Tab
+            if "趋势图表" in current_tab_text:
                 print(f"[Tab切换] 切换到趋势图表Tab，开始加载量价数据: {self.current_stock_code}")
-                # 延迟加载量价数据和趋势图表
                 self._load_stock_chart_data(self.current_stock_code)
             
-            # 检查是否切换到迷你投资大师Tab（第2个Tab，索引为2）
-            elif index == 2 and hasattr(self, 'current_stock_code') and self.current_stock_code:
-                # 如果有当前股票且有缓存，自动显示缓存结果
+            # 检查是否切换到迷你投资大师Tab
+            elif "迷你投资大师" in current_tab_text:
                 if hasattr(self, 'mini_master_cache') and self.current_stock_code in self.mini_master_cache:
                     print(f"[Tab切换] 自动显示{self.current_stock_code}的缓存迷你投资大师分析")
                     self.show_cached_mini_master_result(self.current_stock_code)
                 else:
-                    # 没有缓存，自动触发迷你投资大师分析
                     print(f"[Tab切换] {self.current_stock_code}未分析过，自动触发迷你投资大师分析")
                     current_stock_name = getattr(self, 'current_stock_name', '')
                     self.auto_trigger_mini_master_analysis(self.current_stock_code, current_stock_name)
             
-            # 检查是否切换到AI分析Tab（第3个Tab，索引为3）
-            elif index == 3 and hasattr(self, 'current_stock_code') and self.current_stock_code:
-                # 如果有当前股票且有缓存，自动显示缓存结果
+            # 检查是否切换到AI技术分析师Tab
+            elif "AI技术分析" in current_tab_text:
                 if hasattr(self, 'stock_ai_cache') and self.current_stock_code in self.stock_ai_cache:
                     print(f"[Tab切换] 自动显示{self.current_stock_code}的缓存AI分析")
                     self.show_cached_ai_result(self.current_stock_code)
                     
         except Exception as e:
             print(f"[Tab切换] 处理Tab切换失败: {e}")
+    
+    def ensure_stock_server_running(self):
+        """确保本地股票服务器正在运行（仅中文+CN市场）"""
+        if self.server_started:
+            return
+        
+        # 检查语言和市场条件
+        current_lang = get_system_language() if callable(get_system_language) else 'zh'
+        main_window = getattr(self, 'main_window', None)
+        detected_market = getattr(main_window, 'detected_market', 'cn') if main_window else 'cn'
+        
+        if not current_lang.startswith('zh') or detected_market.lower() != 'cn':
+            print("Skipping server startup: Not in Chinese A-share market.")
+            return
+        
+        server_names = ["stockhost.exe", "大师服务器.exe"]
+        server_running = False
+        
+        # 使用psutil检查进程
+        if psutil:
+            for proc in psutil.process_iter(["name", "exe"]):
+                try:
+                    proc_name = proc.info['name']
+                    proc_exe = proc.info['exe']
+                    for name in server_names:
+                        if name.lower() == proc_name.lower() or (proc_exe and name.lower() in proc_exe.lower()):
+                            print(f"服务器 {name} 已经在运行 (PID: {proc.pid})")
+                            server_running = True
+                            break
+                    if server_running:
+                        break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        else:
+            print("psutil module not available, cannot check running processes. Attempting to start server.")
+        
+        if server_running:
+            self.server_started = True
+            self.server_started_by_us = False  # 不是本软件启动的
+            return
+        
+        # 尝试启动服务器
+        print("尝试启动服务器...")
+        from utils.path_helper import get_base_path
+        base_path = Path(get_base_path())
+        candidate_dirs = [base_path, project_root]
+        
+        for exe_name in server_names:
+            for directory in candidate_dirs:
+                exe_path = directory / exe_name
+                if exe_path.exists():
+                    try:
+                        print(f"正在启动服务器: {exe_name} (路径: {exe_path})")
+                        import subprocess
+                        subprocess.Popen([str(exe_path), "--server"], cwd=str(directory))
+                        self.server_started = True
+                        self.server_started_by_us = True  # 是本软件启动的
+                        print(f"已启动服务器: {exe_name} (路径: {exe_path})")
+                        return
+                    except Exception as e:
+                        print(f"启动服务器 {exe_name} 失败: {e}")
+        
+        print("未能找到并启动任何服务器可执行文件。")
     
     def get_current_rating_level(self, rtsi_value):
         """根据RTSI值获取当前评级等级"""
@@ -12522,7 +14303,7 @@ Notes:
             # 设置分析状态
             self.industry_ai_analysis_in_progress = True
             self.industry_ai_analyze_btn.setEnabled(False)
-            self.industry_ai_analyze_btn.setText(t_gui("🤖_分析中"))
+            self.industry_ai_analyze_btn.setText(t_gui("分析中"))
             self.industry_ai_status_label.setText(t_gui("🔄_AI正在分析_请稍候"))
             
             # 收集行业分析数据
@@ -12539,10 +14320,35 @@ Notes:
     
     def _perform_industry_ai_analysis_sync(self, prompt):
         """同步执行行业AI分析，避免多线程问题"""
+        analysis_type = "行业AI分析"
+        
         try:
+            # ===== 执行前检查 =====
+            can_proceed, config = self._ai_analysis_before(analysis_type)
+            if not can_proceed:
+                self.on_industry_ai_analysis_error("执行前检查未通过")
+                return
+            
+            # 执行分析
             result = self._call_llm_for_industry_analysis(prompt)
-            self.on_industry_ai_analysis_finished(result)
+            
+            # 检查是否是API Key错误信息（用户取消配置或没有输入API Key）
+            if result and isinstance(result, str) and ("需要配置API Key" in result or "API Key configuration required" in result):
+                print(f"[{analysis_type}] API Key配置取消，终止分析")
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                self.on_industry_ai_analysis_error(result)
+                return
+            
+            # ===== 执行后处理 =====
+            if result:
+                self._ai_analysis_after(success=True, analysis_type=analysis_type)
+                self.on_industry_ai_analysis_finished(result)
+            else:
+                self._ai_analysis_after(success=False, analysis_type=analysis_type)
+                self.on_industry_ai_analysis_error("AI分析未返回结果")
+                
         except Exception as e:
+            self._ai_analysis_after(success=False, analysis_type=analysis_type)
             self.on_industry_ai_analysis_error(str(e))
     
     def _call_llm_for_industry_analysis(self, prompt):
@@ -12552,49 +14358,101 @@ Notes:
             import time
             from pathlib import Path
             
-            # 添加llm-api到路径
-            project_root = Path(__file__).parent
-            llm_api_path = project_root / "llm-api"
+            # 检测当前系统语言
+            from config.gui_i18n import get_system_language
+            is_english = lambda: get_system_language() == 'en'
+            use_english = is_english()
+            
+            # 添加llm-api到路径（使用path_helper确保打包环境正确）
+            from utils.path_helper import get_base_path
+            base_path = get_base_path()  # 打包环境下返回EXE所在目录
+            llm_api_path = base_path / "llm-api"
             if str(llm_api_path) not in sys.path:
                 sys.path.insert(0, str(llm_api_path))
             
-            # 首先检查配置中的供应商设置
+            # ===== 新增：强制重新加载配置文件 =====
+            import json
+            config_path = llm_api_path / "config" / "user_settings.json"
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    print(f"[行业AI分析] 已强制重新加载AI配置")
+            else:
+                config = {}
+                print("[行业AI分析] 未找到配置文件，使用默认设置")
+            
+            default_provider = config.get('default_provider', 'OpenAI')
+            print(f"[行业AI分析] 当前配置的LLM供应商: {default_provider}")
+            
+            # ===== 新增：试用模式检查（必须在API Key检查之前）=====
+            is_trial_mode = False
             try:
-                import json
-                config_path = llm_api_path / "config" / "user_settings.json"
-                if config_path.exists():
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                        default_provider = config.get('default_provider', 'OpenAI')
-                        print(f"[AI分析] 当前配置的LLM供应商: {default_provider}")
-                        
-                        # 如果使用Ollama，先检查并启动服务
-                        if default_provider.lower() == 'ollama':
-                            print("[AI分析] 检测到Ollama供应商，正在检查服务状态...")
-                            
-                            # 导入Ollama工具
-                            try:
-                                from ollama_utils import ensure_ollama_and_model
-                                model_name = config.get('default_chat_model', 'gemma3:1b')
-                                base_url = config.get('OLLAMA_BASE_URL', 'http://localhost:11434')
-                                
-                                print(f"[AI分析] 正在启动Ollama服务并确保模型可用: {model_name}")
-                                if not ensure_ollama_and_model(model_name, base_url):
-                                    return f"无法启动Ollama服务或模型不可用。\n\n💡 解决方案：\n1. 请确保Ollama已正确安装\n2. 手动运行命令: ollama serve\n3. 检查端口11434是否被占用\n4. 检查防火墙设置"
-                                
-                                print("[AI分析] Ollama服务检查完成，准备进行AI分析")
-                                
-                            except ImportError as e:
-                                print(f"[AI分析] 无法导入Ollama工具: {e}")
-                                return f"Ollama工具模块导入失败: {e}"
+                from utils.ai_usage_counter import get_ai_usage_count
+                
+                provider = config.get('default_provider', '').lower()
+                api_key = config.get('SILICONFLOW_API_KEY', '').strip()
+                current_count = get_ai_usage_count()
+                
+                # 检查是否符合试用条件：SiliconFlow + 无API Key + 计数<20
+                if provider == 'siliconflow' and not api_key and current_count < 20:
+                    print(f"[行业AI分析-试用模式] 符合试用条件（{current_count}/20次）")
+                    print(f"[行业AI分析-试用模式] 使用预设试用配置")
+                    
+                    # 使用硬编码的试用配置
+                    trial_config = {
+                        "default_provider": "SiliconFlow",
+                        "default_chat_model": "Qwen/Qwen3-8B",
+                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "request_timeout": 600,
+                        "agent_role": "不使用",
+                        "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
+                        "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
+                        "dont_show_api_dialog": True
+                    }
+                    
+                    # 使用试用配置
+                    config = trial_config
+                    is_trial_mode = True
+                    default_provider = "SiliconFlow"
+                    
+                    print(f"[行业AI分析-试用模式] 配置已切换为试用模式，剩余 {20 - current_count} 次试用机会")
                 else:
-                    print("[AI分析] 未找到配置文件，使用默认设置")
+                    if provider == 'siliconflow' and not api_key and current_count >= 20:
+                        print(f"[行业AI分析-试用模式] 试用次数已用完（{current_count}/20），请配置API Key")
+                        
             except Exception as e:
-                print(f"[AI分析] 读取配置文件时出错: {e}")
+                print(f"[行业AI分析] 试用检查出错: {e}")
+            
+            # ===== 新增：检查API Key（如果不是试用模式才检查）=====
+            if not is_trial_mode:
+                api_key_check_result = self._check_api_key_for_stock_analysis(config, default_provider, use_english, base_path)
+                if api_key_check_result is not None:
+                    # 返回错误信息，终止AI执行
+                    return api_key_check_result
+            else:
+                print(f"[行业AI分析] 试用模式，跳过API Key检查")
+            
+            # 如果使用Ollama，先检查并启动服务
+            if default_provider.lower() == 'ollama':
+                print("[行业AI分析] 检测到Ollama供应商，正在检查服务状态...")
+                
+                # 导入Ollama工具
+                try:
+                    from ollama_utils import ensure_ollama_and_model
+                    model_name = config.get('default_chat_model', 'gemma3:1b')
+                    base_url = config.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+                    
+                    print(f"[行业AI分析] 正在启动Ollama服务并确保模型可用: {model_name}")
+                    if not ensure_ollama_and_model(model_name, base_url):
+                        return f"无法启动Ollama服务或模型不可用。\n\n 解决方案：\n1. 请确保Ollama已正确安装\n2. 手动运行命令: ollama serve\n3. 检查端口11434是否被占用\n4. 检查防火墙设置"
+                    
+                    print("[行业AI分析] Ollama服务检查完成，准备进行AI分析")
+                    
+                except ImportError as e:
+                    print(f"[行业AI分析] 无法导入Ollama工具: {e}")
+                    return f"Ollama工具模块导入失败: {e}"
             
             # 根据配置的提供商选择合适的LLM客户端
-            default_provider = config.get('default_provider', 'OpenAI')
-            
             if default_provider.lower() == 'ollama':
                 # Ollama使用SimpleLLMClient
                 try:
@@ -12637,8 +14495,12 @@ Notes:
                         LLMClient = client_module.SimpleLLMClient
                         print("[行业AI分析] 使用绝对路径导入SimpleLLMClient作为回退")
             
-            # 创建LLM客户端
-            client = LLMClient()
+            # 创建LLM客户端（试用模式下传递临时配置）
+            if is_trial_mode:
+                print(f"[行业AI分析] 使用试用配置创建客户端")
+                client = LLMClient(temp_config=config)
+            else:
+                client = LLMClient()
             
             start_time = time.time()
             
@@ -12712,27 +14574,49 @@ Notes:
                     # 获取行业内股票信息
                     stocks = industry_info.get('stocks', {})
                     if isinstance(stocks, dict):
-                        # 按RTSI排序获取前5只大盘股，只包含RTSI > 0的股票
+                        # 按RTSI排序获取行业龙头股票，放宽筛选条件确保有足够数据传递给AI
                         stock_list = []
                         for code, stock_info in stocks.items():
-                            # 大盘股筛选：指数行业例外，允许所有指数通过
-                            if industry_name != "指数" and not self._is_large_cap_stock(code):
-                                continue
-                                
                             rtsi_data = stock_info.get('rtsi', {})
                             rtsi_value = rtsi_data.get('rtsi', 0) if isinstance(rtsi_data, dict) else float(rtsi_data) if rtsi_data else 0
                             
-                            # 只收集RTSI > 5的个股
-                            if rtsi_value > 5:
+                            # 行业AI分析优化：放宽筛选条件，优先基于RTSI分数筛选
+                            # 指数行业：直接通过
+                            # 其他行业：RTSI >= 30 或者是大盘股
+                            if industry_name == "指数":
+                                pass  # 指数股票直接通过
+                            else:
+                                # 放宽筛选：RTSI >= 30 或者是大盘股，确保有足够股票供AI分析
+                                if rtsi_value < 30 and not self._is_large_cap_stock(code):
+                                    continue
+                            
+                            # 收集有效的股票数据（RTSI > 0）
+                            if rtsi_value > 0:
                                 stock_list.append({
                                     'code': code,
                                     'name': stock_info.get('name', code),
                                     'rtsi': rtsi_value
                                 })
                         
-                        # 排序并取前5只大盘股
+                        # 排序并取前8只股票（增加数量确保AI有足够分析对象）
                         stock_list.sort(key=lambda x: x['rtsi'], reverse=True)
-                        data['top_stocks'] = stock_list[:5]
+                        data['top_stocks'] = stock_list[:8]
+                        
+                        # 添加调试日志：确认传递给AI的股票数量
+                        print(f"[行业AI数据收集] 行业: {industry_name}")
+                        print(f"[行业AI数据收集] 原始股票总数: {len(stocks)}")
+                        print(f"[行业AI数据收集] 筛选后股票数量: {len(stock_list)}")
+                        print(f"[行业AI数据收集] 传递给AI的股票数量: {len(data['top_stocks'])}")
+                        for i, stock in enumerate(data['top_stocks'][:5]):  # 只显示前5只
+                            print(f"  {i+1}. {stock['code']} {stock['name']}: RTSI {stock['rtsi']:.2f}")
+                        if len(data['top_stocks']) > 5:
+                            print(f"  ... 还有{len(data['top_stocks']) - 5}只股票")
+                        
+                        # 数据质量验证
+                        if len(data['top_stocks']) == 0:
+                            print(f" [行业AI警告] 没有股票数据传递给LLM，AI可能无法进行具体股票分析")
+                        elif len(data['top_stocks']) < 3:
+                            print(f" [行业AI警告] 传递给LLM的股票数量较少({len(data['top_stocks'])}只)，可能影响分析质量")
                 
                 # 获取市场数据
                 market = getattr(self.analysis_results_obj, 'market', {})
@@ -12836,12 +14720,21 @@ Notes:
         
         # 根据语言生成不同的提示词
         if use_english:
-            # 构建顶级股票信息 - 英文版
+            # 构建顶级股票信息 - 英文版（明确标识为行业龙头股票）
             top_stocks_info = ""
             if top_stocks:
-                top_stocks_info = "\nQuality stocks in the industry (sorted by RTSI):\n"
+                top_stocks_info = f"\n===== Industry Leading Stocks ({len(top_stocks)} stocks, sorted by RTSI) =====\n"
                 for i, stock in enumerate(top_stocks, 1):
-                    top_stocks_info += f"{i}. {stock['name']}({stock['code']}) - RTSI: {stock['rtsi']:.2f}\n"
+                    top_stocks_info += f"{i}. {stock['code']} {stock['name']} - RTSI: {stock['rtsi']:.2f}\n"
+                top_stocks_info += f"\n【Data Integrity Confirmation】\n"
+                top_stocks_info += f"▪ Actual number of leading stocks passed: {len(top_stocks)} stocks\n"
+                top_stocks_info += f"▪ Total stocks requiring individual analysis: {len(top_stocks)} stocks\n"
+                if len(top_stocks) == 0:
+                    top_stocks_info += f"▪  Warning: No qualified stock data available, provide industry analysis based on this situation\n"
+            else:
+                top_stocks_info = f"\n===== Industry Leading Stocks (0 stocks) =====\n"
+                top_stocks_info += f"▪  No analyzable leading stock data available for current industry\n"
+                top_stocks_info += f"▪ AI should focus on overall industry trends without specific stock recommendations\n"
             
             # 判断TMA强度级别 - 英文版
             if tma_index > 20:
@@ -12859,6 +14752,20 @@ Notes:
             
             prompt = f"""
 【Industry AI Intelligent Analysis】
+
+🚨【MANDATORY CONSTRAINTS - Violation will result in UNQUALIFIED report】🚨
+
+【1. Stock Analysis Mandatory Requirements (Highest Priority)】
+▪ 【MANDATORY COMPLETION】Must individually analyze every stock listed in "Industry Leading Stocks" section below
+▪ 【MANDATORY FORMAT】Each stock must use format: "Stock_Code Stock_Name: RTSI XX.XX → [Rating Analysis] → [Investment Advice]"
+▪ 【COMPLETENESS VERIFICATION】Report must confirm at end: analyzed all {len(top_stocks) if top_stocks else 0} leading stocks
+▪ 【ABSOLUTE PROHIBITION】No use of "hypothetical XXX company" or "key companies may include" vague statements
+▪ 【DATA CONSTRAINT】All stock codes, names, RTSI ratings must strictly follow data below, no fabrication
+
+【2. Content Focus Requirements (Mandatory)】
+▪ 【MAIN CONTENT】80% content must focus on specific stock investment value and operational advice
+▪ 【THEORY LIMIT】Macroeconomic theoretical analysis must not exceed 20%
+▪ 【PRACTICAL ORIENTED】Every analysis point must correspond to specific investment operations
 
 Analysis Target: {industry_name}
 Analysis Time: {analysis_time}
@@ -12919,12 +14826,21 @@ Please provide investment recommendations and risk alerts based on industry fund
 **IMPORTANT: Please respond in English only.**
 """
         else:
-            # 构建顶级股票信息 - 中文版
+            # 构建顶级股票信息 - 中文版（明确标识为行业龙头股票）
             top_stocks_info = ""
             if top_stocks:
-                top_stocks_info = "\n行业内优质股票（按RTSI排序）：\n"
+                top_stocks_info = f"\n===== 行业龙头股票（{len(top_stocks)}只，按RTSI排序） =====\n"
                 for i, stock in enumerate(top_stocks, 1):
-                    top_stocks_info += f"{i}. {stock['name']}({stock['code']}) - RTSI: {stock['rtsi']:.2f}\n"
+                    top_stocks_info += f"{i}. {stock['code']} {stock['name']} - RTSI: {stock['rtsi']:.2f}分\n"
+                top_stocks_info += f"\n【数据完整性确认】\n"
+                top_stocks_info += f"▪ 实际传递的龙头股票数量: {len(top_stocks)}只\n"
+                top_stocks_info += f"▪ 需要逐一分析的股票总数: {len(top_stocks)}只\n"
+                if len(top_stocks) == 0:
+                    top_stocks_info += f"▪  警告：当前没有符合条件的股票数据，请基于此情况给出相应的行业分析\n"
+            else:
+                top_stocks_info = f"\n===== 行业龙头股票（0只） =====\n"
+                top_stocks_info += f"▪  当前行业没有可分析的龙头股票数据\n"
+                top_stocks_info += f"▪ AI应重点分析行业整体趋势，无需进行具体股票推荐\n"
             
             # 判断TMA强度级别 - 中文版
             if tma_index > 20:
@@ -12943,6 +14859,20 @@ Please provide investment recommendations and risk alerts based on industry fund
             prompt = f"""
 {t_gui("【行业AI智能分析】")}
 
+🚨【强制执行约束条件 - 违反将被认定为不合格报告】🚨
+
+【1. 股票分析强制要求（最高优先级）】
+▪ 【强制完成】必须逐一分析下方"行业龙头股票"部分列出的每一只股票
+▪ 【强制格式】每只股票必须使用格式："股票代码 股票名称: RTSI XX.XX分 → [评分解读] → [投资建议]"
+▪ 【完整性验证】报告结尾必须确认已分析完所有{len(top_stocks) if top_stocks else 0}只龙头股票
+▪ 【绝对禁止】不得使用"假设选择XXX企业"、"重点企业可能包括"等虚构表述
+▪ 【数据约束】所有股票代码、名称、RTSI评分必须严格按照下方数据，不得编造
+
+【2. 内容聚焦要求（强制执行）】
+▪ 【主要内容】80%内容必须围绕具体股票的投资价值和操作建议
+▪ 【理论限制】宏观理论分析不得超过20%
+▪ 【实用导向】每个分析点必须对应具体投资操作
+
 {t_gui("分析对象")}：{industry_name}
 {t_gui("分析时间：")} {analysis_time}
 {market_context_zh}
@@ -12952,6 +14882,11 @@ Please provide investment recommendations and risk alerts based on industry fund
 • 大盘MSCI指数：{market_msci:.2f}
 • 市场情绪：{market_sentiment}
 • 初步投资建议：{investment_tendency}
+
+【数据完整性确认】
+▪ 市场MSCI指数: {market_msci:.2f} {f" (数据异常，可能存在传递问题)" if market_msci == 0 else " (数据正常)"}
+▪ 行业股票数量: {stock_count}只 {f" (无可分析股票)" if stock_count == 0 else " (数据充足)"}
+▪ 龙头股票数量: {len(top_stocks) if top_stocks else 0}只 {f" (缺乏龙头股票数据)" if not top_stocks or len(top_stocks) == 0 else " (数据充足)"}
 
 {top_stocks_info}
 
@@ -13024,6 +14959,35 @@ Please provide investment recommendations and risk alerts based on industry fund
 
 注：重点关注{industry_name}行业的整体投资价值和发展趋势，结合国际视野为行业配置决策提供专业分析支持。
 请提供基于行业基本面和国际对标的投资建议和风险提示。
+
+🔥【最终强制检查 - 报告提交前必须完成以下所有项目】🔥
+
+【强制性股票分析检查清单】
+每只股票必须包含以下四个要素，缺一不可：
+ 股票代码（必须与上方数据完全一致）
+ 股票名称（必须与上方数据完全一致） 
+ RTSI评分解读（必须引用上方具体数值）
+ 具体投资建议（买入/持有/观望，含仓位建议）
+
+【报告结构强制要求】
+ 必须有专门的"行业龙头股票分析"章节
+ 逐一分析上方列出的所有{len(top_stocks) if top_stocks else 0}只股票
+ 每只股票使用统一格式："股票代码 股票名称: RTSI XX.XX分 → [评分解读] → [投资建议]"
+ 报告末尾确认："已完成所有{len(top_stocks) if top_stocks else 0}只龙头股票的分析"
+
+【内容质量强制标准】
+ 具体股票投资建议占比≥80%，理论分析≤20%
+ 每个投资建议必须包含具体仓位或配置权重
+ 禁止使用任何虚构、假设或泛化表述
+ 所有数据引用必须与上方提供的数据完全一致
+
+【不合格判定标准】
+如出现以下任一情况，报告将被认定为不合格：
+[ERROR] 遗漏任何一只上方列出的龙头股票分析
+[ERROR] 使用虚构的股票代码或公司名称
+[ERROR] 编造不存在的RTSI评分数据
+[ERROR] 过多理论化内容（>20%），缺乏具体投资指导
+[ERROR] 使用"假设"、"可能包括"等模糊表述替代具体分析
 
 **重要：请用中文回复所有内容。**
 """
@@ -13256,9 +15220,9 @@ Please provide professional analysis based on index technical patterns and relat
                 # 加载临时文件
                 widget.load(QUrl.fromLocalFile(os.path.abspath(temp_file)))
             else:
-                print(f"❌ 无法识别组件类型: {type(widget)}")
+                print(f"[ERROR] 无法识别组件类型: {type(widget)}")
         except Exception as e:
-            print(f"❌ 设置HTML内容失败: {e}")
+            print(f"[ERROR] 设置HTML内容失败: {e}")
     
     def set_industry_ai_html(self, html_content):
         """设置行业AI分析HTML内容"""
@@ -13309,7 +15273,7 @@ Please provide professional analysis based on index technical patterns and relat
                     }}
                     
                     body {{ 
-                        font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, sans-serif;
+                        font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif, 'Segoe UI', Tahoma, sans-serif;
                         line-height: 1.6; 
                         color: #333;
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -13483,7 +15447,7 @@ Please provide professional analysis based on index technical patterns and relat
                     }}
                     
                     .insights li:before {{
-                        content: "💡";
+                        content: "";
                         position: absolute;
                         left: 0;
                     }}
@@ -13533,14 +15497,14 @@ Please provide professional analysis based on index technical patterns and relat
             <body>
                 <div class="container">
                 <div class="header">
-                        <h1>🤖 {industry_name} 行业AI智能分析报告</h1>
+                        <h1> {industry_name} 行业AI智能分析报告</h1>
                         <div class="subtitle">分析时间：{current_time}</div>
                         <div class="subtitle" style="font-size: 0.9em; margin-top: 10px; opacity: 0.8;">作者：267278466@qq.com</div>
                 </div>
                 
                     <div class="section">
                 <div class="industry-info">
-                            <h3>📊 分析说明</h3>
+                            <h3> 分析说明</h3>
                             <p>本报告基于行业TMA指数、市场情绪和优质股票数据，运用AI技术进行深度分析，为您提供专业的行业投资建议。</p>
                 </div>
                 
@@ -13612,8 +15576,8 @@ Please provide professional analysis based on index technical patterns and relat
             # 重置按钮状态
             self.industry_ai_analysis_in_progress = False
             self.industry_ai_analyze_btn.setEnabled(True)
-            self.industry_ai_analyze_btn.setText(t_gui("🚀_开始AI分析"))
-            self.industry_ai_status_label.setText(t_gui("✅_分析完成"))
+            self.industry_ai_analyze_btn.setText(t_gui("开始AI分析"))
+            self.industry_ai_status_label.setText(t_gui("分析完成"))
             
             print(f"[行业AI分析] {self.current_industry_name} 分析完成")
             
@@ -13624,7 +15588,7 @@ Please provide professional analysis based on index technical patterns and relat
         """行业AI分析错误回调"""
         error_html = f"""
         <div style="text-align: center; color: #dc3545; margin-top: 50px;">
-            <h3>🔍 行业AI分析失败</h3>
+            <h3> 行业AI分析失败</h3>
             <p style="margin: 20px 0; font-size: 14px; color: #666;">{error_message}</p>
             <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 15px; margin: 20px; text-align: left;">
                 <h4 style="color: #721c24; margin-top: 0;">请检查以下项目：</h4>
@@ -13646,10 +15610,10 @@ Please provide professional analysis based on index technical patterns and relat
         # 重置按钮状态
         self.industry_ai_analysis_in_progress = False
         self.industry_ai_analyze_btn.setEnabled(True)
-        self.industry_ai_analyze_btn.setText(t_gui("🚀_开始AI分析"))
+        self.industry_ai_analyze_btn.setText(t_gui("开始AI分析"))
         self.industry_ai_status_label.setText("")
         
-        print(f"❌ 行业AI分析错误：{error_message}")
+        print(f"[ERROR] 行业AI分析错误：{error_message}")
     
     def update_industry_ai_tab_status(self, industry_name):
         """更新行业AI分析Tab状态 - 根据内存缓存决定显示首页还是结果页"""
@@ -13677,7 +15641,7 @@ Please provide professional analysis based on index technical patterns and relat
                     
                     # 重置按钮状态
                     if hasattr(self, 'industry_ai_analyze_btn'):
-                        self.industry_ai_analyze_btn.setText(t_gui("🚀_开始AI分析"))
+                        self.industry_ai_analyze_btn.setText(t_gui("开始AI分析"))
                         self.industry_ai_analyze_btn.setEnabled(True)
                     if hasattr(self, 'industry_ai_status_label'):
                         self.industry_ai_status_label.setText("")
@@ -13702,6 +15666,15 @@ class NewPyQt5Interface(QMainWindow):
         self.analysis_worker = None
         self.no_update = no_update
         
+        # ===== 初始化AI使用计数器 =====
+        try:
+            from utils.ai_usage_counter import get_ai_counter
+            self.ai_counter = get_ai_counter()
+            print(f"[AI计数器] 初始化完成，当前使用次数: {self.ai_counter.get_count()}")
+        except Exception as e:
+            print(f"[AI计数器] 初始化失败: {e}")
+            self.ai_counter = None
+        
         # 根据参数决定是否执行开机启动更新数据文件
         if not self.no_update:
             self.startup_update_data_files()
@@ -13711,25 +15684,36 @@ class NewPyQt5Interface(QMainWindow):
         self.setup_ui()
         
     def startup_update_data_files(self):
-        """开机启动更新数据文件功能"""
+        """开机启动更新数据文件功能（PyQt5版本）"""
         try:
             print("正在检查数据文件更新...")
-            from utils.data_updater import auto_update_data_files
             
-            # 同步执行更新，等待检查更新结束
+            # 使用PyQt5版本的更新器（打包环境和开发环境都支持）
+            from utils.data_updater_pyqt5 import silent_update
+            
+            # 获取目标目录（EXE目录或项目根目录）
+            target_dir = get_base_path()
+            
+            # 静默更新（不显示界面，后台下载）
             try:
-                # 检查并更新数据文件（cn_data5000/hk_data1000/us_data1000）
-                update_success = auto_update_data_files(parent=None, show_progress=False)
+                print(f"数据文件将更新到: {target_dir}")
+                update_success = silent_update(target_dir=target_dir)
+                
                 if update_success:
-                    print("✅ 数据文件更新成功")
+                    print(" 数据文件更新成功")
                 else:
-                    print("ℹ️ 数据文件已是最新版本")
+                    print(" 部分数据文件更新失败，将使用现有数据")
+                    
             except Exception as e:
-                print(f"⚠️ 数据更新失败: {e}")
+                print(f" 数据更新失败: {e}")
                 print("将继续使用现有数据文件")
             
             print("数据文件检查完成，继续启动程序...")
             
+        except ImportError as e:
+            # tkinter不可用（打包环境）
+            print(f" 数据更新功能不可用: {e}")
+            print("ℹ️ 打包版本请手动更新数据文件")
         except Exception as e:
             print(f"启动数据更新功能失败: {e}")
             print("将跳过数据更新，直接启动程序")
@@ -13744,10 +15728,12 @@ class NewPyQt5Interface(QMainWindow):
             window_title = f"{t_gui('window_title')}"
         
         self.setWindowTitle(window_title)
-        self.setGeometry(100, 100, 1280, 600)  # 设置高度为780
+        self.setGeometry(100, 100, 1280, 800)
+        self.setMinimumHeight(800)
+        self.setMaximumHeight(800)
         
         # 设置窗口字体 - 与行业分析标题一致
-        self.setFont(QFont("Microsoft YaHei", 14))
+        self.setFont(QFont(get_cross_platform_font(), 14))
         
         # 设置窗口图标（如果存在）
         icon_path = project_root / "mrcai.ico"
@@ -13767,6 +15753,7 @@ class NewPyQt5Interface(QMainWindow):
         
         # 创建分析页面
         self.analysis_page = AnalysisPage()
+        self.analysis_page.set_main_window(self)
         
         # 添加到堆叠部件
         self.stacked_widget.addWidget(self.file_page)
@@ -13784,11 +15771,11 @@ class NewPyQt5Interface(QMainWindow):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                     stop:0 #f8f9fa, stop:0.3 #e9ecef, stop:0.7 #dee2e6, stop:1 #ced4da);
                 color: #2c3e50;
-                font-family: 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif;
+                font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
             }
             
             QWidget {
-                font-family: 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif;
+                font-family: Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
             }
             
             /* 工具栏和菜单栏样式 */
@@ -13862,6 +15849,11 @@ class NewPyQt5Interface(QMainWindow):
         
         print(f"检测到数据文件市场类型: {detected_market.upper()}")
         
+        # 立即更新中国市场专属Tab的可见性
+        if hasattr(self, 'analysis_page'):
+            self.analysis_page.update_cn_market_tabs_visibility()
+            print(f"[市场切换] 已更新Tab可见性，当前市场: {detected_market.upper()}")
+        
         # 获取AI分析启用状态
         enable_ai = self.file_page.get_ai_analysis_enabled()
         
@@ -13911,9 +15903,34 @@ class NewPyQt5Interface(QMainWindow):
         # 更新分析页面的结果
         self.analysis_page.update_analysis_results(results)
         
+        # 确保服务器运行（仅市场数据完成后且未启动过，且为中文系统+CN市场）
+        try:
+            self.analysis_page.ensure_stock_server_running()
+        except Exception as e:
+            print(f"启动服务器时出错: {e}")
+        
         # 切换到分析页面
         self.stacked_widget.setCurrentWidget(self.analysis_page)
         
+        # 检查是否需要显示 API Key 配置对话框
+        self._check_and_show_api_dialog()
+        
+    def _check_and_show_api_dialog(self):
+        """检查并显示 API Key 配置对话框"""
+        try:
+            from api_key_dialog import should_show_api_dialog, APIKeyDialog
+            
+            if should_show_api_dialog():
+                print("[API配置] 检测到需要配置 API Key，显示配置对话框")
+                dialog = APIKeyDialog(self)
+                dialog.exec_()
+            else:
+                print("[API配置] 已有 API Key 配置或用户选择不再显示")
+        except Exception as e:
+            print(f"[API配置] 检查API对话框时出错: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def on_analysis_failed(self, error_msg: str):
         """分析失败"""
         # 隐藏首页的进度条
@@ -13952,6 +15969,8 @@ class NewPyQt5Interface(QMainWindow):
             
             # 行业评级工作线程已删除
             
+            # 关闭服务器（如果是本软件启动的）
+            self._shutdown_server_if_started_by_us()
             
             # 清理临时文件
             self._cleanup_temporary_files()
@@ -13967,6 +15986,69 @@ class NewPyQt5Interface(QMainWindow):
             # 强制退出
             import os
             os._exit(0)
+    
+    def _shutdown_server_if_started_by_us(self):
+        """如果服务器是本软件启动的，则关闭服务器"""
+        try:
+            # 检查是否有 analysis_page 且服务器是本软件启动的
+            if hasattr(self, 'analysis_page') and self.analysis_page:
+                if hasattr(self.analysis_page, 'server_started_by_us') and self.analysis_page.server_started_by_us:
+                    print("检测到服务器是本软件启动的，正在关闭服务器...")
+                    
+                    # 调用 shutdown API（改进版：参考shutdown_server.py）
+                    try:
+                        import requests
+                        import time
+                        
+                        url = "http://localhost:16888/api/shutdown"
+                        max_retries = 1
+                        timeout = 5
+                        
+                        for attempt in range(1, max_retries + 1):
+                            try:
+                                print(f"[尝试 {attempt}/{max_retries}] 发送关闭指令")
+                                
+                                response = requests.post(url, timeout=timeout)
+                                
+                                if response.status_code == 200:
+                                    result = response.json()
+                                    if result.get('success'):
+                                        print(f"✅ 成功！服务器关闭指令已发送")
+                                        print(f"   消息: {result.get('message')}")
+                                        time.sleep(1)
+                                        return
+                                    else:
+                                        print(f"❌ 关闭失败: {result.get('error')}")
+                                        if attempt < max_retries:
+                                            time.sleep(2)
+                                else:
+                                    print(f"❌ HTTP 错误: {response.status_code}")
+                                    if attempt < max_retries:
+                                        time.sleep(2)
+                                        
+                            except requests.exceptions.Timeout:
+                                print("⚠️ 请求超时（服务器可能已开始关闭）")
+                                return
+                                
+                            except requests.exceptions.ConnectionError:
+                                print("⚠️ 无法连接到服务器（服务器可能已关闭）")
+                                return
+                        
+                        print("❌ 所有尝试均失败，但将继续退出")
+                        
+                    except ImportError:
+                        print("[WARN] requests模块不可用，无法关闭服务器")
+                    except Exception as e:
+                        print(f"[WARN] 关闭服务器时出错: {e}")
+                else:
+                    print("服务器不是本软件启动的，跳过关闭操作")
+            else:
+                print("未检测到分析页面或服务器状态，跳过服务器关闭")
+                
+        except Exception as e:
+            print(f"[ERROR] 检查并关闭服务器时出错: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _cleanup_temporary_files(self):
         """清理临时文件"""
@@ -13987,13 +16069,13 @@ class NewPyQt5Interface(QMainWindow):
             try:
                 if os.path.exists(file_path):
                     os.remove(file_path)
-                    print(f"🗑️ 已删除临时文件: {file_path}")
+                    print(f"[DEL] 已删除临时文件: {file_path}")
                     deleted_count += 1
             except Exception as e:
-                print(f"⚠️ 删除临时文件失败 {file_path}: {e}")
+                print(f" 删除临时文件失败 {file_path}: {e}")
         
         if deleted_count > 0:
-            print(f"✅ 共清理了 {deleted_count} 个临时文件")
+            print(f" 共清理了 {deleted_count} 个临时文件")
         else:
             print("📝 没有找到需要清理的临时文件")
 
@@ -14006,8 +16088,13 @@ def main():
     parser = argparse.ArgumentParser(description='AI股票大师 - 智能股票分析工具')
     parser.add_argument('--NoUpdate', action='store_true', 
                        help='跳过启动时的数据文件检查和更新（cn_data5000等6个文件）')
+    parser.add_argument('--no-upgrade-check', action='store_true',
+                       help='跳过软件版本升级检查')
+    parser.add_argument('--no-splash', action='store_true',
+                       help='禁用启动画面（Splash Screen）')
     args = parser.parse_args()
     
+    # 创建QApplication
     app = QApplication(sys.argv)
     
     # 设置应用程序属性
@@ -14016,11 +16103,72 @@ def main():
     app.setOrganizationName("AI Stock Master")
     
     # 设置全局字体
-    font = QFont("Microsoft YaHei", 9)
+    font = QFont(get_cross_platform_font(), 9)
     app.setFont(font)
+    
+    # 显示启动画面（如果未禁用）
+    splash = None
+    splash_logger = None
+    if not args.no_splash:
+        try:
+            from utils.splash_screen import create_splash_screen, SplashLogger
+            splash = create_splash_screen(app)
+            splash.showMessage("正在启动 AI 股票大师...")
+            splash.showProgress(10)
+            
+            # 安装日志重定向
+            splash_logger = SplashLogger(splash)
+            splash_logger.install()
+        except Exception as e:
+            print(f"无法显示启动画面: {e}")
+    
+    # 软件升级检查 (在分析数据文件之前)
+    if not args.no_upgrade_check:
+        if splash:
+            splash.showProgress(20, "正在检查软件更新...")
+        try:
+            from updater import check_for_updates
+            
+            # 检查软件更新
+            result = check_for_updates()
+            
+            # 注意：如果是Windows系统且需要升级，updater会调用sys.exit()直接退出
+            # 只有在无需升级或升级失败时才会到达这里
+            if not result:
+                print("Software upgrade check failed, continuing normal startup... | 软件升级检查失败，继续正常启动...")
+            
+        except SystemExit:
+            # 升级程序调用了sys.exit()，正常退出
+            raise
+        except ImportError:
+            print("Upgrade module unavailable, skipping upgrade check | 升级模块不可用，跳过升级检查")
+        except Exception as e:
+            print(f"Error during upgrade check: {e} | 升级检查时发生错误: {e}")
+            print("Continuing normal startup... | 继续正常启动...")
+    
+    # 加载配置
+    if splash:
+        splash.showProgress(20, "正在检查软件更新...")
+        splash.showDetail("Check Update...")
+    
+    # 初始化模块
+    if splash:
+        splash.showProgress(30, "正在检查数据文件...")
+        splash.showDetail("Check DataBase...")
+    
+    # 创建主窗口
+    if splash:
+        splash.showProgress(50, "正在更新数据文件...")
     
     # 创建主窗口，传递NoUpdate参数
     window = NewPyQt5Interface(no_update=args.NoUpdate)
+    
+    # 完成加载
+    if splash:
+        splash.showProgress(100, "启动完成！")
+        QTimer.singleShot(500, lambda: splash.finish(window))
+    
+    # 显示主窗口
     window.show()
     
     # 运行应用程序
@@ -14029,6 +16177,8 @@ def main():
     except KeyboardInterrupt:
         exit_code = 0
     finally:
+        if splash_logger:
+            splash_logger.restore()
         # 确保应用程序完全退出
         app.quit()
         QApplication.processEvents()

@@ -16,7 +16,7 @@
 """
 
 from client import LLMClient
-from models import ModelProvider, LLMModel
+from llm_models import ModelProvider, LLMModel
 from exceptions import LLMAPIError, ModelNotFoundError, APIKeyError
 from utils import call_llm
 from prompts.localized_prompts import LocalizedPrompts, PromptOptimizer

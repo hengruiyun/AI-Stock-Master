@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行业趋势分析 （大师版）</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .period-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .period-btn {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .period-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .period-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .chart-container:nth-child(1) { animation-delay: 0.1s; }
+        .chart-container:nth-child(2) { animation-delay: 0.2s; }
+        .chart-container:nth-child(3) { animation-delay: 0.3s; }
+        .chart-container:nth-child(4) { animation-delay: 0.4s; }
+
+        .chart-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #495057;
+            text-align: center;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+
+        .status-info {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .risk-warning {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 1400px;
+            text-align: center;
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .risk-warning strong {
+            color: #dc3545;
+            font-size: 16px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 10px;
+        }
+
+        .error {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #dc3545;
+            text-align: center;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #007bff;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>行业趋势分析（大师版）</h1>
+            <div>实时行业数据分析与排行榜</div>
+            <div style="font-size: 14px;  margin-top: 5px;">作者：267278466@qq.com</div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label><i class="fas fa-calendar-alt"></i> 时间周期：</label>
+                <div class="period-buttons">
+                <button class="period-btn" data-period="1">1日</button>
+                <button class="period-btn" data-period="2">2日</button>
+                <button class="period-btn active" data-period="5">5日</button>
+                    <button class="period-btn" data-period="10">10日</button>
+                    <button class="period-btn" data-period="20">20日</button>
+                    <button class="period-btn" data-period="30">30日</button>
+                    <button class="period-btn" data-period="60">60日</button>
+                </div>
+            </div>
+            
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="fas fa-trophy"></i> 行业资金排行榜
+                </div>
+                <div class="chart-wrapper" id="rankingWrapper">
+                    <div id="rankingChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="fas fa-chart-bar"></i> 行业涨跌幅排行榜
+                </div>
+                <div class="chart-wrapper" id="changeWrapper">
+                    <div id="changeChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="fas fa-percentage"></i> 涨跌额与总市值比例排行榜
+                </div>
+                <div class="chart-wrapper" id="marketCapWrapper">
+                    <div id="marketCapChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="fas fa-balance-scale"></i> 上涨家数占比
+                </div>
+                <div class="chart-wrapper" id="ratioWrapper">
+                    <div id="ratioChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 风险警告 -->
+    <div class="risk-warning">
+        <strong>风险提示：</strong>本页面数据仅供参考，不做为投资推荐及建议。投资有风险，入市需谨慎。<br>
+        股票投资存在价格波动风险，过往业绩不代表未来表现，请根据自身风险承受能力谨慎投资。
+    </div>
+
+    <!-- GitHub链接 -->
+    <div style="text-align: center; margin: 30px auto; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 15px; max-width: 1400px;">
+        <p style="color: #b0c4de; margin-bottom: 10px;">开源项目</p>
+        <a href="https://github.com/hengruiyun" target="_blank" style="color: #4CAF50; text-decoration: none; font-weight: bold; font-size: 16px;">
+            <i class="fab fa-github"></i> 访问GitHub @hengruiyun
+        </a>
+    </div>
+
+    <script>
+        // 自定义图表类
+        class CustomChart {
+            constructor(containerId) {
+                this.containerId = containerId;
+                this.container = document.getElementById(containerId);
+                this.svg = null;
+            }
+
+            init() {
+                if (!this.container) {
+                    console.error(`Container ${this.containerId} not found`);
+                    return this;
+                }
+                
+                // 清空容器
+                this.container.innerHTML = '';
+                
+                // 创建SVG
+                this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                this.svg.setAttribute('width', '100%');
+                this.svg.setAttribute('height', '100%');
+                this.svg.style.background = 'white';
+                this.container.appendChild(this.svg);
+                
+                return this;
+            }
+
+            destroy() {
+                if (this.container) {
+                    this.container.innerHTML = '';
+                }
+            }
+
+            drawBarChart(data) {
+                if (!this.svg || !data || !data.labels || !data.datasets) return;
+                
+                const containerRect = this.container.getBoundingClientRect();
+                const chartWidth = containerRect.width - 100;
+                const chartHeight = containerRect.height - 100;
+                const margin = { top: 20, right: 20, bottom: 60, left: 60 };
+                
+                // 清空SVG
+                this.svg.innerHTML = '';
+                
+                // 创建图表组
+                const chartGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                chartGroup.setAttribute('transform', `translate(${margin.left}, ${margin.top})`);
+                chartGroup.style.opacity = '0';
+                this.svg.appendChild(chartGroup);
+                
+                // 添加进场动画
+                setTimeout(() => {
+                    chartGroup.style.transition = 'opacity 0.6s ease-in-out';
+                    chartGroup.style.opacity = '1';
+                }, 100);
+                
+                const { labels, datasets } = data;
+                
+                if (!datasets || datasets.length === 0) {
+                    // 显示无数据提示
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', chartWidth / 2);
+                    text.setAttribute('y', chartHeight / 2);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '16');
+                    text.setAttribute('fill', '#999');
+                    text.textContent = '暂无数据';
+                    chartGroup.appendChild(text);
+                    return;
+                }
+                
+                // 计算数据范围
+                const allValues = datasets.flatMap(d => d.data || []);
+                const validValues = allValues.filter(v => !isNaN(v) && isFinite(v));
+                
+                if (validValues.length === 0) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', chartWidth / 2);
+                    text.setAttribute('y', chartHeight / 2);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '16');
+                    text.setAttribute('fill', '#999');
+                    text.textContent = '暂无数据';
+                    chartGroup.appendChild(text);
+                    return;
+                }
+                
+                const maxValue = Math.max(...validValues.map(v => Math.abs(v)));
+                const minValue = Math.min(...validValues);
+                const range = maxValue - minValue;
+                const adjustedMax = maxValue + range * 0.1;
+                const adjustedMin = minValue - range * 0.1;
+                
+                // 计算柱子宽度
+                const barWidth = chartWidth / labels.length * 0.8;
+                const barSpacing = chartWidth / labels.length * 0.2;
+                
+                // 绘制Y轴网格线和标签
+                const gridLines = 5;
+                for (let i = 0; i <= gridLines; i++) {
+                    const y = (chartHeight / gridLines) * i;
+                    const value = adjustedMax - (range / gridLines) * i;
+                    
+                    // 网格线
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', 0);
+                    line.setAttribute('y1', y);
+                    line.setAttribute('x2', chartWidth);
+                    line.setAttribute('y2', y);
+                    line.setAttribute('stroke', '#e0e0e0');
+                    line.setAttribute('stroke-width', 1);
+                    chartGroup.appendChild(line);
+                    
+                    // Y轴标签
+                    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    label.setAttribute('x', -10);
+                    label.setAttribute('y', y + 5);
+                    label.setAttribute('text-anchor', 'end');
+                    label.setAttribute('font-size', '12');
+                    label.setAttribute('fill', '#666');
+                    label.textContent = value.toFixed(1);
+                    chartGroup.appendChild(label);
+                }
+                
+                // 绘制X轴和Y轴
+                const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                xAxis.setAttribute('x1', 0);
+                xAxis.setAttribute('y1', chartHeight);
+                xAxis.setAttribute('x2', chartWidth);
+                xAxis.setAttribute('y2', chartHeight);
+                xAxis.setAttribute('stroke', '#333');
+                xAxis.setAttribute('stroke-width', 2);
+                chartGroup.appendChild(xAxis);
+                
+                const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                yAxis.setAttribute('x1', 0);
+                yAxis.setAttribute('y1', 0);
+                yAxis.setAttribute('x2', 0);
+                yAxis.setAttribute('y2', chartHeight);
+                yAxis.setAttribute('stroke', '#333');
+                yAxis.setAttribute('stroke-width', 2);
+                chartGroup.appendChild(yAxis);
+                
+                // 绘制柱子
+                labels.forEach((label, i) => {
+                    const x = i * (barWidth + barSpacing);
+                    
+                    datasets.forEach((dataset, datasetIndex) => {
+                        const value = dataset.data[i] || 0;
+                        
+                        if (isNaN(value) || !isFinite(value)) return;
+                        
+                        const barHeight = (Math.abs(value - adjustedMin) / range) * chartHeight;
+                        const y = chartHeight - barHeight;
+                        
+                        if (isNaN(barHeight) || isNaN(y) || !isFinite(barHeight) || !isFinite(y)) return;
+                        
+                        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        rect.setAttribute('x', x + (datasetIndex * barWidth / datasets.length));
+                        rect.setAttribute('y', chartHeight); // 从底部开始
+                        rect.setAttribute('width', barWidth / datasets.length);
+                        rect.setAttribute('height', 0); // 初始高度为0
+                        rect.setAttribute('fill', dataset.backgroundColor || '#4ecdc4');
+                        rect.setAttribute('opacity', 0.8);
+                        
+                        // 添加动画效果
+                        setTimeout(() => {
+                            rect.style.transition = 'y 0.8s ease-out, height 0.8s ease-out';
+                            rect.setAttribute('y', y);
+                            rect.setAttribute('height', barHeight);
+                        }, i * 100 + datasetIndex * 50); // 错开动画时间
+                        
+                        // 添加鼠标悬停效果
+                        rect.addEventListener('mouseover', function() {
+                            this.setAttribute('opacity', 1);
+                        });
+                        rect.addEventListener('mouseout', function() {
+                            this.setAttribute('opacity', 0.8);
+                        });
+                        
+                        chartGroup.appendChild(rect);
+                    });
+                    
+                    // X轴标签
+                    const labelElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    labelElement.setAttribute('x', x + barWidth / 2);
+                    labelElement.setAttribute('y', chartHeight + 20);
+                    labelElement.setAttribute('text-anchor', 'middle');
+                    labelElement.setAttribute('font-size', '12');
+                    labelElement.setAttribute('fill', '#666');
+                    labelElement.textContent = label.length > 8 ? label.substring(0, 8) + '...' : label;
+                    chartGroup.appendChild(labelElement);
+                });
+            }
+        }
+
+        // 调试日志函数
+        function debugLog(message) {
+            }
+
+        debugLog('页面开始加载...');
+
+        // 统一的服务器地址获取函数
+        function getServerUrl() {
+            const protocol = window.location.protocol;
+            
+            // 如果是通过HTTP/HTTPS访问（从服务器加载的），直接使用当前地址的域名和端口
+            if (protocol === 'http:' || protocol === 'https:') {
+                return window.location.origin;
+            }
+            
+            // 如果是file协议，回退到localhost:16888
+            return 'http://localhost:16888';
+        }
+        
+        // 全局变量
+        const LOCAL_SERVER = getServerUrl();
+        let currentPeriod = '5';
+        let charts = {};
+        let isLoading = false;
+
+        debugLog('全局变量初始化完成');
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            debugLog('DOM加载完成，开始初始化...');
+            
+            try {
+                setupEventListeners();
+                debugLog('事件监听器设置完成');
+                
+                initializeCharts();
+                debugLog('图表初始化完成');
+                
+                refreshAllData();
+                debugLog('开始首次数据加载');
+                
+            } catch (error) {
+                debugLog('初始化失败: ' + error.message);
+                }
+        });
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            debugLog('设置事件监听器...');
+            
+            // 周期按钮点击事件
+            document.querySelectorAll('.period-btn').forEach((btn, index) => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    const period = this.dataset.period;
+                    debugLog(`周期按钮点击: ${period}日`);
+                    
+                    if (isLoading) {
+                        debugLog('正在加载中，忽略点击');
+                        return;
+                    }
+                    
+                    // 更新按钮状态
+                    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // 更新当前周期
+                    if (period !== currentPeriod) {
+                        currentPeriod = period;
+                        debugLog(`切换到周期: ${currentPeriod}日`);
+                        refreshAllData();
+                    }
+                });
+            });
+
+            debugLog('事件监听器设置完成');
+        }
+
+        // 初始化图表
+        function initializeCharts() {
+            debugLog('开始初始化图表...');
+            
+            try {
+                // 行业排行榜
+                charts.ranking = new CustomChart('rankingChart').init();
+                debugLog('排行榜图表初始化完成');
+
+                // 涨跌幅图表
+                charts.change = new CustomChart('changeChart').init();
+                debugLog('涨跌幅图表初始化完成');
+
+                // 市值比例图表
+                charts.marketCap = new CustomChart('marketCapChart').init();
+                debugLog('市值比例图表初始化完成');
+
+                // 上涨下跌比例图表
+                charts.ratio = new CustomChart('ratioChart').init();
+                debugLog('上涨下跌比例图表初始化完成');
+                
+            } catch (error) {
+                debugLog('图表初始化失败: ' + error.message);
+                throw error;
+            }
+        }
+
+        // 刷新所有数据
+        async function refreshAllData() {
+            if (isLoading) {
+                debugLog('已在加载中，跳过重复请求');
+                return;
+            }
+            
+            debugLog(`开始刷新数据，当前周期: ${currentPeriod}日`);
+            isLoading = true;
+
+            try {
+                debugLog('开始并行获取所有API数据...');
+                
+                // 测试服务器连接
+                const testResponse = await fetch(`${LOCAL_SERVER}/api/status`);
+                if (!testResponse.ok) {
+                    throw new Error('服务器连接失败');
+                }
+                debugLog('服务器连接正常');
+                
+                // 并行获取所有数据
+                const [rankingData, changeData, marketCapData, ratioData] = await Promise.all([
+                    fetchIndustryRanking(),
+                    fetchIndustryChangeRanking(),
+                    fetchIndustryMarketCapRatio(),
+                    fetchIndustryUpDownRatio()
+                ]);
+
+                debugLog(`API数据获取完成: ranking=${rankingData?.success}, change=${changeData?.success}, marketCap=${marketCapData?.success}, ratio=${ratioData?.success}`);
+
+                // 更新图表
+                updateRankingChart(rankingData);
+                updateChangeChart(changeData);
+                updateMarketCapChart(marketCapData);
+                updateRatioChart(ratioData);
+
+                // 更新状态信息
+                updateStatusInfo(rankingData);
+                
+                debugLog('所有图表更新完成');
+
+            } catch (error) {
+                debugLog('刷新数据失败: ' + error.message);
+                showError('错误，检查网络连接和大师服务器状态');
+            } finally {
+                isLoading = false;
+                debugLog('数据刷新流程结束');
+            }
+        }
+
+        // API获取函数
+        async function fetchIndustryRanking() {
+            debugLog(`获取排行榜数据: period=${currentPeriod}`);
+            const response = await fetch(`${LOCAL_SERVER}/api/industry/ranking?period=${currentPeriod}&limit=10`);
+            if (!response.ok) {
+                throw new Error(`排行榜API失败: HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || '获取排行榜数据失败');
+            }
+            debugLog(`排行榜数据获取成功: ${data.data.length}条记录`);
+            return data;
+        }
+
+        async function fetchIndustryChangeRanking() {
+            debugLog(`获取涨跌幅数据: period=${currentPeriod}`);
+            const response = await fetch(`${LOCAL_SERVER}/api/industry/change_ranking?period=${currentPeriod}&limit=10&order=desc`);
+            if (!response.ok) {
+                throw new Error(`涨跌幅API失败: HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || '获取涨跌幅数据失败');
+            }
+            debugLog(`涨跌幅数据获取成功: ${data.data.length}条记录`);
+            return data;
+        }
+
+        async function fetchIndustryMarketCapRatio() {
+            debugLog(`获取市值比例数据: period=${currentPeriod}`);
+            const response = await fetch(`${LOCAL_SERVER}/api/industry/market_cap_ratio?period=${currentPeriod}&limit=10`);
+            if (!response.ok) {
+                throw new Error(`市值比例API失败: HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || '获取市值比例数据失败');
+            }
+            debugLog(`市值比例数据获取成功: ${data.data.length}条记录`);
+            return data;
+        }
+
+        async function fetchIndustryUpDownRatio() {
+            debugLog(`获取上涨下跌比例数据: period=${currentPeriod}`);
+            const response = await fetch(`${LOCAL_SERVER}/api/industry/up_down_ratio?period=${currentPeriod}&limit=10`);
+            if (!response.ok) {
+                throw new Error(`上涨下跌比例API失败: HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || '获取上涨下跌比例数据失败');
+            }
+            debugLog(`上涨下跌比例数据获取成功: ${data.data.length}条记录`);
+            return data;
+        }
+
+        // 图表更新函数
+        function updateRankingChart(data) {
+            debugLog('更新排行榜图表...');
+            if (!data || !data.data || !Array.isArray(data.data)) {
+                debugLog('排行榜数据格式错误');
+                return;
+            }
+            
+            const chart = charts.ranking;
+            const industries = data.data.map(item => item.行业 || '未知行业');
+            const netAmounts = data.data.map(item => parseFloat(item.净额 || 0));
+
+            debugLog(`排行榜数据详情: 行业=${industries.join(', ')}, 净额=${netAmounts.join(', ')}`);
+            
+            const chartData = {
+                labels: industries,
+                datasets: [{
+                    label: '净流入(亿元)',
+                    data: netAmounts,
+                    backgroundColor: 'rgba(102, 126, 234, 0.8)'
+                }]
+            };
+            
+            chart.drawBarChart(chartData);
+            debugLog(`排行榜图表更新完成: ${industries.length}个行业`);
+        }
+
+        function updateChangeChart(data) {
+            debugLog('更新涨跌幅图表...');
+            if (!data || !data.data || !Array.isArray(data.data)) {
+                debugLog('涨跌幅数据格式错误');
+                return;
+            }
+            
+            const chart = charts.change;
+            const industries = data.data.map(item => item.行业 || '未知行业');
+            const changes = data.data.map(item => {
+                let changeValue = 0;
+                if (item['涨跌幅']) {
+                    changeValue = parseFloat(item['涨跌幅'].toString().replace('%', '')) || 0;
+                } else if (item['行业-涨跌幅'] !== undefined) {
+                    changeValue = parseFloat(item['行业-涨跌幅']) || 0;
+                } else if (item['阶段涨跌幅']) {
+                    changeValue = parseFloat(item['阶段涨跌幅'].toString().replace('%', '')) || 0;
+                }
+                return changeValue;
+            });
+
+            debugLog(`涨跌幅数据详情: 行业=${industries.join(', ')}, 涨跌幅=${changes.join(', ')}%`);
+
+            const chartData = {
+                labels: industries,
+                datasets: [{
+                    label: '涨跌幅 (%)',
+                    data: changes,
+                    backgroundColor: 'rgba(220, 53, 69, 0.8)'
+                }]
+            };
+            
+            chart.drawBarChart(chartData);
+            debugLog(`涨跌幅图表更新完成: ${industries.length}个行业`);
+        }
+
+        function updateMarketCapChart(data) {
+            debugLog('更新市值比例图表...');
+            if (!data || !data.data || !Array.isArray(data.data)) {
+                debugLog('市值比例数据格式错误');
+                return;
+            }
+            
+            const chart = charts.marketCap;
+            const industries = data.data.map(item => item.行业 || '未知行业');
+            const ratios = data.data.map(item => parseFloat(item.市值比例 || 0));
+
+            debugLog(`市值比例数据详情: 行业=${industries.join(', ')}, 市值比例=${ratios.join(', ')}%`);
+
+            const chartData = {
+                labels: industries,
+                datasets: [{
+                    label: '市值比例 (%)',
+                    data: ratios,
+                    backgroundColor: 'rgba(156, 39, 176, 0.8)'
+                }]
+            };
+            
+            chart.drawBarChart(chartData);
+            debugLog(`市值比例图表更新完成: ${industries.length}个行业`);
+        }
+
+        function updateRatioChart(data) {
+            debugLog('更新上涨下跌比例图表...');
+            if (!data || !data.data || !Array.isArray(data.data)) {
+                debugLog('上涨下跌比例数据格式错误');
+                return;
+            }
+            
+            const chart = charts.ratio;
+            const industries = data.data.map(item => item.行业 || '未知行业');
+            const ratios = data.data.map(item => parseFloat(item.上涨比例 || 0));
+
+            debugLog(`上涨下跌比例数据详情: 行业=${industries.join(', ')}, 上涨比例=${ratios.join(', ')}%`);
+
+            const chartData = {
+                labels: industries,
+                datasets: [{
+                    label: '上涨占比(%)',
+                    data: ratios,
+                    backgroundColor: 'rgba(255, 193, 7, 0.8)'
+                }]
+            };
+            
+            chart.drawBarChart(chartData);
+            debugLog(`上涨下跌比例图表更新完成: ${industries.length}个行业`);
+        }
+
+        // 更新状态信息
+        function updateStatusInfo(data) {
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            debugLog('显示错误信息: ' + message);
+            document.querySelectorAll('.chart-wrapper').forEach(wrapper => {
+                wrapper.innerHTML = `
+                    <div class="error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>
+                            <div>${message}</div>
+                            <div style="font-size: 14px; margin-top: 10px;">请检查网络连接状态</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        debugLog('脚本加载完成，等待DOM加载...');
+        
+        // 本地环境支持：股票代码识别和广播功能
+        if (!window.broadcastStockCode) {
+            console.log('🏠 本地环境：启动内置股票代码识别');
+            
+            // 本地环境的广播函数
+            async function broadcastStockCode(stockCode) {
+                try {
+                    const response = await fetch(`http://localhost:16888/api/broadcast`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ stock_code: stockCode })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log('✓ 本地环境广播成功:', result);
+                    } else {
+                        console.log('✗ 本地环境广播失败:', response.statusText);
+                    }
+                } catch (error) {
+                    console.log('✗ 本地环境广播失败:', error.message);
+                }
+            }
+            
+            // 本地环境的股票代码识别函数
+            function convertStockCodesToLinks(container = document.body) {
+                // 确保container是DOM元素
+                if (!container || typeof container.querySelectorAll !== 'function') {
+                    container = document.body;
+                }
+                
+                const textElements = container.querySelectorAll('p, span, div, td, li, h1, h2, h3, h4, h5, h6');
+                
+                textElements.forEach(element => {
+                    // 跳过已处理的元素
+                    if (element.classList.contains('stock-code-processed')) return;
+                    
+                    // 跳过输入框、按钮等
+                    if (element.tagName.match(/^(INPUT|BUTTON|TEXTAREA|SELECT)$/)) return;
+                    
+                    let content = element.textContent;
+                    if (!content || content.trim().length === 0) return;
+                    
+                    // 匹配6位数字的股票代码
+                    const stockCodeRegex = /\b(\d{6})\b/g;
+                    let hasMatch = false;
+                    
+                    content = content.replace(stockCodeRegex, (match, code) => {
+                        // 验证是否为有效股票代码（以0、3、6开头）
+                        if (code.match(/^[036]/)) {
+                            hasMatch = true;
+                            return `<a href="javascript:void(0)" class="stock-code-link" onclick="broadcastStockCode('${code}')" style="color: #1976d2; text-decoration: underline; cursor: pointer;" title="点击广播到通达信">${code}</a>`;
+                        }
+                        return match;
+                    });
+                    
+                    if (hasMatch) {
+                        element.innerHTML = content;
+                        element.classList.add('stock-code-processed');
+                    }
+                });
+            }
+            
+            // 设置MutationObserver监听DOM变化
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'childList') {
+                        mutation.addedNodes.forEach((node) => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                convertStockCodesToLinks(node);
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // 启动观察器
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            // 初始处理
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    setTimeout(convertStockCodesToLinks, 500);
+                });
+            } else {
+                setTimeout(convertStockCodesToLinks, 500);
+            }
+            
+            console.log('✅ 本地环境MutationObserver已启动');
+        }
+    </script>
+</body>
+</html>
+

@@ -8,11 +8,11 @@ from pydantic import BaseModel
 
 try:
     from client import LLMClient
-    from models import get_model_info, LLMModel
+    from llm_models import get_model_info, LLMModel
     from exceptions import LLMAPIError
 except ImportError:
     from client import LLMClient
-    from models import get_model_info, LLMModel
+    from llm_models import get_model_info, LLMModel
     from exceptions import LLMAPIError
 
 # 全局客户端实例

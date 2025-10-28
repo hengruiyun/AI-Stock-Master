@@ -76,10 +76,29 @@ try:
     from config_manager import get_config
     from i18n import t
     from prompt_manager import AgentConfig, PromptManager
-    from models import ModelProvider, LLMModel
+    from llm_models import ModelProvider, LLMModel
+    from exceptions import LLMAPIError, ModelNotFoundError, APIKeyError, ModelProviderError
 except ImportError:
     def get_config(): return {}
     def t(key, **kwargs): return key
+    
+    # 提供异常类的占位实现
+    class LLMAPIError(Exception):
+        """LLM API基础异常"""
+        pass
+    
+    class ModelNotFoundError(LLMAPIError):
+        """模型未找到异常"""
+        pass
+    
+    class APIKeyError(LLMAPIError):
+        """API密钥错误异常"""
+        pass
+    
+    class ModelProviderError(LLMAPIError):
+        """模型提供商错误异常"""
+        pass
+    
     # 提供占位类
     class AgentConfig:
         def __init__(self, **kwargs):
@@ -147,15 +166,32 @@ except ImportError:
 class LLMClient:
     """统一的LLM客户端类"""
     
-    def __init__(self, default_model: Optional[str] = None, default_provider: Optional[str] = None):
+    def __init__(self, default_model: Optional[str] = None, default_provider: Optional[str] = None, temp_config: Optional[Dict] = None):
         """
         初始化LLM客户端
         
         Args:
             default_model: 默认模型名称
             default_provider: 默认提供商
+            temp_config: 临时配置字典（用于试用模式等场景）
         """
         self.config = get_config()
+        
+        # 如果提供了临时配置，将其合并到配置中
+        if temp_config:
+            print(f"[LLM Client] 使用临时配置: {list(temp_config.keys())}")
+            self.temp_config = temp_config
+            # 临时覆盖配置管理器中的用户配置
+            if hasattr(self.config, '_user_config'):
+                self.config._user_config.update(temp_config)
+                print(f"[LLM Client] 临时配置已合并到 _user_config")
+            # 同时清空缓存，强制重新读取
+            if hasattr(self.config, '_config_cache'):
+                self.config._config_cache.clear()
+                print(f"[LLM Client] 配置缓存已清空")
+        else:
+            self.temp_config = None
+        
         default_settings = self.config.get_default_settings()
         
         self.default_model = default_model or default_settings["default_chat_model"]
@@ -366,6 +402,45 @@ class LLMClient:
                 print(f"[LLM Debug] LMStudio config - Base URL: {base_url}")
                 model = ChatLMStudio(
                     model=model_name,
+                    base_url=base_url
+                )
+            
+            elif provider == ModelProvider.SILICONFLOW:
+                api_key = self._get_api_key(provider)
+                base_url = self.config.get_base_url("siliconflow")
+                if not base_url:
+                    base_url = "https://api.siliconflow.cn/v1"
+                print(f"[LLM Debug] SiliconFlow config - Base URL: {base_url}, API Key: {'***' if api_key else 'None'}")
+                # SiliconFlow 使用 OpenAI 兼容接口
+                model = ChatOpenAI(
+                    model=model_name,
+                    api_key=api_key,
+                    base_url=base_url
+                )
+            
+            elif provider == ModelProvider.VOLCENGINE:
+                api_key = self._get_api_key(provider)
+                base_url = self.config.get_base_url("volcengine")
+                if not base_url:
+                    base_url = "https://ark.cn-beijing.volces.com/api/v3"
+                print(f"[LLM Debug] Volcengine config - Base URL: {base_url}, API Key: {'***' if api_key else 'None'}")
+                # Volcengine 使用 OpenAI 兼容接口
+                model = ChatOpenAI(
+                    model=model_name,
+                    api_key=api_key,
+                    base_url=base_url
+                )
+            
+            elif provider == ModelProvider.BAILIAN:
+                api_key = self._get_api_key(provider)
+                base_url = self.config.get_base_url("bailian")
+                if not base_url:
+                    base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                print(f"[LLM Debug] Bailian config - Base URL: {base_url}, API Key: {'***' if api_key else 'None'}")
+                # Bailian 使用 OpenAI 兼容接口
+                model = ChatOpenAI(
+                    model=model_name,
+                    api_key=api_key,
                     base_url=base_url
                 )
             

@@ -116,6 +116,9 @@ class ConfigManager:
             "gemini": "GOOGLE_API_KEY",
             "google": "GOOGLE_API_KEY",
             "lmstudio": "LMSTUDIO_API_KEY",  # LMStudio通常不需要API密钥，但保留配置选项
+            "siliconflow": "SILICONFLOW_API_KEY",
+            "volcengine": "VOLCENGINE_API_KEY",
+            "bailian": "BAILIAN_API_KEY",
         }
         
         env_key = key_mapping.get(provider.lower())
@@ -134,6 +137,9 @@ class ConfigManager:
             "google": "GOOGLE_BASE_URL",
             "ollama": "OLLAMA_BASE_URL",
             "lmstudio": "LMSTUDIO_BASE_URL",
+            "siliconflow": "SILICONFLOW_BASE_URL",
+            "volcengine": "VOLCENGINE_BASE_URL",
+            "bailian": "BAILIAN_BASE_URL",
         }
         
         env_key = url_mapping.get(provider.lower())
@@ -144,10 +150,10 @@ class ConfigManager:
     def get_default_settings(self) -> Dict[str, Any]:
         """获取默认设置"""
         settings = {
-            "default_provider": self.get("default_provider", self.get("DEFAULT_PROVIDER", "OpenAI")),
-            "default_chat_model": self.get("default_chat_model", self.get("DEFAULT_CHAT_MODEL", "gpt-4o")),
-            "default_structured_model": self.get("default_structured_model", self.get("DEFAULT_STRUCTURED_MODEL", "gpt-4o")),
-            "request_timeout": self.get("request_timeout", self.get("REQUEST_TIMEOUT", 300, int), int),
+            "default_provider": self.get("default_provider", self.get("DEFAULT_PROVIDER", "Ollama")),
+            "default_chat_model": self.get("default_chat_model", self.get("DEFAULT_CHAT_MODEL", "qwen3:1.7b")),
+            "default_structured_model": self.get("default_structured_model", self.get("DEFAULT_STRUCTURED_MODEL", "qwen3:1.7b")),
+            "request_timeout": self.get("request_timeout", self.get("REQUEST_TIMEOUT", 600, int), int),
             "max_retries": self.get("MAX_RETRIES", 3, int),
             "enable_cache": self.get("ENABLE_CACHE", True, bool),
             "log_level": self.get("LOG_LEVEL", "INFO"),

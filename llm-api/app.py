@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from client import LLMClient
-    from models import ModelProvider, LLMModel, get_model_info, list_all_models
+    from llm_models import ModelProvider, LLMModel, get_model_info, list_all_models
     from exceptions import LLMAPIError, ModelNotFoundError, APIKeyError
     from config_manager import get_config
     from prompt_api import router as prompt_router

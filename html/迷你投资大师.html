@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷你投资大师 （大师版）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .author-info {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        .risk-warning {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px;
+            text-align: center;
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .risk-warning strong {
+            color: #dc3545;
+            font-size: 16px;
+        }
+        
+        .search-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .search-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        .search-button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .search-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            display: none;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results {
+            display: none;
+        }
+        
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .analysis-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .analysis-card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .master-score {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        
+        .score-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        .score-excellent { background: linear-gradient(135deg, #27ae60, #2ecc71); }
+        .score-good { background: linear-gradient(135deg, #f39c12, #e67e22); }
+        .score-average { background: linear-gradient(135deg, #3498db, #2980b9); }
+        .score-poor { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        
+        .strategy-breakdown {
+            margin-top: 20px;
+        }
+        
+        .strategy-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .strategy-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .strategy-score {
+            font-weight: bold;
+            padding: 5px 12px;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.9em;
+        }
+        
+        .score-high { background: #27ae60; }
+        .score-medium { background: #f39c12; }
+        .score-low { background: #e74c3c; }
+        
+        .recommendation {
+            text-align: center;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            color: white;
+            font-size: 1.1em;
+        }
+        
+        .rec-buy { background: linear-gradient(135deg, #e74c3c, #c0392b); }  /* 红涨 */
+        .rec-sell { background: linear-gradient(135deg, #27ae60, #2ecc71); } /* 绿跌 */
+        .rec-hold { background: linear-gradient(135deg, #3498db, #2980b9); }
+        
+        .insights-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .insights-list li {
+            padding: 10px 0;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin-bottom: 10px;
+            background: rgba(52, 152, 219, 0.1);
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .data-sources {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .data-sources h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .data-sources ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        
+        .data-sources li {
+            padding: 5px 0;
+            color: #7f8c8d;
+        }
+        
+        .data-sources li:before {
+            content: "✓ ";
+            color: #27ae60;
+            font-weight: bold;
+        }
+        
+        .error {
+            display: none;
+            text-align: center;
+            padding: 50px;
+            color: #e74c3c;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 768px) {
+            .analysis-grid {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+            
+            .search-form {
+                flex-direction: column;
+            }
+            
+            .search-input {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 迷你投资大师 （大师版）</h1>
+            <div class="subtitle">融合技术分析、资金流向、市场情绪的智能决策</div>
+            <div class="subtitle">作者：267278466@qq.com</div>
+        </div>
+        
+        <div class="search-section">
+            <div class="search-form">
+                <input type="text" id="stockCode" class="search-input" placeholder="输入股票代码 (如: 600000, 000001)" maxlength="6">
+                <button class="search-button" onclick="analyzeStock()">深度分析</button>
+                <button class="search-button" onclick="openSmartAnalysis()" style="margin-left: 10px; background: linear-gradient(135deg, #17a2b8, #28a745); border: none;">
+                    <i class="fas fa-chart-line"></i> 个股分析
+                </button>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p>正在进行深度分析，请稍候...</p>
+        </div>
+        
+        <div class="error" id="error">
+            <h3>错误，检查网络连接和大师服务器状态</h3>
+            <p id="errorMessage"></p>
+        </div>
+        
+        <div class="results" id="results">
+            <div class="analysis-grid">
+                <!-- 综合评分 -->
+                <div class="analysis-card">
+                    <h3>🎯 投资大师综合评分</h3>
+                    <div class="master-score" id="masterScore">
+                        <!-- 动态生成 -->
+                    </div>
+                    <div class="strategy-breakdown" id="strategyBreakdown">
+                        <!-- 动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 投资建议 -->
+                <div class="analysis-card">
+                    <h3>💡 智能投资建议</h3>
+                    <div id="recommendation">
+                        <!-- 动态生成 -->
+                    </div>
+                    <div class="data-sources">
+                        <h4>分析依据</h4>
+                        <ul id="analysisBasis">
+                            <!-- 动态生成 -->
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- 深度洞察 -->
+                <div class="analysis-card full-width">
+                    <h3>🔍 投资大师洞察</h3>
+                    <ul class="insights-list" id="masterInsights">
+                        <!-- 动态生成 -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 统一的服务器地址获取函数
+        function getServerUrl() {
+            const protocol = window.location.protocol;
+            
+            // 如果是通过HTTP/HTTPS访问（从服务器加载的），直接使用当前地址的域名和端口
+            if (protocol === 'http:' || protocol === 'https:') {
+                return window.location.origin;
+            }
+            
+            // 如果是file协议，回退到localhost:16888
+            return 'http://localhost:16888';
+        }
+        
+        const LOCAL_SERVER = getServerUrl();
+        
+        // 全局变量保存当前分析的股票信息
+        let globalCurrentStockCode = '';
+        let globalCurrentStockName = '';
+        
+        // 显示加载状态
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+        }
+        
+        // 显示错误
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('errorMessage').textContent = message;
+        }
+        
+        // 显示结果
+        function showResults() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        // 验证股票代码
+        function validateStockCode(code) {
+            return /^[0-9]{6}$/.test(code);
+        }
+        
+        // 获取股票基本信息
+        async function fetchStockBasic(code) {
+            try {
+                const response = await fetch(`${LOCAL_SERVER}/api/stock/basic?source=akshare`);
+                if (!response.ok) throw new Error('获取基本信息失败');
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.message || '获取基本信息失败');
+                
+                const stockInfo = data.data.find(item => item.code === code || item.symbol === code);
+                if (!stockInfo) {
+                    throw new Error(`股票代码 ${code} 不存在`);
+                }
+                return stockInfo;
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        // 获取股票行情数据
+        async function fetchStockMarket(code) {
+            try {
+                // 获取60天的行情数据以确保有足够的数据计算技术指标（至少40个交易日）
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 60); // 获取60天数据，确保有足够交易日
+                
+                const startDateStr = startDate.toISOString().split('T')[0];
+                const endDateStr = endDate.toISOString().split('T')[0];
+                
+                const response = await fetch(`${LOCAL_SERVER}/api/stock/market?code=${code}&source=akshare&start_date=${startDateStr}&end_date=${endDateStr}`);
+                if (!response.ok) throw new Error('获取行情数据失败');
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.message || '获取行情数据失败');
+                
+                if (!data.data || data.data.length === 0) {
+                    throw new Error('该股票没有行情数据');
+                }
+                
+                // 检查数据是否足够计算技术指标
+                if (data.data.length < 20) {
+                    throw new Error(`数据不足，无法计算技术指标（需要至少20个交易日数据，当前仅有${data.data.length}个交易日）`);
+                }
+                
+                return data.data;
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        // 获取资金流向数据
+        async function fetchMoneyFlow(code) {
+            try {
+                const response = await fetch(`${LOCAL_SERVER}/api/stock/money_flow?code=${code}&period=30`);
+                if (!response.ok) throw new Error('获取资金流向数据失败');
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.message || '获取资金流向数据失败');
+                
+                if (!data.data || !data.data.data || data.data.data.length === 0) {
+                    throw new Error('该股票没有资金流向数据');
+                }
+                
+                return data.data;
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        // 获取大单数据
+        async function fetchLargeOrders(code) {
+            try {
+                // 使用正确的参数名 code 而不是 symbol
+                const response = await fetch(`${LOCAL_SERVER}/api/stock/large_orders?code=${code}`);
+                if (!response.ok) {
+                    throw new Error(`获取大单数据失败: HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (data.rc !== 0) {
+                    throw new Error(data.msg || '获取大单数据失败');
+                }
+                
+                if (!data.data || !data.data.data || data.data.data.length === 0) {
+                    throw new Error('该股票没有大单数据');
+                }
+                
+                return data.data.data;
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        // 计算技术指标
+        function calculateTechnicalIndicators(marketData) {
+            if (!marketData || marketData.length < 20) {
+                throw new Error('数据不足，无法计算技术指标（需要至少20个交易日数据）');
+            }
+            
+            const prices = marketData.slice(-60).map(item => parseFloat(item.close || item.收盘价 || 0));
+            const volumes = marketData.slice(-60).map(item => parseInt(item.volume || item.成交量 || 0));
+            const currentPrice = prices[prices.length - 1];
+            
+            // 移动平均线
+            const ma5 = prices.slice(-5).reduce((a, b) => a + b, 0) / 5;
+            const ma10 = prices.slice(-10).reduce((a, b) => a + b, 0) / 10;
+            const ma20 = prices.slice(-20).reduce((a, b) => a + b, 0) / 20;
+            const ma60 = prices.reduce((a, b) => a + b, 0) / prices.length;
+            
+            // RSI计算
+            let gains = 0, losses = 0;
+            for (let i = 1; i < Math.min(prices.length, 14); i++) {
+                const change = prices[prices.length - i] - prices[prices.length - i - 1];
+                if (change > 0) gains += change;
+                else losses += Math.abs(change);
+            }
+            const avgGain = gains / 13;
+            const avgLoss = losses / 13;
+            const rs = avgGain / avgLoss;
+            const rsi = 100 - (100 / (1 + rs));
+            
+            // 波动率
+            const returns = [];
+            for (let i = 1; i < prices.length; i++) {
+                returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+            }
+            const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / returns.length;
+            const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100; // 年化波动率
+            
+            // 成交量比率
+            const avgVolume = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10;
+            const currentVolume = volumes[volumes.length - 1];
+            const volumeRatio = currentVolume / avgVolume;
+            
+            return {
+                ma5, ma10, ma20, ma60, rsi, volatility,
+                current_price: currentPrice,
+                volume_ratio: volumeRatio
+            };
+        }
+        
+        // 分析资金流向
+        function analyzeMoneyFlow(moneyFlowData) {
+            if (!moneyFlowData || !moneyFlowData.data || moneyFlowData.data.length === 0) {
+                throw new Error('缺少资金流向数据，无法进行分析');
+            }
+            
+            const recent = moneyFlowData.data.slice(-10);
+            let mainNetFlow = 0;
+            let superLargeNetFlow = 0;
+            let positiveDays = 0;
+            
+            recent.forEach(item => {
+                const mainFlow = parseFloat(item['主力净流入-净额'] || 0);
+                const superLargeFlow = parseFloat(item['超大单净流入-净额'] || 0);
+                
+                mainNetFlow += mainFlow;
+                superLargeNetFlow += superLargeFlow;
+                
+                if (mainFlow > 0) positiveDays++;
+            });
+            
+            const mainTrend = mainNetFlow > 50000000 ? '强势流入' : 
+                             mainNetFlow > 0 ? '净流入' : 
+                             mainNetFlow < -50000000 ? '强势流出' : '净流出';
+            
+            const mainStrength = Math.abs(mainNetFlow) / 100000000; // 转换为亿元
+            const superLargeActivity = Math.abs(superLargeNetFlow) / 100000000;
+            const continuity = positiveDays / recent.length;
+            
+            return {
+                main_trend: mainTrend,
+                main_strength: mainStrength,
+                super_large_activity: superLargeActivity,
+                continuity: continuity
+            };
+        }
+        
+        // 分析大单异动
+        function analyzeLargeOrders(largeOrdersData) {
+            if (!largeOrdersData || largeOrdersData.length === 0) {
+                throw new Error('缺少大单数据，无法进行异动分析');
+            }
+            
+            // 分析大单数据
+            let totalBuyAmount = 0;
+            let totalSellAmount = 0;
+            let anomalyCount = 0;
+            
+            largeOrdersData.forEach(order => {
+                const buyAmount = parseFloat(order.buyAmount || 0);
+                const sellAmount = parseFloat(order.sellAmount || 0);
+                
+                totalBuyAmount += buyAmount;
+                totalSellAmount += sellAmount;
+                
+                // 判断是否为异动（买卖金额超过一定阈值）
+                if (buyAmount > 10000 || sellAmount > 10000) {
+                    anomalyCount++;
+                }
+            });
+            
+            const buySelRatio = totalSellAmount > 0 ? totalBuyAmount / totalSellAmount : 1;
+            const anomalyStrength = anomalyCount / largeOrdersData.length;
+            const frequency = largeOrdersData.length / 10; // 假设10天内的频率
+            
+            return {
+                anomaly_strength: anomalyStrength,
+                buy_sell_ratio: buySelRatio,
+                frequency: frequency
+            };
+        }
+        
+        // 增强版投资大师分析
+        function enhancedMasterAnalysis(indicators, moneyFlowAnalysis, largeOrdersAnalysis, stockInfo) {
+            const strategies = {};
+            
+            // 巴菲特价值投资策略 (更复杂的评分逻辑)
+            let buffettScore = 50;
+            
+            // 价格相对于均线的位置
+            if (indicators.current_price < indicators.ma20) buffettScore += 15; // 价格低于均线，价值机会
+            if (indicators.current_price < indicators.ma60) buffettScore += 10; // 长期均线下方
+            
+            // 波动率 - 巴菲特喜欢稳定的股票
+            if (indicators.volatility < 20) buffettScore += 20;
+            else if (indicators.volatility > 40) buffettScore -= 15;
+            
+            // RSI - 不要过热
+            if (indicators.rsi < 40) buffettScore += 15; // 超卖区域
+            else if (indicators.rsi > 70) buffettScore -= 20; // 超买区域
+            
+            // 资金流向 - 主力资金持续流入是好信号
+            if (moneyFlowAnalysis.main_trend === '强势流入') buffettScore += 15;
+            if (moneyFlowAnalysis.continuity > 0.6) buffettScore += 10; // 持续性好
+            
+            strategies.buffett = Math.max(0, Math.min(100, buffettScore));
+            
+            // 彼得·林奇成长投资策略
+            let lynchScore = 50;
+            
+            // 趋势跟随
+            if (indicators.ma5 > indicators.ma10 && indicators.ma10 > indicators.ma20) lynchScore += 25;
+            if (indicators.current_price > indicators.ma5) lynchScore += 15;
+            
+            // 成交量配合
+            if (indicators.volume_ratio > 1.5) lynchScore += 15; // 放量上涨
+            
+            // RSI适中偏强
+            if (indicators.rsi > 50 && indicators.rsi < 75) lynchScore += 10;
+            
+            // 超大单活跃度
+            if (moneyFlowAnalysis.super_large_activity > 1) lynchScore += 15;
+            
+            strategies.lynch = Math.max(0, Math.min(100, lynchScore));
+            
+            // 本杰明·格雷厄姆防御投资策略
+            let grahamScore = 50;
+            
+            // 安全边际 - 价格低于长期均线
+            if (indicators.current_price < indicators.ma60) grahamScore += 20;
+            
+            // 低波动率
+            if (indicators.volatility < 25) grahamScore += 20;
+            else if (indicators.volatility > 35) grahamScore -= 15;
+            
+            // 不追高
+            if (indicators.rsi < 60) grahamScore += 15;
+            else if (indicators.rsi > 75) grahamScore -= 25;
+            
+            // 资金流向稳定
+            if (moneyFlowAnalysis.main_strength < 2 && moneyFlowAnalysis.main_trend !== '强势流出') {
+                grahamScore += 10;
+            }
+            
+            strategies.graham = Math.max(0, Math.min(100, grahamScore));
+            
+            // 索罗斯趋势投资策略
+            let sorosScore = 50;
+            
+            // 强趋势
+            if (indicators.ma5 > indicators.ma10 && indicators.ma10 > indicators.ma20) sorosScore += 20;
+            if (indicators.current_price > indicators.ma20) sorosScore += 15;
+            
+            // 动量
+            if (indicators.rsi > 60) sorosScore += 15;
+            if (indicators.volume_ratio > 2) sorosScore += 20; // 大幅放量
+            
+            // 资金流向强势
+            if (moneyFlowAnalysis.main_trend === '强势流入') sorosScore += 20;
+            if (moneyFlowAnalysis.super_large_activity > 2) sorosScore += 10;
+            
+            strategies.soros = Math.max(0, Math.min(100, sorosScore));
+            
+            // 计算综合评分
+            const overallScore = (strategies.buffett + strategies.lynch + strategies.graham + strategies.soros) / 4;
+            
+            // 确定最佳策略 - 修复多个策略得分相同时的选择逻辑
+            const maxScore = Math.max(strategies.buffett, strategies.lynch, strategies.graham, strategies.soros);
+            let bestStrategy = '综合策略';
+            
+            // 创建策略得分数组并按得分排序
+            const strategyList = [
+                { name: '巴菲特价值投资', score: strategies.buffett, priority: 1 },
+                { name: '林奇成长投资', score: strategies.lynch, priority: 2 },
+                { name: '格雷厄姆防御投资', score: strategies.graham, priority: 3 },
+                { name: '索罗斯趋势投资', score: strategies.soros, priority: 4 }
+            ];
+            
+            // 按得分降序排序，得分相同时按优先级排序
+            strategyList.sort((a, b) => {
+                if (a.score !== b.score) {
+                    return b.score - a.score; // 得分高的在前
+                }
+                return a.priority - b.priority; // 得分相同时按优先级
+            });
+            
+            // 选择得分最高的策略
+            bestStrategy = strategyList[0].name;
+            
+            return {
+                overall_score: overallScore,
+                best_strategy: bestStrategy,
+                strategy_breakdown: strategies,
+                confidence: Math.min(95, 60 + (maxScore - 50) * 0.7) // 置信度计算
+            };
+        }
+        
+        // 生成投资建议
+        function generateInvestmentAdvice(masterAnalysis, indicators, moneyFlowAnalysis) {
+            const score = masterAnalysis.overall_score;
+            const confidence = masterAnalysis.confidence;
+            
+            let recommendation = '观望';
+            let riskLevel = '中等';
+            let reasoning = [];
+            
+            if (score >= 75) {
+                recommendation = confidence > 80 ? '强烈买入' : '买入';
+                riskLevel = '较低';
+                reasoning.push('多项技术指标显示积极信号');
+                reasoning.push('投资大师策略评分较高');
+            } else if (score >= 60) {
+                recommendation = '谨慎买入';
+                riskLevel = '中等';
+                reasoning.push('技术面整体偏好');
+                reasoning.push('建议分批建仓');
+            } else if (score <= 35) {
+                recommendation = confidence > 70 ? '卖出' : '谨慎卖出';
+                riskLevel = '较高';
+                reasoning.push('多项指标显示风险信号');
+                reasoning.push('建议规避风险');
+            } else {
+                recommendation = '观望';
+                riskLevel = '中等';
+                reasoning.push('市场信号不明确');
+                reasoning.push('等待更好的入场时机');
+            }
+            
+            // 基于资金流向调整建议
+            if (moneyFlowAnalysis.main_trend === '强势流出' && recommendation.includes('买入')) {
+                recommendation = '观望';
+                reasoning.push('主力资金流出，暂缓买入');
+            }
+            
+            if (moneyFlowAnalysis.main_trend === '强势流入' && recommendation === '观望') {
+                recommendation = '谨慎买入';
+                reasoning.push('主力资金流入，可考虑建仓');
+            }
+            
+            return {
+                recommendation,
+                confidence,
+                risk_level: riskLevel,
+                reasoning: reasoning.join('；')
+            };
+        }
+        
+        // 生成投资洞察
+        function generateMasterInsights(indicators, moneyFlowAnalysis, largeOrdersAnalysis, masterAnalysis) {
+            const insights = [];
+            
+            // 技术面洞察
+            if (indicators.ma5 > indicators.ma10 && indicators.ma10 > indicators.ma20) {
+                insights.push('📈 多头排列：短中长期均线呈多头排列，技术面偏强');
+            } else if (indicators.ma5 < indicators.ma10 && indicators.ma10 < indicators.ma20) {
+                insights.push('📉 空头排列：短中长期均线呈空头排列，技术面偏弱');
+            }
+            
+            // RSI洞察
+            if (indicators.rsi > 70) {
+                insights.push('⚠️ 超买警告：RSI指标显示超买，注意回调风险');
+            } else if (indicators.rsi < 30) {
+                insights.push('💡 超卖机会：RSI指标显示超卖，可能存在反弹机会');
+            }
+            
+            // 波动率洞察
+            if (indicators.volatility > 35) {
+                insights.push('🌊 高波动：股价波动较大，适合短线操作，长线投资需谨慎');
+            } else if (indicators.volatility < 15) {
+                insights.push('🏔️ 低波动：股价相对稳定，适合稳健型投资者');
+            }
+            
+            // 资金流向洞察
+            if (moneyFlowAnalysis.main_trend === '强势流入') {
+                insights.push('💰 主力看好：主力资金持续流入，机构投资者看好后市');
+            } else if (moneyFlowAnalysis.main_trend === '强势流出') {
+                insights.push('🚨 主力撤离：主力资金大幅流出，需警惕下跌风险');
+            }
+            
+            if (moneyFlowAnalysis.super_large_activity > 2) {
+                insights.push('🐋 超大单活跃：超大单交易频繁，可能有重要消息或机构调仓');
+            }
+            
+            // 成交量洞察
+            if (indicators.volume_ratio > 2) {
+                insights.push('📊 放量明显：成交量大幅放大，市场关注度高');
+            } else if (indicators.volume_ratio < 0.5) {
+                insights.push('📉 缩量整理：成交量萎缩，市场观望情绪浓厚');
+            }
+            
+            // 策略洞察
+            const bestStrategy = masterAnalysis.best_strategy;
+            if (bestStrategy === '巴菲特价值投资') {
+                insights.push('🎯 价值投资机会：当前价格可能低估，适合长期价值投资');
+            } else if (bestStrategy === '林奇成长投资') {
+                insights.push('🚀 成长投资机会：技术面显示成长潜力，适合成长型投资');
+            } else if (bestStrategy === '索罗斯趋势投资') {
+                insights.push('📈 趋势投资机会：趋势明确，适合趋势跟随策略');
+            }
+            
+            return insights;
+        }
+        
+        // 打开智能个股分析页面
+        function openSmartAnalysis() {
+            // 优先取代码输入框的值，如果为空则取全局变量
+            let code = document.getElementById('stockCode').value.trim();
+            let name = '';
+            
+            if (!code) {
+                code = globalCurrentStockCode || '';
+                name = globalCurrentStockName || '';
+            }
+            
+            if (code && /^\d{6}$/.test(code)) {
+                const url = `${window.location.origin}/智能个股分析.html##${code}##${encodeURIComponent(name)}##`;
+                window.location.href = url;
+            } else {
+                alert('请先输入或分析股票代码');
+            }
+        }
+
+        // 清空缓存和重置数据
+        function clearCacheAndReset() {
+            // 清除显示内容
+            const masterScore = document.getElementById('masterScore');
+            if (masterScore) masterScore.innerHTML = '';
+            
+            const strategyBreakdown = document.getElementById('strategyBreakdown');
+            if (strategyBreakdown) strategyBreakdown.innerHTML = '';
+            
+            const recommendation = document.getElementById('recommendation');
+            if (recommendation) recommendation.innerHTML = '';
+            
+            const analysisBasis = document.getElementById('analysisBasis');
+            if (analysisBasis) analysisBasis.innerHTML = '';
+            
+            const masterInsights = document.getElementById('masterInsights');
+            if (masterInsights) masterInsights.innerHTML = '';
+        }
+
+        // 通达信广播功能 - 通用函数
+        async function broadcastToTdx(stockCode) {
+            try {
+                console.log('正在广播股票代码到通达信:', stockCode);
+                const serverUrl = getServerUrl();
+                console.log('使用服务器地址:', serverUrl);
+                
+                const response = await fetch(`${serverUrl}/api/broadcast`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        stock_code: stockCode
+                    })
+                });
+                
+                console.log('广播响应状态:', response.status);
+                const result = await response.json();
+                console.log('广播响应结果:', result);
+                
+                if (result.success) {
+                    console.log('✓ 成功广播股票代码到通达信:', stockCode);
+                } else {
+                    console.warn('✗ 广播股票代码到通达信失败:', result.error);
+                }
+            } catch (error) {
+                console.error('✗ 广播股票代码到通达信时发生错误:', error);
+            }
+        }
+        
+        // 显示提示信息
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                font-size: 14px;
+                max-width: 300px;
+                word-wrap: break-word;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 3000);
+        }
+        
+        // 主分析函数
+        async function analyzeStock() {
+            const stockCode = document.getElementById('stockCode').value.trim();
+            
+            if (!stockCode) {
+                showError('请输入股票代码');
+                return;
+            }
+            
+            // 广播到通达信
+            broadcastToTdx(stockCode);
+            
+            // 清空缓存数据，重新获取股票信息
+            clearCacheAndReset();
+            
+            window.currentAnalyzedCode = stockCode; // 保存到全局变量供个股分析按钮使用
+            globalCurrentStockCode = stockCode; // 保存到新的全局变量
+            
+            if (!validateStockCode(stockCode)) {
+                showError('股票代码格式不正确，请输入6位数字代码');
+                return;
+            }
+            
+            showLoading();
+            
+            try {
+                // 并行获取多种数据
+                const [basicInfo, marketData, moneyFlowData, largeOrdersData] = await Promise.all([
+                    fetchStockBasic(stockCode),
+                    fetchStockMarket(stockCode),
+                    fetchMoneyFlow(stockCode),
+                    fetchLargeOrders(stockCode)
+                ]);
+                
+                // 保存股票名称到全局变量
+                if (basicInfo && basicInfo.name) {
+                    globalCurrentStockName = basicInfo.name;
+                }
+                
+                // 计算技术指标
+                const indicators = calculateTechnicalIndicators(marketData);
+                
+                // 分析资金流向
+                const moneyFlowAnalysis = analyzeMoneyFlow(moneyFlowData);
+                
+                // 分析大单异动
+                const largeOrdersAnalysis = analyzeLargeOrders(largeOrdersData);
+                
+                // 增强版投资大师分析
+                const masterAnalysis = enhancedMasterAnalysis(indicators, moneyFlowAnalysis, largeOrdersAnalysis, basicInfo);
+                
+                // 生成投资建议
+                const investmentAdvice = generateInvestmentAdvice(masterAnalysis, indicators, moneyFlowAnalysis);
+                
+                // 生成投资洞察
+                const masterInsights = generateMasterInsights(indicators, moneyFlowAnalysis, largeOrdersAnalysis, masterAnalysis);
+                
+                // 显示结果
+                displayResults(basicInfo, masterAnalysis, investmentAdvice, masterInsights, {
+                    market: marketData ? marketData.length : 0,
+                    moneyFlow: moneyFlowData ? moneyFlowData.data?.length || 0 : 0,
+                    largeOrders: largeOrdersData ? 1 : 0
+                });
+                
+                showResults();
+                
+            } catch (error) {
+                // 显示真实的错误原因
+                let errorMessage = '分析失败';
+                if (error.message) {
+                    errorMessage = `分析失败: ${error.message}`;
+                } else if (typeof error === 'string') {
+                    errorMessage = `分析失败: ${error}`;
+                } else {
+                    errorMessage = '错误，检查网络连接和大师服务器状态';
+                }
+                showError(errorMessage);
+            }
+        }
+        
+        // 显示结果
+        function displayResults(stockInfo, masterAnalysis, investmentAdvice, insights, dataSources) {
+            // 显示综合评分
+            displayMasterScore(masterAnalysis);
+            
+            // 显示投资建议
+            displayRecommendation(investmentAdvice, dataSources);
+            
+            // 显示投资洞察
+            displayInsights(insights);
+        }
+        
+        // 显示投资大师评分
+        function displayMasterScore(masterAnalysis) {
+            const score = masterAnalysis.overall_score;
+            const scoreElement = document.getElementById('masterScore');
+            
+            let scoreClass = 'score-poor';
+            if (score >= 75) scoreClass = 'score-excellent';
+            else if (score >= 60) scoreClass = 'score-good';
+            else if (score >= 45) scoreClass = 'score-average';
+            
+            scoreElement.innerHTML = `
+                <div class="score-circle ${scoreClass}">
+                    ${score.toFixed(1)}
+                </div>
+                <p><strong>最佳策略:</strong> ${masterAnalysis.best_strategy}</p>
+                <p><strong>置信度:</strong> ${masterAnalysis.confidence.toFixed(1)}%</p>
+            `;
+            
+            // 显示策略分解
+            const breakdownElement = document.getElementById('strategyBreakdown');
+            const strategies = masterAnalysis.strategy_breakdown;
+            const strategyNames = {
+                buffett: '巴菲特价值投资',
+                lynch: '林奇成长投资',
+                graham: '格雷厄姆防御投资',
+                soros: '索罗斯趋势投资'
+            };
+            
+            let breakdownHtml = '';
+            Object.entries(strategies).forEach(([key, score]) => {
+                const name = strategyNames[key] || key;
+                let scoreClass = 'score-low';
+                if (score >= 70) scoreClass = 'score-high';
+                else if (score >= 50) scoreClass = 'score-medium';
+                
+                breakdownHtml += `
+                    <div class="strategy-item">
+                        <span class="strategy-name">${name}</span>
+                        <span class="strategy-score ${scoreClass}">${score.toFixed(1)}</span>
+                    </div>
+                `;
+            });
+            
+            breakdownElement.innerHTML = breakdownHtml;
+        }
+        
+        // 显示投资建议
+        function displayRecommendation(advice, dataSources) {
+            const recElement = document.getElementById('recommendation');
+            
+            let recClass = 'rec-hold';
+            if (advice.recommendation.includes('买入')) recClass = 'rec-buy';
+            else if (advice.recommendation.includes('卖出')) recClass = 'rec-sell';
+            
+            recElement.innerHTML = `
+                <div class="recommendation ${recClass}">
+                    <h3>${advice.recommendation}</h3>
+                    <p><strong>置信度:</strong> ${advice.confidence.toFixed(1)}%</p>
+                    <p><strong>风险等级:</strong> ${advice.risk_level}</p>
+                </div>
+                <p><strong>分析理由:</strong> ${advice.reasoning}</p>
+            `;
+            
+            // 显示数据来源
+            const basisElement = document.getElementById('analysisBasis');
+            basisElement.innerHTML = `
+                <li>技术指标分析 (K线数据: ${dataSources.market}天)</li>
+                <li>资金流向分析 (资金数据: ${dataSources.moneyFlow}天)</li>
+                <li>主力大单分析 (异动数据: ${dataSources.largeOrders ? '已获取' : '暂无'})</li>
+                <li>多维度投资大师策略模型</li>
+                <li>市场情绪与趋势分析</li>
+            `;
+        }
+        
+        // 显示投资洞察
+        function displayInsights(insights) {
+            const insightsElement = document.getElementById('masterInsights');
+            
+            if (insights.length === 0) {
+                insightsElement.innerHTML = '<li>暂无特别洞察</li>';
+                return;
+            }
+            
+            const insightsHtml = insights.map(insight => `<li>${insight}</li>`).join('');
+            insightsElement.innerHTML = insightsHtml;
+        }
+        
+        // 回车键搜索
+        document.getElementById('stockCode').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                analyzeStock();
+            }
+        });
+        
+        // 获取URL参数（使用##分隔符）- 仓库调用功能
+        function getUrlParams() {
+            // 获取hash内容
+            let hashContent = window.location.hash;
+            
+            // 移除开头的#符号
+            while (hashContent.startsWith('#')) {
+                hashContent = hashContent.substring(1);
+            }
+
+            // 如果没有hash内容，返回空参数
+            if (!hashContent) {
+                return { code: '', name: '' };
+            }
+
+            // URL解码（处理%23等编码字符）
+            try {
+                hashContent = decodeURIComponent(hashContent);
+            } catch (e) {
+                console.error('URL解码失败:', e);
+            }
+
+            // 解码后可能还有前导#，再次移除
+            while (hashContent.startsWith('#')) {
+                hashContent = hashContent.substring(1);
+            }
+
+            // 按##分割
+            const parts = hashContent.split('##');
+
+            // 支持多种格式：##代码##名称##、##代码##、##代码
+            let code = '';
+            let name = '';
+            
+            if (parts.length >= 1) {
+                code = parts[0] || '';
+                // 如果有第二部分，使用它作为名称（可能为空）
+                if (parts.length >= 2) {
+                    name = decodeURIComponent(parts[1] || ''); // 解码URL编码的中文字符
+                }
+                
+                // 移除代码前面可能的#符号
+                while (code.startsWith('#')) {
+                    code = code.substring(1);
+                }
+                
+                // 验证股票代码格式
+                if (code && /^\d{6}$/.test(code)) {
+                    return {
+                        code: code,
+                        name: name
+                    };
+                }
+            }
+
+            return {
+                code: '',
+                name: ''
+            };
+        }
+
+        // 初始化页面 - 支持仓库调用
+        function initPage() {
+            // 获取URL参数
+            const params = getUrlParams();
+            
+            if (params.code && /^\d{6}$/.test(params.code)) {
+                // 如果有有效的URL参数，自动设置股票代码并分析
+                document.getElementById('stockCode').value = params.code;
+                // 保存到全局变量
+                globalCurrentStockCode = params.code;
+                globalCurrentStockName = params.name || '';
+                
+                // 延迟一点确保页面完全初始化后再分析
+                setTimeout(() => {
+                    analyzeStock();
+                }, 500);
+            } else {
+                // 没有有效参数，保持输入框为空
+                document.getElementById('stockCode').value = '';
+                }
+        }
+
+        // 监听URL变化（包括hash变化）- 支持仓库调用
+        window.addEventListener('hashchange', function(event) {
+            // 重新初始化页面以处理新的URL参数
+            initPage();
+        });
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', () => {
+            initPage();
+        });
+    </script>
+
+    <!-- 风险警告 -->
+    <div class="risk-warning">
+        <strong>风险提示：</strong>本页面数据仅供参考，不做为投资推荐及建议。投资有风险，入市需谨慎。<br>
+        股票投资存在价格波动风险，过往业绩不代表未来表现，请根据自身风险承受能力谨慎投资。
+    </div>
+
+    <!-- GitHub链接 -->
+    <div style="text-align: center; margin: 30px auto; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 15px; max-width: 1200px;">
+        <p style="color: #b0c4de; margin-bottom: 10px;">开源项目</p>
+        <a href="https://github.com/hengruiyun" target="_blank" style="color: #4CAF50; text-decoration: none; font-weight: bold; font-size: 16px;">
+            <i class="fab fa-github"></i> 访问GitHub @hengruiyun
+        </a>
+    </div>
+</body>
+</html>

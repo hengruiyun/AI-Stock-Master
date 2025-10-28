@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>涨停动态 （大师版）</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .author {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-label {
+            font-weight: 500;
+            color: #333;
+            min-width: 80px;
+        }
+
+        .date-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .date-btn {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .date-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .date-btn.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .industry-table {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .industry-table h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 8px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            text-align: center;
+            vertical-align: middle;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        th i {
+            margin-right: 6px;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        th span {
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .industry-header {
+            background: linear-gradient(135deg, #4CAF50, #45a049) !important;
+            min-width: 120px;
+            width: auto;
+        }
+
+        .count-header {
+            background: linear-gradient(135deg, #2196F3, #1976D2) !important;
+        }
+
+        .board-header {
+            background: linear-gradient(135deg, #FF5722, #D84315) !important;
+        }
+
+        th:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+
+        .industry-row {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .industry-row:hover {
+            background-color: rgba(102, 126, 234, 0.05);
+        }
+
+        .industry-row.expanded {
+            background-color: rgba(102, 126, 234, 0.1);
+        }
+        
+        .industry-row td:first-child {
+            min-width: 120px;
+            text-align: left !important;
+            white-space: nowrap;
+        }
+
+        .stock-row {
+            background-color: rgba(240, 240, 240, 0.5);
+            display: none;
+        }
+
+        .stock-row.show {
+            display: table-row;
+        }
+
+        .stock-row td {
+            padding-left: 30px;
+            border-left: 3px solid #667eea;
+        }
+
+        .expand-icon {
+            transition: transform 0.3s ease;
+            margin-right: 8px;
+        }
+
+        .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .board-number {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .board-1 { background: #28a745; }
+        .board-2 { background: #ffc107; color: #333; }
+        .board-3 { background: #fd7e14; }
+        .board-4 { background: #dc3545; }
+        .board-5-plus { background: #6f42c1; }
+
+        .analysis-btn {
+            padding: 4px 8px;
+            margin: 2px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .analysis-btn:hover {
+            background: linear-gradient(135deg, #5a6fd8, #6a4190);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            color: white;
+            text-decoration: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #efe;
+            color: #363;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #363;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .risk-warning {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border-left: 4px solid #f39c12;
+        }
+
+        .risk-warning h3 {
+            color: #f39c12;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .risk-warning p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .control-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .date-selector {
+                justify-content: center;
+            }
+            
+            th, td {
+                padding: 8px 4px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-chart-line"></i> 涨停动态 （大师版）</h1>
+            <div class="subtitle">涨停板分析与行业动态</div>
+            <div class="author">作者：267278466@qq.com</div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <span class="control-label">查看日期:</span>
+                <div class="date-selector">
+                    <button class="date-btn active" data-days="1">1日</button>
+                    <button class="date-btn" data-days="2">2日</button>
+                    <button class="date-btn" data-days="5">5日</button>
+                    <button class="date-btn" data-days="10">10日</button>
+                    <button class="date-btn" data-days="20">20日</button>
+                </div>
+            </div>
+            <div class="control-group">
+                <span id="currentDate" style="color: #666; font-size: 0.9rem;"></span>
+            </div>
+        </div>
+
+        <div id="statsGrid" class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalIndustries">-</div>
+                <div class="stat-label">涉及行业</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalStocks">-</div>
+                <div class="stat-label">涨停股票</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="maxBoards">-</div>
+                <div class="stat-label">最高连板</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="firstBoards">-</div>
+                <div class="stat-label">首板数量</div>
+            </div>
+        </div>
+
+        <div class="industry-table">
+            <h2><i class="fas fa-industry"></i> 涨停行业分析</h2>
+            <div id="loadingDiv" class="loading">
+                <i class="fas fa-spinner"></i>
+                <p>正在获取涨停动态数据...</p>
+            </div>
+            <div id="errorDiv" style="display: none;"></div>
+            <div id="successDiv" style="display: none;"></div>
+            <div class="table-container">
+                <table id="industryTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th class="industry-header">
+                                <i class="fas fa-industry"></i>
+                                <span>行业名称</span>
+                            </th>
+                            <th class="board-header">
+                                <i class="fas fa-layer-group"></i>
+                                <span>连板数</span>
+                            </th>
+                            <th class="count-header">
+                                <i class="fas fa-chart-bar"></i>
+                                <span>个股数量</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="industryTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="risk-warning">
+            <h3><i class="fas fa-exclamation-triangle"></i> 风险提示</h3>
+            <p>本涨停动态基于公开数据统计，仅供参考，不构成投资建议。</p>
+            <p>股市有风险，投资需谨慎。涨停不代表后续必然上涨，请理性分析市场风险。</p>
+            <p>连板数据可能存在延迟，请以实际交易数据为准。</p>
+        </div>
+    </div>
+
+    <!-- GitHub链接 -->
+    <div style="text-align: center; margin-top: 30px; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 15px;">
+        <p style="color: #b0c4de; margin-bottom: 10px;">开源项目</p>
+        <a href="https://github.com/hengruiyun" target="_blank" style="color: #4CAF50; text-decoration: none; font-weight: bold; font-size: 16px;">
+            <i class="fab fa-github"></i> 访问GitHub @hengruiyun
+        </a>
+    </div>
+
+    <script>
+        // 统一的服务器地址获取函数
+        function getServerUrl() {
+            const protocol = window.location.protocol;
+            
+            // 如果是通过HTTP/HTTPS访问（从服务器加载的），直接使用当前地址的域名和端口
+            if (protocol === 'http:' || protocol === 'https:') {
+                return window.location.origin;
+            }
+            
+            // 如果是file协议，回退到localhost:16888
+            return 'http://localhost:16888';
+        }
+        
+        const SERVER_URL = getServerUrl();
+        let ztPoolData = [];
+        let currentDays = 1;
+        let industryData = [];
+
+        // 显示错误信息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorDiv');
+            errorDiv.innerHTML = `<div class="error"><i class="fas fa-exclamation-circle"></i> ${message}</div>`;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 显示成功信息
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successDiv');
+            successDiv.innerHTML = `<div class="success"><i class="fas fa-check-circle"></i> ${message}</div>`;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function showWarning(message) {
+            const warningDiv = document.getElementById('warningDiv') || document.getElementById('successDiv');
+            warningDiv.innerHTML = `<div class="warning" style="background-color: #fff3cd; color: #856404; border-color: #ffeaa7;"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
+            warningDiv.style.display = 'block';
+            setTimeout(() => {
+                warningDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 获取指定天数前的日期
+        function getDateBefore(days) {
+            const date = new Date();
+            date.setDate(date.getDate() - days + 1);
+            return date.toISOString().slice(0, 10).replace(/-/g, '');
+        }
+
+        // 格式化日期显示
+        function formatDateDisplay(dateStr) {
+            const year = dateStr.slice(0, 4);
+            const month = dateStr.slice(4, 6);
+            const day = dateStr.slice(6, 8);
+            return `${year}-${month}-${day}`;
+        }
+
+        // 获取连板数样式类
+        function getBoardClass(boards) {
+            if (boards === 1) return 'board-1';
+            if (boards === 2) return 'board-2';
+            if (boards === 3) return 'board-3';
+            if (boards === 4) return 'board-4';
+            return 'board-5-plus';
+        }
+
+        // 清理股票代码（删除SH/SZ前缀）
+        function cleanStockCode(code) {
+            if (!code) return '';
+            return code.replace(/^(SH|SZ)/, '');
+        }
+
+        // 生成多空分析按钮URL
+        function generateAnalysisUrl(code, name) {
+            const cleanCode = cleanStockCode(code);
+            // 使用相对路径，避免在代理环境中双重代理
+            return `./多空博弈大师版.html##${cleanCode}####${name}##`;
+        }
+
+        // 生成逐笔分析按钮URL
+        function generateTickAnalysisUrl(code, name) {
+            const cleanCode = cleanStockCode(code);
+            // 使用相对路径，避免在代理环境中双重代理
+            return `./逐笔分析.html##${cleanCode}##${name}##`;
+        }
+
+        // 生成投资大师分析按钮URL
+        function generateMasterAnalysisUrl(code, name) {
+            const cleanCode = cleanStockCode(code);
+            // 使用相对路径，避免在代理环境中双重代理
+            return `./迷你投资大师.html##${cleanCode}####${name}##`;
+        }
+
+        // 生成个股分析按钮URL
+        function generateStockAnalysisUrl(code, name) {
+            const cleanCode = cleanStockCode(code);
+            // 使用相对路径，避免在代理环境中双重代理
+            return `./智能个股分析.html##${cleanCode}####${name}##`;
+        }
+
+        // 处理涨停池数据，按行业分组
+        function processZtPoolData(data) {
+            const industryMap = new Map();
+
+            data.forEach(stock => {
+                const industry = stock.所属行业 || '其他';
+                
+                if (!industryMap.has(industry)) {
+                    industryMap.set(industry, {
+                        name: industry,
+                        stocks: [],
+                        count: 0,
+                        maxBoards: 0,
+                        totalBoards: 0
+                    });
+                }
+
+                const industryInfo = industryMap.get(industry);
+                industryInfo.stocks.push(stock);
+                industryInfo.count++;
+                industryInfo.totalBoards += stock.连板数;
+                if (stock.连板数 > industryInfo.maxBoards) {
+                    industryInfo.maxBoards = stock.连板数;
+                }
+            });
+
+            // 转换为数组并排序
+            const industries = Array.from(industryMap.values());
+            
+            // 排序规则：第一级按个股数量，第二级按包含个股的连版数
+            industries.sort((a, b) => {
+                if (a.count !== b.count) {
+                    return b.count - a.count; // 个股数量降序
+                }
+                return b.maxBoards - a.maxBoards; // 连板数降序
+            });
+
+            // 对每个行业内的股票按连板数排序
+            industries.forEach(industry => {
+                industry.stocks.sort((a, b) => b.连板数 - a.连板数);
+            });
+
+            return industries;
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            const totalIndustries = industryData.length;
+            const totalStocks = ztPoolData.length;
+            const maxBoards = Math.max(...ztPoolData.map(s => s.连板数), 0);
+            const firstBoards = ztPoolData.filter(s => s.连板数 === 1).length;
+
+            document.getElementById('totalIndustries').textContent = totalIndustries;
+            document.getElementById('totalStocks').textContent = totalStocks;
+            document.getElementById('maxBoards').textContent = maxBoards + '板';
+            document.getElementById('firstBoards').textContent = firstBoards;
+        }
+
+        // 更新行业表格
+        function updateIndustryTable() {
+            const tbody = document.getElementById('industryTableBody');
+            tbody.innerHTML = '';
+
+            industryData.forEach((industry, index) => {
+                // 行业行
+                const industryRow = document.createElement('tr');
+                industryRow.className = 'industry-row';
+                industryRow.dataset.industryIndex = index;
+                
+                industryRow.innerHTML = `
+                    <td style="text-align: left;">
+                        <i class="fas fa-chevron-right expand-icon" id="icon-${index}"></i>
+                        <strong>${industry.name}</strong>
+                    </td>
+                    <td><span class="board-number ${getBoardClass(industry.maxBoards)}">${industry.maxBoards}板</span></td>
+                    <td><strong>${industry.count}</strong></td>
+                `;
+                
+                tbody.appendChild(industryRow);
+
+                // 个股行（初始隐藏）
+                industry.stocks.forEach(stock => {
+                    const stockRow = document.createElement('tr');
+                    stockRow.className = `stock-row industry-${index}`;
+                    
+                    const cleanCode = cleanStockCode(stock.代码);
+                    const stockAnalysisUrl = generateStockAnalysisUrl(stock.代码, stock.名称);
+                    const analysisUrl = generateAnalysisUrl(stock.代码, stock.名称);
+                    const tickAnalysisUrl = generateTickAnalysisUrl(stock.代码, stock.名称);
+                    const masterAnalysisUrl = generateMasterAnalysisUrl(stock.代码, stock.名称);
+                    
+                    stockRow.innerHTML = `
+                        <td style="text-align: left;">${cleanCode} ${stock.名称}</td>
+                        <td><span class="board-number ${getBoardClass(stock.连板数)}">${stock.连板数}板</span></td>
+                        <td>
+                            <a href="${stockAnalysisUrl}" class="analysis-btn">个股分析</a>
+                            <a href="${analysisUrl}" class="analysis-btn">多空分析</a>
+                            <a href="${tickAnalysisUrl}" class="analysis-btn">逐笔分析</a>
+                            <a href="${masterAnalysisUrl}" class="analysis-btn">投资大师分析</a>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(stockRow);
+                });
+            });
+
+            document.getElementById('industryTable').style.display = 'table';
+        }
+
+        // 切换行业展开/收起
+        function toggleIndustry(industryIndex) {
+            const icon = document.getElementById(`icon-${industryIndex}`);
+            const stockRows = document.querySelectorAll(`.stock-row.industry-${industryIndex}`);
+            const industryRow = document.querySelector(`[data-industry-index="${industryIndex}"]`);
+            
+            if (!icon || !industryRow) {
+                return;
+            }
+            
+            const isExpanded = icon.classList.contains('expanded');
+            if (isExpanded) {
+                // 收起
+                icon.classList.remove('expanded');
+                industryRow.classList.remove('expanded');
+                stockRows.forEach(row => row.classList.remove('show'));
+            } else {
+                // 展开
+                icon.classList.add('expanded');
+                industryRow.classList.add('expanded');
+                stockRows.forEach(row => row.classList.add('show'));
+            }
+            
+            }
+
+        // 获取涨停池数据
+        async function fetchZtPoolData(days = 1) {
+            const loadingDiv = document.getElementById('loadingDiv');
+            
+            try {
+                loadingDiv.style.display = 'block';
+                
+                // 获取指定天数的数据
+                const promises = [];
+                for (let i = 0; i < days; i++) {
+                    const date = getDateBefore(i + 1);
+                    promises.push(fetch(`${SERVER_URL}/api/stock/zt_pool?date=${date}`));
+                }
+                
+                const responses = await Promise.all(promises);
+                
+                // 检查响应状态并处理错误
+                const dataPromises = responses.map(async (response, index) => {
+                    if (!response.ok) {
+                        return { success: false, error: `HTTP ${response.status}` };
+                    }
+                    
+                    try {
+                        return await response.json();
+                    } catch (jsonError) {
+                        return { success: false, error: 'JSON解析失败' };
+                    }
+                });
+                
+                const results = await Promise.all(dataPromises);
+                
+                // 合并数据
+                let allData = [];
+                let validDates = [];
+                let errorMessages = [];
+                
+                results.forEach((result, index) => {
+                    if (result.success && result.data) {
+                        allData = allData.concat(result.data);
+                        validDates.push(result.date);
+                    } else if (result.error_type === 'api_unavailable') {
+                        errorMessages.push(`数据服务暂时不可用`);
+                    } else if (result.error) {
+                        errorMessages.push(result.error);
+                    }
+                });
+                
+                // 如果有错误但也有部分数据，显示警告
+                if (errorMessages.length > 0 && allData.length > 0) {
+                    showWarning(`部分数据获取失败，但已显示可用数据。错误: ${errorMessages[0]}`);
+                } else if (errorMessages.length > 0 && allData.length === 0) {
+                    // 如果所有请求都失败，显示具体错误
+                    const uniqueErrors = [...new Set(errorMessages)];
+                    if (uniqueErrors.includes('数据服务暂时不可用')) {
+                        showError('涨停数据服务暂时不可用，请稍后重试');
+                    } else {
+                        showError(`获取涨停数据失败: ${uniqueErrors.join(', ')}`);
+                    }
+                    return;
+                }
+                
+                if (allData.length === 0) {
+                    showError(`未获取到最近${days}日的涨停数据`);
+                    return;
+                }
+                
+                // 去重（同一只股票可能多日涨停，保留连板数最高的）
+                const stockMap = new Map();
+                allData.forEach(stock => {
+                    const key = stock.代码;
+                    if (!stockMap.has(key) || stock.连板数 > stockMap.get(key).连板数) {
+                        stockMap.set(key, stock);
+                    }
+                });
+                
+                ztPoolData = Array.from(stockMap.values());
+                industryData = processZtPoolData(ztPoolData);
+                
+                updateStats();
+                updateIndustryTable();
+                
+                // 更新日期显示
+                if (validDates.length > 0) {
+                    const dateDisplay = validDates.map(formatDateDisplay).join(', ');
+                    document.getElementById('currentDate').textContent = `数据日期: ${dateDisplay}`;
+                }
+                
+                showSuccess(`成功获取${days}日涨停数据，共${ztPoolData.length}只股票，涉及${industryData.length}个行业`);
+                
+            } catch (error) {
+                showError('获取涨停数据失败，请检查网络连接和服务器状态');
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 日期按钮点击事件
+            document.querySelectorAll('.date-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // 更新按钮状态
+                    document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // 获取数据
+                    currentDays = parseInt(this.dataset.days);
+                    fetchZtPoolData(currentDays);
+                });
+            });
+            
+            // 行业表格点击事件（事件委托）
+            document.getElementById('industryTableBody').addEventListener('click', function(e) {
+                const industryRow = e.target.closest('.industry-row');
+                if (industryRow) {
+                    const industryIndex = parseInt(industryRow.dataset.industryIndex);
+                    toggleIndustry(industryIndex);
+                } else {
+                    }
+            });
+            
+            // 初始加载数据
+            fetchZtPoolData(1);
+            
+            // 智能链接处理：根据是否有参数决定是否新开窗口
+            setupSmartLinks();
+        });
+        
+        // 智能链接处理函数
+        function setupSmartLinks() {
+            // 监听所有分析按钮的点击事件
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('analysis-btn')) {
+                    e.preventDefault();
+                    
+                    const href = e.target.getAttribute('href');
+                    if (!href) return;
+                    
+                    // 检查链接是否包含参数（##格式）
+                    const hasParams = href.includes('##') && href.split('##').length > 2;
+                    
+                    if (hasParams) {
+                        // 有参数：在当前窗口打开
+                        window.location.href = href;
+                    } else {
+                        // 无参数：新开窗口
+                        window.open(href, '_blank');
+                    }
+                }
+            });
+        }
+    </script>
+
+    <!-- 本地环境股票代码识别支持 -->
+    <script>
+    // 本地环境股票代码识别支持
+    (function() {
+        // 检查是否已有服务器注入的函数（HTTP环境）
+        if (typeof window.convertStockCodesToLinks === 'function' && 
+            typeof window.broadcastStockCode === 'function') {
+            console.log('✅ 检测到服务器注入功能，使用HTTP环境版本');
+            return;
+        }
+        
+        console.log('🏠 本地环境：启动内置股票代码识别');
+        
+        // 本地环境的广播函数
+        async function broadcastStockCode(code) {
+            try {
+                const serverUrl = window.location.protocol === 'file:' ? 
+                    'http://localhost:16888' : window.location.origin;
+                
+                const response = await fetch(`${serverUrl}/api/broadcast`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stock_code: code })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    console.log('✓ 本地环境广播成功:', code);
+                }
+            } catch (error) {
+                console.log('✗ 本地环境广播失败:', error.message);
+            }
+        }
+        
+        // 本地环境的股票代码识别函数
+        function convertStockCodesToLinks(container = document.body) {
+            // 确保container是DOM元素
+            if (!container || typeof container.querySelectorAll !== 'function') {
+                container = document.body;
+            }
+            
+            const textElements = container.querySelectorAll('p, span, div, td, li, h1, h2, h3, h4, h5, h6');
+            
+            textElements.forEach(element => {
+                // 跳过已处理的元素
+                if (element.classList.contains('stock-code-processed')) return;
+                
+                // 跳过输入框、按钮等
+                if (element.tagName === 'INPUT' || element.tagName === 'BUTTON' || element.tagName === 'TEXTAREA') return;
+                
+                // 涨停动态页面特殊处理：跳过行业行，允许处理股票行中的代码
+                if (element.closest('.industry-row') && !element.closest('.stock-row')) return;
+                if (element.classList.contains('expand-icon')) return;
+                
+                // 获取元素的文本内容进行匹配
+                const textContent = element.textContent || '';
+                
+                // 正则匹配: 独立的5位或6位数字
+                const stockCodeRegex = /(?<![\d.])(\d{5,6})(?![\d.])/g;
+                
+                // 只有当文本内容包含匹配的代码时才处理HTML
+                if (stockCodeRegex.test(textContent)) {
+                    stockCodeRegex.lastIndex = 0;
+                    
+                    const newHtml = element.innerHTML.replace(stockCodeRegex, (match, p1, offset, string) => {
+                        // 检查是否在HTML标签中
+                        const beforeMatch = string.substring(0, offset);
+                        if (beforeMatch.includes('<') && !beforeMatch.includes('>')) return match;
+                        if (beforeMatch.includes('class=') || beforeMatch.includes('data-')) return match;
+                        
+                        // 创建可点击的股票代码链接
+                        return `<span class="stock-code-link" style="color: #007bff; cursor: pointer; text-decoration: underline;" onclick="event.preventDefault(); event.stopPropagation(); (async function() { try { await broadcastStockCode('${match}'); } catch(e) { console.error('广播失败:', e); } })();">${match}</span>`;
+                    });
+                    
+                    if (newHtml !== element.innerHTML) {
+                        element.innerHTML = newHtml;
+                        element.classList.add('stock-code-processed');
+                    }
+                }
+            });
+        }
+        
+        // 暴露函数到全局作用域
+        window.convertStockCodesToLinks = convertStockCodesToLinks;
+        window.broadcastStockCode = broadcastStockCode;
+        
+        // 初始处理
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', convertStockCodesToLinks);
+        } else {
+            convertStockCodesToLinks();
+        }
+        
+        // 启动MutationObserver监听动态内容
+        let isProcessing = false;
+        const observer = new MutationObserver((mutations) => {
+            if (isProcessing) return;
+            
+            let shouldProcess = false;
+            mutations.forEach((mutation) => {
+                if (mutation.addedNodes.length > 0) {
+                    const hasStockLink = Array.from(mutation.addedNodes).some(node => {
+                        return node.classList && node.classList.contains('stock-code-link');
+                    });
+                    if (!hasStockLink) {
+                        shouldProcess = true;
+                    }
+                }
+            });
+            
+            if (shouldProcess) {
+                isProcessing = true;
+                setTimeout(() => {
+                    convertStockCodesToLinks();
+                    isProcessing = false;
+                }, 100);
+            }
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        console.log('✅ 本地环境MutationObserver已启动');
+    })();
+
+    // 股票名称识别功能（涨停动态页面专用）
+    (function() {
+        console.log('🏷️ 涨停动态：初始化股票名称识别功能');
+        
+        // 全局变量存储股票数据
+        let stockNameData = null;
+        let isStockDataLoaded = false;
+        
+        // 加载股票名称数据
+        async function loadStockNameData() {
+            if (isStockDataLoaded && stockNameData) {
+                return stockNameData;
+            }
+            
+            try {
+                const serverUrl = window.location.protocol === 'file:' ? 
+                    'http://localhost:16888' : window.location.origin;
+                
+                const response = await fetch(`${serverUrl}/stockname.json`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                stockNameData = await response.json();
+                isStockDataLoaded = true;
+                
+                console.log('✅ 涨停动态：股票名称数据加载成功');
+                return stockNameData;
+                
+            } catch (error) {
+                console.warn('⚠️ 涨停动态：股票名称数据加载失败:', error.message);
+                return null;
+            }
+        }
+        
+        // 转义正则表达式特殊字符
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+        // 将股票名称转换为可点击链接（涨停动态专用）
+        function convertStockNamesToLinks(container = document.body) {
+            if (!stockNameData || !stockNameData.name_to_code) {
+                return;
+            }
+            
+            // 只处理展开的股票行中的文本
+            const stockRows = container.querySelectorAll('.stock-row.show');
+            
+            stockRows.forEach(row => {
+                const textElements = row.querySelectorAll('td');
+                
+                textElements.forEach(element => {
+                    // 跳过已处理的元素
+                    if (element.classList.contains('stock-name-processed')) return;
+                    
+                    // 获取元素的文本内容
+                    const textContent = element.textContent || '';
+                    
+                    // 检查是否包含股票名称
+                    let hasStockName = false;
+                    for (const stockName of Object.keys(stockNameData.name_to_code)) {
+                        if (textContent.includes(stockName) && stockName.length > 2) { // 避免匹配太短的名称
+                            hasStockName = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!hasStockName) return;
+                    
+                    // 处理HTML内容，替换股票名称为链接
+                    let newHtml = element.innerHTML;
+                    let hasChanges = false;
+                    
+                    // 按股票名称长度排序，优先处理长名称
+                    const sortedNames = Object.keys(stockNameData.name_to_code)
+                        .filter(name => name.length > 2) // 过滤太短的名称
+                        .sort((a, b) => b.length - a.length);
+                    
+                    for (const stockName of sortedNames) {
+                        const stockCode = stockNameData.name_to_code[stockName];
+                        const stockInfo = stockNameData.stocks[stockCode];
+                        
+                        // 创建正则表达式，匹配完整的股票名称
+                        const regex = new RegExp(`(?<![\\u4e00-\\u9fa5a-zA-Z0-9])${escapeRegExp(stockName)}(?![\\u4e00-\\u9fa5a-zA-Z0-9])`, 'g');
+                        
+                        const replacement = `<span class="stock-name-link" style="color: #28a745; cursor: pointer; text-decoration: underline; font-weight: bold;" title="股票代码: ${stockCode} | 行业: ${stockInfo?.industry || '未知'}" onclick="event.preventDefault(); event.stopPropagation(); (async function() { try { await broadcastStockCode('${stockCode}'); } catch(e) { console.error('广播失败:', e); } })();">${stockName}</span>`;
+                        
+                        const beforeReplace = newHtml;
+                        newHtml = newHtml.replace(regex, (match, offset, string) => {
+                            // 检查是否在HTML标签中
+                            const beforeMatch = string.substring(0, offset);
+                            if (beforeMatch.includes('<') && !beforeMatch.includes('>')) return match;
+                            if (beforeMatch.includes('class=') || beforeMatch.includes('data-')) return match;
+                            if (beforeMatch.includes('stock-name-link') || beforeMatch.includes('stock-code-link')) return match;
+                            
+                            return replacement;
+                        });
+                        
+                        if (newHtml !== beforeReplace) {
+                            hasChanges = true;
+                        }
+                    }
+                    
+                    // 应用更改
+                    if (hasChanges && newHtml !== element.innerHTML) {
+                        element.innerHTML = newHtml;
+                        element.classList.add('stock-name-processed');
+                    }
+                });
+            });
+        }
+        
+        // 监听行业展开事件
+        function setupIndustryToggleListener() {
+            const originalToggleIndustry = window.toggleIndustry;
+            if (originalToggleIndustry) {
+                window.toggleIndustry = function(industryIndex) {
+                    // 调用原始函数
+                    originalToggleIndustry(industryIndex);
+                    
+                    // 延迟执行股票名称识别，确保DOM更新完成
+                    setTimeout(() => {
+                        convertStockNamesToLinks();
+                    }, 100);
+                };
+            }
+        }
+        
+        // 初始化
+        async function initStockNameRecognition() {
+            const data = await loadStockNameData();
+            if (!data) {
+                console.warn('⚠️ 涨停动态：股票名称数据加载失败，跳过名称识别功能');
+                return;
+            }
+            
+            // 设置行业展开监听
+            setupIndustryToggleListener();
+            
+            // 初始处理（如果有已展开的内容）
+            setTimeout(convertStockNamesToLinks, 500);
+            
+            console.log('✅ 涨停动态：股票名称识别已初始化');
+        }
+        
+        // 延迟初始化，确保页面其他脚本先加载
+        setTimeout(initStockNameRecognition, 1500);
+    })();
+    </script>
+</body>
+</html>
