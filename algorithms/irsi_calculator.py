@@ -53,9 +53,11 @@ class CoreStrengthAnalyzer:
     """
     核心行业强势分析器
     整合最佳算法：技术动量分析(TMA) + 升级关注算法(UFA)
+    支持基于量价数据的增强TMA
     """
     
-    def __init__(self, rating_map: Dict = None, min_stocks_per_industry: int = 3, enable_cache: bool = True):
+    def __init__(self, rating_map: Dict = None, min_stocks_per_industry: int = 3, 
+                 enable_cache: bool = True, top_n_leading_stocks: int = 5):
         self.logger = logging.getLogger(__name__)
         
         # 评级映射
@@ -67,13 +69,12 @@ class CoreStrengthAnalyzer:
             '微空': 3, '小空': 2, '大空': 0
         }
         
-        # 强势等级定义
+        # 强势等级定义（TMA分数范围-100到100，显示时×100）
+        # >=70为强（红色），<=40为弱（绿色），其它为中（黄色）
         self.strength_levels = {
-            (0.4, float('inf')): "强势",
-            (0.2, 0.4): "轻微强势", 
-            (-0.2, 0.2): "中性",
-            (-0.4, -0.2): "轻微弱势",
-            (float('-inf'), -0.4): "弱势"
+            (0.7, float('inf')): "强势",      # >=70分
+            (0.4, 0.7): "中性",                # 40-70分
+            (float('-inf'), 0.4): "弱势"       # <=40分
         }
         
         # 配置参数
@@ -82,13 +83,121 @@ class CoreStrengthAnalyzer:
         self.cache = {} if enable_cache else None
         self.calculation_count = 0
         self.cache_hits = 0
+        
+        # 新TMA算法配置：原始TMA × 60% + 前N龙头股RTSI平均 × 40%
+        self.top_n_leading_stocks = top_n_leading_stocks
+        self.logger.info(f"✅ [CoreStrengthAnalyzer] 新TMA算法：原始TMA×60% + 前{top_n_leading_stocks}龙头股RTSI平均×40%")
     
     def technical_momentum_analysis(self, sector_data: pd.DataFrame, 
+                                  industry_col: str, date_cols: List[str],
+                                  market: str = "CN", 
+                                  industry_stocks_map: Dict[str, List[Dict]] = None) -> Dict[str, float]:
+        """
+        技术动量分析算法 (TMA) - 新公式
+        
+        新TMA = 原始TMA × 60% + 前N龙头股RTSI平均分 × 40%
+        
+        Args:
+            sector_data: 行业数据DataFrame
+            industry_col: 行业列名
+            date_cols: 日期列
+            market: 市场代码（CN/HK/US）
+            industry_stocks_map: 行业股票映射 {行业名: [{'code': '600000', 'rtsi': 0.8}]}
+        """
+        # 1. 计算原始TMA（基于评级数据）
+        traditional_tma = self._traditional_tma_analysis(sector_data, industry_col, date_cols)
+        
+        # 2. 如果有龙头股RTSI数据，则增强TMA
+        if industry_stocks_map:
+            enhanced_tma = self._enhance_tma_with_leading_stocks(traditional_tma, industry_stocks_map)
+            self.logger.info(f"[TMA] ✅ 使用增强TMA：原始TMA×60% + 前{self.top_n_leading_stocks}龙头股RTSI×40%（{len(enhanced_tma)}个行业）")
+            return enhanced_tma
+        else:
+            # 没有龙头股数据，只用原始TMA
+            self.logger.info(f"[TMA] 使用原始TMA（无龙头股数据，{len(traditional_tma)}个行业）")
+            return traditional_tma
+    
+    def _enhance_tma_with_leading_stocks(self, traditional_tma: Dict[str, float],
+                                         industry_stocks_map: Dict[str, List[Dict]]) -> Dict[str, float]:
+        """
+        使用龙头股RTSI增强TMA
+        
+        新TMA = 原始TMA × 60% + 前N龙头股RTSI平均分 × 40%
+        
+        Args:
+            traditional_tma: 原始TMA评分 {行业名: 评分(-1到1)}
+            industry_stocks_map: 行业股票映射 {行业名: [{'code': '600000', 'rtsi': 85.5, 'name': '浦发银行'}]}
+        
+        Returns:
+            增强后的TMA评分 {行业名: 评分(-1到1)}
+        """
+        enhanced_results = {}
+        
+        for industry_name, original_tma in traditional_tma.items():
+            # 获取该行业的股票列表
+            stocks = industry_stocks_map.get(industry_name, [])
+            
+            if not stocks:
+                # 无股票数据，使用原始TMA
+                self.logger.warning(f"[TMA增强] {industry_name}: industry_stocks_map中无股票数据")
+                enhanced_results[industry_name] = original_tma
+                continue
+            
+            # 调试：打印stocks的前3个
+            self.logger.debug(f"[TMA增强] {industry_name}: stocks数量={len(stocks)}, 前3个={stocks[:3] if len(stocks) >= 3 else stocks}")
+            
+            # 按RTSI排序，选择前N个龙头股
+            sorted_stocks = sorted(
+                stocks,
+                key=lambda x: self._get_rtsi_value(x),
+                reverse=True
+            )
+            top_stocks = sorted_stocks[:self.top_n_leading_stocks]
+            
+            # 计算龙头股RTSI平均分
+            rtsi_values = []
+            for stock in top_stocks:
+                rtsi = self._get_rtsi_value(stock)
+                if rtsi > 0:  # 只计算有效的RTSI
+                    rtsi_values.append(rtsi)
+                else:
+                    self.logger.debug(f"[TMA增强] {industry_name}: 股票{stock}的RTSI=0或无效")
+            
+            if rtsi_values:
+                # 将RTSI (0-100) 转换到 (-1, 1) 范围
+                avg_rtsi = np.mean(rtsi_values)
+                rtsi_normalized = (avg_rtsi - 50) / 50.0  # 50分 → 0，100分 → 1，0分 → -1
+                
+                # 新TMA = 原始TMA × 60% + 龙头股RTSI × 40%
+                enhanced_tma = original_tma * 0.6 + rtsi_normalized * 0.4
+                
+                self.logger.info(
+                    f"[TMA增强] {industry_name}: "
+                    f"原始TMA={original_tma:.3f}×0.6={original_tma*0.6:.3f}, "
+                    f"前{len(rtsi_values)}股RTSI均值={avg_rtsi:.1f}→归一化={rtsi_normalized:.3f}×0.4={rtsi_normalized*0.4:.3f}, "
+                    f"增强TMA={enhanced_tma:.3f}, 显示={enhanced_tma*100:.1f}分"
+                )
+            else:
+                # 没有有效RTSI，使用原始TMA
+                enhanced_tma = original_tma
+                self.logger.info(f"[TMA增强] {industry_name}: 无有效RTSI，使用原始TMA={original_tma:.3f}, 显示={original_tma*100:.1f}分")
+            
+            enhanced_results[industry_name] = enhanced_tma
+        
+        return enhanced_results
+    
+    def _get_rtsi_value(self, stock_item) -> float:
+        """安全获取RTSI值"""
+        if isinstance(stock_item, dict):
+            rtsi = stock_item.get('rtsi', 0)
+            if isinstance(rtsi, dict):
+                return float(rtsi.get('rtsi', 0))
+            return float(rtsi) if rtsi else 0
+        return 0
+    
+    def _traditional_tma_analysis(self, sector_data: pd.DataFrame, 
                                   industry_col: str, date_cols: List[str]) -> Dict[str, float]:
-        """
-        技术动量分析算法 (TMA)
-        基于RSI、MACD等技术指标概念，适合识别技术面强势
-        """
+        """传统TMA算法（原有实现，保留作为后备）"""
         results = {}
         
         for industry in sector_data[industry_col].unique():
@@ -131,14 +240,26 @@ class CoreStrengthAnalyzer:
                             macd = short_ma - long_ma
                             
                             # 综合技术分数
-                            tech_score = (rsi - 50) / 50 * 0.6 + macd * 0.4
+                            # RSI归一化到[-1, 1]
+                            rsi_normalized = (rsi - 50) / 50
+                            # MACD归一化到[-1, 1]（假设评级范围0-7，最大差值为7）
+                            macd_normalized = np.tanh(macd / 2.0)  # 除以2使其更敏感，tanh限制到[-1,1]
+                            
+                            tech_score = rsi_normalized * 0.6 + macd_normalized * 0.4
                             momentum_scores.append(tech_score)
             
             # 行业技术动量
             if momentum_scores:
                 industry_momentum = np.mean(momentum_scores)
-                # 标准化到[-1, 1]区间
-                results[industry] = np.tanh(industry_momentum)
+                # tech_score已经在[-1, 1]范围内，直接使用平均值
+                # 不再使用tanh压缩，避免单行业计算时过度饱和
+                final_score = np.clip(industry_momentum, -1.0, 1.0)
+                results[industry] = final_score
+                
+                # 调试输出：查看原始TMA的实际范围
+                if len(results) == 1:  # 只在单行业模式下输出
+                    self.logger.debug(f"[原始TMA] {industry}: momentum_scores数量={len(momentum_scores)}, "
+                                    f"平均={industry_momentum:.3f}, 最终={final_score:.3f}")
             else:
                 results[industry] = 0.0
         
@@ -189,15 +310,23 @@ class CoreStrengthAnalyzer:
             # 行业升级关注分数
             if upgrade_scores:
                 industry_upgrade = np.mean(upgrade_scores)
-                # 标准化处理
-                results[industry] = np.tanh(industry_upgrade / 2.0)
+                # 标准化处理 - 使用更激进的除数避免饱和
+                # weighted_change的范围可能很大，需要更大的除数
+                normalized_score = np.tanh(industry_upgrade / 5.0)  # 从2.0改为5.0，降低饱和
+                results[industry] = normalized_score
+                
+                # 调试输出
+                if len(results) == 1:
+                    self.logger.debug(f"[UFA] {industry}: upgrade_scores数量={len(upgrade_scores)}, "
+                                    f"平均={industry_upgrade:.3f}, 归一化={normalized_score:.3f}")
             else:
                 results[industry] = 0.0
         
         return results
     
     def calculate(self, industry_data: pd.DataFrame, market_data: pd.DataFrame = None, 
-                 industry_name: str = None, language: str = 'zh_CN') -> Dict[str, Union[float, str, int]]:
+                 industry_name: str = None, language: str = 'zh_CN',
+                 stocks_results: Dict = None) -> Dict[str, Union[float, str, int]]:
         """
         计算单个行业的强势分析 (兼容原IRSI接口)
         
@@ -236,8 +365,36 @@ class CoreStrengthAnalyzer:
         # 按日期排序
         date_cols.sort()
         
+        # 准备行业股票映射（用于TMA增强）
+        if stocks_results:
+            # ✅ 使用已计算的RTSI数据
+            industry_stocks_map = {}
+            for _, row in industry_data.iterrows():
+                stock_code = str(row.get('股票代码', row.get('Code', '')))
+                if stock_code in stocks_results:
+                    stock_info = stocks_results[stock_code]
+                    if industry_name not in industry_stocks_map:
+                        industry_stocks_map[industry_name] = []
+                    industry_stocks_map[industry_name].append({
+                        'code': stock_code,
+                        'name': stock_info.get('name', stock_code),
+                        'rtsi': stock_info.get('rtsi', {}).get('rtsi', 0) if isinstance(stock_info.get('rtsi'), dict) else stock_info.get('rtsi', 0)
+                    })
+            self.logger.debug(f"[TMA准备] {industry_name}: 从stocks_results构建industry_stocks_map, 股票数={len(industry_stocks_map.get(industry_name, []))}")
+        else:
+            # 回退：从DataFrame提取（没有RTSI）
+            industry_stocks_map = self._prepare_industry_stocks_map(industry_data, industry_col)
+            self.logger.warning(f"[TMA准备] {industry_name}: stocks_results为空，回退到DataFrame提取（无RTSI）")
+        
+        # 推断市场代码
+        market = self._infer_market_from_data(industry_data)
+        
         # 运行两个核心算法
-        tma_results = self.technical_momentum_analysis(industry_data, industry_col, date_cols)
+        tma_results = self.technical_momentum_analysis(
+            industry_data, industry_col, date_cols,
+            market=market,
+            industry_stocks_map=industry_stocks_map  # ✅ 现在有RTSI了
+        )
         ufa_results = self.upgrade_focus_analysis(industry_data, industry_col, date_cols)
         
         # 如果指定了行业名称，返回该行业结果
@@ -245,9 +402,56 @@ class CoreStrengthAnalyzer:
             tma_score = tma_results[industry_name]
             ufa_score = ufa_results.get(industry_name, 0.0)
             
-            # 选择最佳算法分数
-            best_score = max(tma_score, ufa_score)
-            best_algorithm = "TMA" if tma_score >= ufa_score else "UFA"
+            # 新算法：（UFA×60% + 前5龙头股RTSI×40%）× 1.2
+            # 计算龙头股RTSI部分
+            stocks = industry_stocks_map.get(industry_name, []) if industry_stocks_map else []
+            
+            if stocks:
+                # 按RTSI排序，选择前5个龙头股
+                sorted_stocks = sorted(
+                    stocks,
+                    key=lambda x: self._get_rtsi_value(x),
+                    reverse=True
+                )
+                top_stocks = sorted_stocks[:5]
+                
+                # 计算龙头股RTSI平均分
+                rtsi_values = []
+                for stock in top_stocks:
+                    rtsi = self._get_rtsi_value(stock)
+                    if rtsi > 0:
+                        rtsi_values.append(rtsi)
+                
+                if rtsi_values:
+                    # 将RTSI (0-100) 转换到 (-1, 1) 范围
+                    avg_rtsi = np.mean(rtsi_values)
+                    rtsi_normalized = (avg_rtsi - 50) / 50.0
+                    
+                    # 新算法：（UFA×70% + 龙头股RTSI×30%）× 1.2
+                    combined_score = (ufa_score * 0.7 + rtsi_normalized * 0.3) * 1.2
+                    
+                    # 确保不超过1.0
+                    combined_score = min(combined_score, 1.0)
+                    
+                    self.logger.info(
+                        f"[新算法] {industry_name}: "
+                        f"UFA={ufa_score:.3f}×0.6={ufa_score*0.6:.3f}, "
+                        f"前{len(rtsi_values)}股RTSI均值={avg_rtsi:.1f}→归一化={rtsi_normalized:.3f}×0.4={rtsi_normalized*0.4:.3f}, "
+                        f"合计={(ufa_score*0.6 + rtsi_normalized*0.4):.3f}×1.1={combined_score:.3f}, "
+                        f"显示={combined_score*100:.1f}分"
+                    )
+                    
+                    best_score = combined_score
+                else:
+                    # 没有有效RTSI，只用UFA × 1.1
+                    best_score = min(ufa_score * 1.1, 1.0)
+                    self.logger.info(f"[新算法] {industry_name}: 无有效RTSI，UFA={ufa_score:.3f}×1.1={best_score:.3f}, 显示={best_score*100:.1f}分")
+            else:
+                # 没有股票数据，只用UFA × 1.1
+                best_score = min(ufa_score * 1.1, 1.0)
+                self.logger.info(f"[新算法] {industry_name}: 无股票数据，UFA={ufa_score:.3f}×1.1={best_score:.3f}, 显示={best_score*100:.1f}分")
+            
+            best_algorithm = "UFA+RTSI×1.1"
             
             # 转换为IRSI兼容格式 (映射到-100到100)
             irsi_score = best_score * 100
@@ -451,18 +655,79 @@ class CoreStrengthAnalyzer:
     
     def _determine_status(self, score: float) -> str:
         """
-        确定状态描述
+        确定状态描述（TMA分数×100后的范围）
+        >=70为强，<=40为弱，其它为中
         """
-        if score >= 0.4:
+        if score >= 0.7:
             return "强势上涨"
-        elif score >= 0.2:
-            return "轻微强势"
-        elif score >= -0.2:
+        elif score > 0.4:
             return "震荡整理"
-        elif score >= -0.4:
-            return "轻微弱势"
         else:
             return "弱势下跌"
+    
+    def _prepare_industry_stocks_map(self, industry_data: pd.DataFrame, 
+                                     industry_col: str) -> Dict[str, List[Dict]]:
+        """
+        准备行业股票映射（用于量价TMA）
+        
+        Returns:
+            {行业名: [{'code': '600000', 'name': '浦发银行', 'rtsi': 0.8}]}
+        """
+        industry_stocks_map = {}
+        
+        for industry in industry_data[industry_col].unique():
+            if not industry or industry == '未分类':
+                continue
+            
+            industry_stocks = industry_data[industry_data[industry_col] == industry]
+            stocks_list = []
+            
+            for _, row in industry_stocks.iterrows():
+                stock_code = str(row.get('股票代码', row.get('Code', '')))
+                stock_name = str(row.get('股票名称', row.get('Name', stock_code)))
+                
+                # 尝试获取RTSI值（如果有）
+                rtsi_value = 0
+                for col in industry_stocks.columns:
+                    if 'rtsi' in col.lower() or 'RTSI' in col:
+                        rtsi_value = row.get(col, 0)
+                        break
+                
+                if stock_code:
+                    stocks_list.append({
+                        'code': stock_code,
+                        'name': stock_name,
+                        'rtsi': rtsi_value
+                    })
+            
+            if stocks_list:
+                industry_stocks_map[industry] = stocks_list
+        
+        return industry_stocks_map
+    
+    def _infer_market_from_data(self, industry_data: pd.DataFrame) -> str:
+        """
+        从数据推断市场代码
+        
+        Returns:
+            'CN', 'HK', 或 'US'
+        """
+        # 尝试从股票代码推断
+        if '股票代码' in industry_data.columns:
+            codes = industry_data['股票代码'].dropna().astype(str)
+            
+            for code in codes[:10]:  # 检查前10个
+                if code.isdigit() and len(code) == 6:
+                    return 'CN'  # 中国A股
+                elif code.startswith(('0', '3', '6')):
+                    return 'CN'
+                elif code.endswith('.HK') or (code.isdigit() and len(code) <= 5):
+                    return 'HK'  # 香港
+                elif len(code) <= 4 and code.isalpha():
+                    return 'US'  # 美股
+        
+        # 默认返回CN
+        return 'CN'
     
     def _get_insufficient_data_result(self, industry_name: str = None, data_points: int = 0) -> Dict:
         """

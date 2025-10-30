@@ -220,7 +220,8 @@ class RealtimeAnalysisEngine:
     - 增量计算支持
     """
     
-    def __init__(self, data_source: StockDataSet, enable_multithreading: bool = True, enable_enhanced_tma: bool = True):
+    def __init__(self, data_source: StockDataSet, enable_multithreading: bool = True, 
+                 enable_enhanced_tma: bool = True, top_n_leading_stocks: int = 5):
         """
         初始化实时分析引擎
         
@@ -228,10 +229,12 @@ class RealtimeAnalysisEngine:
             data_source: 股票数据源
             enable_multithreading: 是否启用多线程计算
             enable_enhanced_tma: 是否启用增强TMA分析
+            top_n_leading_stocks: 每个行业使用前N个龙头股票（用于TMA增强）
         """
         self.data_source = data_source
         self.enable_multithreading = enable_multithreading
         self.enable_enhanced_tma = enable_enhanced_tma and ENHANCED_TMA_AVAILABLE
+        self.top_n_leading_stocks = top_n_leading_stocks
         self.results_cache: Optional[AnalysisResults] = None
         self.last_calculation_time: Optional[datetime] = None
         self.calculation_lock = threading.Lock()
@@ -243,9 +246,10 @@ class RealtimeAnalysisEngine:
                     enable_ai_enhancement=False,  # 根据测试结果关闭AI增强
                     min_credibility=0.2,  # 最佳可信度阈值
                     max_interpolation_ratio=0.5,  # 最佳插值比例
-                    min_stocks_per_industry=2  # 最小股票数
+                    min_stocks_per_industry=2,  # 最小股票数
+                    top_n_leading_stocks=top_n_leading_stocks  # 龙头股数量
                 )
-                logger.info("增强TMA分析器已启用")
+                logger.info(f"增强TMA分析器已启用（新TMA算法：原始TMA×60% + 前{top_n_leading_stocks}龙头股RTSI×40%）")
             except Exception as e:
                 logger.warning(f"增强TMA分析器初始化失败，使用基础模式: {e}")
                 self.enable_enhanced_tma = False
@@ -255,21 +259,55 @@ class RealtimeAnalysisEngine:
         self.smart_rtsi_calculator = None
         self.enhanced_rtsi_calculator = None
         
+        print("=" * 60)
+        print("[诊断] 开始初始化 RTSI 计算器")
+        print("=" * 60)
+        
         try:
+            print("[诊断] 步骤1: 导入 smart_rtsi_algorithm 模块...")
             from .smart_rtsi_algorithm import get_smart_rtsi_calculator
+            print("[诊断] ✅ 模块导入成功")
+            
             # 在多线程模式下禁用缓存以避免AKShare延迟
             enable_cache = not enable_multithreading
+            print(f"[诊断] 步骤2: 调用 get_smart_rtsi_calculator(enable_cache={enable_cache}, verbose=False)...")
             self.smart_rtsi_calculator = get_smart_rtsi_calculator(enable_cache=enable_cache, verbose=False)
+            print("[诊断] ✅ 智能RTSI计算器创建成功")
+            
             logger.info(f"智能RTSI计算器已启用 (缓存: {enable_cache})")
+            print(f"[诊断] ✅ 智能RTSI计算器已启用 (缓存: {enable_cache})")
         except Exception as e:
             logger.warning(f"智能RTSI计算器初始化失败: {e}")
+            print(f"[诊断] ❌ 智能RTSI计算器初始化失败: {e}")
+            import traceback
+            print("[诊断] 错误堆栈:")
+            traceback.print_exc()
+        
+        print("-" * 60)
             
         # 总是初始化增强RTSI计算器，用于批量计算
         try:
+            print("[诊断] 步骤3: 导入 EnhancedRTSICalculator...")
+            print("[诊断] ✅ EnhancedRTSICalculator 导入成功（已在文件开头导入）")
+            
+            print("[诊断] 步骤4: 创建 EnhancedRTSICalculator 实例...")
             self.enhanced_rtsi_calculator = EnhancedRTSICalculator()
+            print("[诊断] ✅ 增强RTSI计算器创建成功")
+            
             logger.info("增强RTSI计算器已启用")
+            print("[诊断] ✅ 增强RTSI计算器已启用")
         except Exception as e2:
             logger.warning(f"增强RTSI计算器初始化失败，使用基础模式: {e2}")
+            print(f"[诊断] ❌ 增强RTSI计算器初始化失败: {e2}")
+            import traceback
+            print("[诊断] 错误堆栈:")
+            traceback.print_exc()
+        
+        print("=" * 60)
+        print(f"[诊断] RTSI 计算器初始化完成:")
+        print(f"  - smart_rtsi_calculator: {self.smart_rtsi_calculator}")
+        print(f"  - enhanced_rtsi_calculator: {self.enhanced_rtsi_calculator}")
+        print("=" * 60)
         
         # 配置参数 - 优化性能设置
         try:
@@ -738,8 +776,11 @@ class RealtimeAnalysisEngine:
         if self.enable_enhanced_tma:
             logger.info("使用增强TMA分析行业强势")
             try:
-                # 使用增强TMA分析器进行批量分析
-                enhanced_results = self.enhanced_tma_analyzer.batch_analyze_industries_enhanced(raw_data)
+                # 使用增强TMA分析器进行批量分析（传入stocks_results以获取RTSI）
+                enhanced_results = self.enhanced_tma_analyzer.batch_analyze_industries_enhanced(
+                    raw_data, 
+                    stocks_results=stocks_results  # ✅ 传入RTSI数据
+                )
                 
                 for industry in industries:
                     if industry in enhanced_results:
@@ -815,9 +856,13 @@ class RealtimeAnalysisEngine:
         return industries_results
     
     def _calculate_market_msci(self, raw_data: pd.DataFrame) -> Dict:
-        """计算市场MSCI"""
+        """计算市场MSCI（启用增强版：方案D最终版）"""
         try:
-            msci_result = calculate_market_sentiment_composite_index(raw_data)
+            # 启用增强版MSCI（方案D最终版：20/80权重 + 分段加成）
+            msci_result = calculate_market_sentiment_composite_index(
+                raw_data, 
+                use_enhanced=True  # 启用增强版MSCI
+            )
             return msci_result
         except Exception as e:
             logger.error(f"计算市场MSCI失败: {e}")

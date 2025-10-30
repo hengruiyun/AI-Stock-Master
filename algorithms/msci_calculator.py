@@ -44,16 +44,19 @@ except ImportError:
     def set_language(lang): pass
 
 def get_rating_score_map():
-    """获取评级分数映射"""
+    """
+    获取评级分数映射（线性映射：0级=12.5分，7级=100分）
+    公式：分数 = 12.5 + 级别 × 12.5
+    """
     return {
-        t_msci('rating_strong_buy'): 7, 
-        t_msci('rating_buy'): 6, 
-        t_msci('rating_moderate_buy'): 5, 
-        t_msci('rating_slight_buy'): 4,
-        t_msci('rating_slight_sell'): 3, 
-        t_msci('rating_moderate_sell'): 2, 
-        t_msci('rating_sell'): 1, 
-        t_msci('rating_strong_sell'): 0, 
+        t_msci('rating_strong_buy'): 100.0,  # 大多 7级 = 12.5 + 7×12.5 = 100.0
+        t_msci('rating_buy'): 87.5,          # 中多 6级 = 12.5 + 6×12.5 = 87.5
+        t_msci('rating_moderate_buy'): 75.0, # 小多 5级 = 12.5 + 5×12.5 = 75.0
+        t_msci('rating_slight_buy'): 62.5,   # 微多 4级 = 12.5 + 4×12.5 = 62.5
+        t_msci('rating_slight_sell'): 50.0,  # 微空 3级 = 12.5 + 3×12.5 = 50.0（中性）
+        t_msci('rating_moderate_sell'): 37.5,# 小空 2级 = 12.5 + 2×12.5 = 37.5
+        t_msci('rating_sell'): 25.0,         # 中空 1级 = 12.5 + 1×12.5 = 25.0
+        t_msci('rating_strong_sell'): 12.5,  # 大空 0级 = 12.5 + 0×12.5 = 12.5
         '-': None
     }
 
@@ -65,6 +68,97 @@ except ImportError:
 
 # 抑制警告
 warnings.filterwarnings('ignore', category=RuntimeWarning)
+
+
+def _interpolate_ratings(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    对评级数据进行智能双向插值处理
+    
+    策略：
+    - 前段数据（开始时无评级）：使用后插值（用后面第一个有效值）
+    - 中段数据（有评级后出现缺失）：使用前插值（用前面最近有效值）
+    - 后段数据（结尾无评级）：使用前插值（用前面最近有效值）
+    
+    Args:
+        data: 原始数据，包含评级列
+        
+    Returns:
+        插值后的数据
+    """
+    # 识别日期列
+    date_columns = [col for col in data.columns if str(col).startswith('202')]
+    if not date_columns:
+        return data
+    
+    date_columns.sort()
+    
+    # 复制数据以避免修改原始数据
+    interpolated_data = data.copy()
+    
+    # 对每只股票/指数进行插值
+    for idx in range(len(interpolated_data)):
+        # 第一步：找到所有有效评级的位置
+        valid_positions = {}  # {date_col: rating}
+        for date_col in date_columns:
+            current_rating = interpolated_data.at[idx, date_col]
+            if not (pd.isna(current_rating) or current_rating == '-'):
+                valid_positions[date_col] = current_rating
+        
+        if not valid_positions:
+            # 如果该股票/指数完全没有有效评级，跳过
+            continue
+        
+        # 第二步：找到第一个和最后一个有效评级的位置
+        first_valid_date = None
+        last_valid_date = None
+        for date_col in date_columns:
+            if date_col in valid_positions:
+                if first_valid_date is None:
+                    first_valid_date = date_col
+                last_valid_date = date_col
+        
+        # 第三步：应用双向插值策略
+        last_forward_rating = '-'  # 用于前插值（向后填充）
+        
+        for date_col in date_columns:
+            current_rating = interpolated_data.at[idx, date_col]
+            
+            # 如果当前评级有效，更新前插值基准
+            if not (pd.isna(current_rating) or current_rating == '-'):
+                last_forward_rating = current_rating
+                continue
+            
+            # 如果当前评级无效，需要插值
+            if pd.isna(current_rating) or current_rating == '-':
+                # 判断位置：前段、中段、后段
+                date_index = date_columns.index(date_col)
+                first_valid_index = date_columns.index(first_valid_date) if first_valid_date else -1
+                last_valid_index = date_columns.index(last_valid_date) if last_valid_date else -1
+                
+                if date_index < first_valid_index:
+                    # 前段：使用后插值（找后面第一个有效值）
+                    next_valid_rating = '-'
+                    for future_date in date_columns[date_index:]:
+                        if future_date in valid_positions:
+                            next_valid_rating = valid_positions[future_date]
+                            break
+                    if next_valid_rating != '-':
+                        interpolated_data.at[idx, date_col] = next_valid_rating
+                        # print(f"[后插值] 股票{idx} 日期{date_col} 使用后续评级{next_valid_rating}")
+                
+                elif date_index > last_valid_index:
+                    # 后段：使用前插值（用最后一个有效值）
+                    if last_forward_rating != '-':
+                        interpolated_data.at[idx, date_col] = last_forward_rating
+                        # print(f"[前插值-后段] 股票{idx} 日期{date_col} 使用前次评级{last_forward_rating}")
+                
+                else:
+                    # 中段：使用前插值（用前面最近有效值）
+                    if last_forward_rating != '-':
+                        interpolated_data.at[idx, date_col] = last_forward_rating
+                        # print(f"[前插值-中段] 股票{idx} 日期{date_col} 使用前次评级{last_forward_rating}")
+    
+    return interpolated_data
 
 
 def calculate_market_sentiment_composite_index(all_data: pd.DataFrame, language: str = 'zh_CN', 
@@ -103,8 +197,13 @@ def calculate_market_sentiment_composite_index(all_data: pd.DataFrame, language:
     calculation_start = datetime.now()
     
     try:
-        # 1. 识别日期列
-        date_columns = [col for col in all_data.columns if str(col).startswith('202')]
+        # 1. 对评级数据进行插值处理（关键修改：所有评级都使用最后一次有效数据）
+        print("[MSCI计算] 开始对评级数据进行插值...")
+        interpolated_data = _interpolate_ratings(all_data)
+        print(f"[MSCI计算] 插值完成，数据形状: {interpolated_data.shape}")
+        
+        # 2. 识别日期列
+        date_columns = [col for col in interpolated_data.columns if str(col).startswith('202')]
         date_columns.sort()
         
         if len(date_columns) < 5:
@@ -112,9 +211,9 @@ def calculate_market_sentiment_composite_index(all_data: pd.DataFrame, language:
         
         msci_history = []
         
-        # 2. 逐日计算MSCI
+        # 3. 逐日计算MSCI（使用插值后的数据）
         for date_col in date_columns:
-            daily_msci = _calculate_daily_msci(all_data, date_col)
+            daily_msci = _calculate_daily_msci(interpolated_data, date_col)
             if daily_msci:
                 msci_history.append(daily_msci)
         
@@ -358,7 +457,7 @@ def _calculate_daily_msci(data: pd.DataFrame, date_col: str) -> Optional[Dict]:
             if rating in RATING_SCORE_MAP and RATING_SCORE_MAP[rating] is not None:
                 weighted_score += RATING_SCORE_MAP[rating] * count
         
-        avg_sentiment = weighted_score / total_rated if total_rated > 0 else 3.5
+        avg_sentiment = weighted_score / total_rated if total_rated > 0 else 50.0  # 中性值改为50
         
         # 4. 市场参与度
         participation = total_rated / len(data)
@@ -368,8 +467,8 @@ def _calculate_daily_msci(data: pd.DataFrame, date_col: str) -> Optional[Dict]:
         extreme_bear = rating_dist.get('中空', 0) / len(data) > 0.25  # 25%以上看空
         
         # 6. 综合MSCI指数计算 (0-100)
-        # 归一化各个分量
-        sentiment_norm = avg_sentiment / 7.0  # 0-1 (评级范围0-7)
+        # 归一化各个分量（评级已经是12.5-100范围）
+        sentiment_norm = (avg_sentiment - 12.5) / 87.5  # 0-1 (评级范围12.5-100)
         ratio_norm = min(bull_bear_ratio / 2.0, 1.0)  # 0-1 (比例2以上视为1)
         participation_norm = min(participation / 0.5, 1.0)  # 0-1 (50%参与度为满分)
         
@@ -475,21 +574,32 @@ def _calculate_volume_ratio(latest_analysis: Dict) -> float:
 
 
 def _determine_market_state(msci_value: float) -> str:
-    """根据MSCI值确定市场状态 - 优化版本，采用统一的专业术语"""
-    if msci_value >= 85:
-        return t_msci('extreme_euphoria')    # 极度亢奋：泡沫预警区
-    elif msci_value >= 65:
-        return t_msci('healthy_optimism')    # 健康乐观：正常牛市区间
-    elif msci_value >= 55:
-        return t_msci('cautious_optimism')   # 谨慎乐观：偏乐观区间
-    elif msci_value >= 45:
-        return t_msci('neutral_sentiment')   # 情绪中性：均衡区间  
-    elif msci_value >= 35:
-        return t_msci('mild_pessimism')      # 轻度悲观：偏悲观区间
-    elif msci_value >= 25:
-        return t_msci('significant_pessimism') # 显著悲观：熊市初期
+    """
+    根据MSCI值确定市场状态 - 新标准（20-80范围+15%）
+    
+    新标准（适配20-80范围）：
+    - 70-80：极度狂热（泡沫预警）🔴
+    - 60-70：健康乐观（正常牛市）🟠
+    - 50-60：谨慎乐观（偏乐观）🟡
+    - 40-50：情绪中性（均衡）⚪
+    - 30-40：轻度悲观（偏悲观）🟢
+    - 23-30：显著悲观（熊市）🔵
+    - 20-23：恐慌抛售（底部机会）⚫
+    """
+    if msci_value >= 70:
+        return t_msci('extreme_euphoria')    # 极度狂热：泡沫预警区 🔴
+    elif msci_value >= 60:
+        return t_msci('healthy_optimism')    # 健康乐观：正常牛市区间 🟠
+    elif msci_value >= 50:
+        return t_msci('cautious_optimism')   # 谨慎乐观：偏乐观区间 🟡
+    elif msci_value >= 40:
+        return t_msci('neutral_sentiment')   # 情绪中性：均衡区间 ⚪
+    elif msci_value >= 30:
+        return t_msci('mild_pessimism')      # 轻度悲观：偏悲观区间 🟢
+    elif msci_value >= 23:
+        return t_msci('significant_pessimism') # 显著悲观：熊市初期 🔵
     else:
-        return t_msci('panic_selling')       # 恐慌抛售：底部机会区
+        return t_msci('panic_selling')       # 恐慌抛售：底部机会区 ⚫
 
 
 def _assess_risk_level(market_state: str, extreme_state: str, trend_5d: float) -> str:

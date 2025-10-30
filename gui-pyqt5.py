@@ -399,8 +399,8 @@ class AnalysisWorker(QThread):
                     # 使用硬编码的试用配置
                     trial_config = {
                         "default_provider": "SiliconFlow",
-                        "default_chat_model": "Qwen/Qwen3-8B",
-                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "default_chat_model": "Qwen/Qwen2.5-7B-Instruct",
+                        "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
                         "request_timeout": 600,
                         "agent_role": "不使用",
                         "SILICONFLOW_API_KEY": "",
@@ -703,20 +703,12 @@ class AnalysisWorker(QThread):
                         # 【修复】正确处理stocks为列表的情况
                         # stocks格式: [{'code': '000001', 'name': '平安银行', 'rtsi': 95.5}, ...]
                         if isinstance(stocks, list):
-                            print(f"[股票收集] 行业={industry_name}, stocks类型=list, stocks数量={len(stocks)}")
-                            
-                            # 【调试】打印该行业前3个股票的详细信息
-                            debug_count = 0
+                            # 收集股票数据（不打印调试日志）
                             for stock_item in stocks:
                                 if isinstance(stock_item, dict):
                                     stock_code = stock_item.get('code', '')
                                     stock_name = stock_item.get('name', stock_code)
                                     rtsi = stock_item.get('rtsi', 0)
-                                    
-                                    # 【调试】打印前3个股票的详细RTSI信息
-                                    if debug_count < 3:
-                                        print(f"[股票筛选-调试] 行业={industry_name}, 股票={stock_code} {stock_name}: RTSI={rtsi} (类型={type(rtsi)})")
-                                        debug_count += 1
                                     
                                     # 筛选RTSI > 0的股票
                                     if isinstance(rtsi, (int, float, np.number)) and rtsi > 0:
@@ -724,9 +716,6 @@ class AnalysisWorker(QThread):
                         
                         elif isinstance(stocks, dict):
                             # 兼容旧格式：stocks是字典 {股票代码: {name: xxx, rtsi: xxx}}
-                            print(f"[股票收集] 行业={industry_name}, stocks类型=dict, stocks数量={len(stocks)}")
-                            
-                            debug_count = 0
                             for stock_code, stock_info in stocks.items():
                                 if isinstance(stock_info, dict):
                                     rtsi = stock_info.get('rtsi', 0)
@@ -734,12 +723,6 @@ class AnalysisWorker(QThread):
                                     # 处理RTSI可能是字典的情况
                                     if isinstance(rtsi, dict):
                                         rtsi = rtsi.get('rtsi', 0)
-                                    
-                                    # 【调试】打印前3个股票的详细RTSI信息
-                                    if debug_count < 3:
-                                        stock_name = stock_info.get('name', stock_code)
-                                        print(f"[股票筛选-调试] 行业={industry_name}, 股票={stock_code} {stock_name}: RTSI={rtsi} (类型={type(rtsi)})")
-                                        debug_count += 1
                                     
                                     if isinstance(rtsi, (int, float, np.number)) and rtsi > 0:
                                         stock_name = stock_info.get('name', stock_code)
@@ -749,52 +732,15 @@ class AnalysisWorker(QThread):
                         if stock_details:
                             stock_details.sort(key=lambda x: x[2], reverse=True)
                             industry_stocks_map[industry_name] = stock_details
-                            print(f"[行业筛选] {industry_name}: TMA={tma_value:.2f}, 股票数={len(stock_details)}, 前3股={[f'{s[0]}({s[2]:.1f})' for s in stock_details[:3]]}")
-                        else:
-                            print(f"[行业筛选-警告] {industry_name}: TMA={tma_value:.2f}, 股票数=0 (原始stocks={len(stocks)})")
                 
-                # 按TMA排序行业，取前20个
-                top20_industries = sorted(industry_tma.items(), key=lambda x: x[1], reverse=True)[:20]
-                top20_industry_names = [name for name, _ in top20_industries]
+                # 主分析不再传递个股数据，聚焦大盘和行业
+                # 只提供统计信息供参考
+                print(f"[AI分析数据准备] 主分析聚焦大盘和行业，不传递个股数据")
                 
-                print(f"[AI分析数据准备-行业筛选] TMA排名前20的行业:")
-                for i, (name, tma) in enumerate(top20_industries):
-                    print(f"  {i+1}. {name}: TMA={tma:.2f}")
-                
-                # 第二步：从前20个行业中筛选RTSI最高的20个股票
-                print(f"[AI分析数据准备-股票筛选] 从TMA前20行业中筛选RTSI最高的20个股票...")
-                candidate_stocks = []
-                
-                for industry_name in top20_industry_names:
-                    if industry_name in industry_stocks_map:
-                        for stock_code, stock_name, rtsi in industry_stocks_map[industry_name]:
-                            candidate_stocks.append((stock_code, stock_name, rtsi, industry_name))
-                
-                # 按RTSI排序，取前20个
-                candidate_stocks.sort(key=lambda x: x[2], reverse=True)
-                top20_stocks = candidate_stocks[:20]
-                
-                # 转换为输出格式
-                top_stocks = [(code, name, rtsi) for code, name, rtsi, _ in top20_stocks]
-                stocks_summary["top_performers"] = top_stocks
+                stocks_summary["top_performers"] = []  # 不传递个股
                 stocks_summary["total_count"] = len(analysis_results.stocks)
                 
-                # 添加调试日志
-                print(f"[AI分析数据准备-股票筛选] 筛选完成:")
-                print(f"  原始股票总数: {len(analysis_results.stocks)}")
-                print(f"  候选股票数（来自TMA前20行业）: {len(candidate_stocks)}")
-                print(f"  最终推荐股票数: {len(top20_stocks)}")
-                print(f"  传递给AI的推荐股票:")
-                for i, (code, name, rtsi, industry) in enumerate(top20_stocks):
-                    print(f"    {i+1}. {code} {name} [{industry}]: RTSI={rtsi:.2f}")
-                
-                # 数据质量验证
-                if len(top_stocks) == 0:
-                    print(f" [AI分析警告] 没有股票数据传递给LLM，可能导致AI编造股票")
-                elif len(top_stocks) < 10:
-                    print(f" [AI分析警告] 传递给LLM的股票数量较少({len(top_stocks)}只)，可能影响分析质量")
-                
-                # 计算分布统计（使用所有股票的RTSI）
+                # 计算分布统计（仅用于统计，不传递具体股票）
                 all_stocks_rtsi = []
                 for stock_code, stock_info in analysis_results.stocks.items():
                     rtsi_value = stock_info.get('rtsi', 0)
@@ -803,12 +749,12 @@ class AnalysisWorker(QThread):
                     if isinstance(rtsi_value, (int, float)):
                         all_stocks_rtsi.append(float(rtsi_value))
                 rtsi_values = all_stocks_rtsi
-                # 基于优化增强RTSI 0-100分制的分类（方案C v2.3）
+                # 股票分布统计（仅供参考）
                 stocks_summary["statistics"] = {
                     "average_rtsi": np.mean(rtsi_values) if rtsi_values else 0,
-                    "strong_count": len([x for x in rtsi_values if x >= 50]),  # 强势股：50+ (中强势+强势)
-                    "neutral_count": len([x for x in rtsi_values if 40 <= x < 50]),  # 中性股：40-49
-                    "weak_count": len([x for x in rtsi_values if x < 40])  # 弱势股：<40
+                    "strong_count": len([x for x in rtsi_values if x >= 50]),
+                    "neutral_count": len([x for x in rtsi_values if 40 <= x < 50]),
+                    "weak_count": len([x for x in rtsi_values if x < 40])
                 }
                 
                 data["stock_data"] = stocks_summary
@@ -829,11 +775,315 @@ class AnalysisWorker(QThread):
             else:
                 data["indices_data"] = {}
             
+            # ===== 新增：搜索前5名行业的财经资讯 =====
+            try:
+                industry_news = self._search_industry_news(data, current_market)
+                data["industry_news"] = industry_news
+            except Exception as e:
+                print(f"[行业资讯] 搜索失败: {e}")
+                data["industry_news"] = {}
+            
             return data
             
         except Exception as e:
             print(t_gui('prepare_ai_data_failed', error=str(e)))
             return {}
+    
+    def _search_industry_news(self, data: dict, market: str) -> dict:
+        """
+        搜索前5名行业的财经资讯
+        
+        Args:
+            data: AI分析数据
+            market: 市场类型 (cn/hk/us)
+            
+        Returns:
+            {行业名称: [{"title": "...", "url": "..."}, ...]}
+        """
+        import asyncio
+        from datetime import datetime
+        
+        try:
+            # 获取前5名行业
+            industry_data = data.get("industry_data", {})
+            top_industries = industry_data.get("top_performers", [])[:5]
+            
+            if not top_industries:
+                print("[行业资讯] 没有行业数据，跳过搜索")
+                return {}
+            
+            print(f"[行业资讯] 开始搜索前5名行业的财经资讯...")
+            
+            # 导入simple_search
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent))
+            from simple_search import perform_search
+            
+            # 获取当前年份
+            current_year = datetime.now().year
+            
+            # 根据市场设置搜索参数
+            search_params = self._get_search_params_by_market(market)
+            
+            industry_news = {}
+            
+            # 行业同义词映射
+            industry_aliases = {
+                "指数": "股市指数",
+                "产业互联网": "工业互联网",
+                "能源金属": "锂矿 新能源",
+                "煤炭开采": "煤炭行业",
+                "军工": "军工行业",
+                "新能源": "新能源汽车",
+                "光伏": "太阳能 光伏",
+                "芯片": "半导体 芯片"
+            }
+            
+            # 为每个行业搜索资讯（智能4级降级策略，80%成功率）
+            for industry_name, tma_score in top_industries:
+                try:
+                    # 智能4级降级策略
+                    strategies = [
+                        # 策略1: 行业 + "财经" + 一年
+                        {
+                            "query": f"{industry_name} 财经",
+                            "time_range": "year",
+                            "category": "news",
+                            "name": "财经+年"
+                        },
+                        # 策略2: 只保留行业名
+                        {
+                            "query": f"{industry_name}",
+                            "time_range": "",
+                            "category": "news",
+                            "name": "仅行业名"
+                        },
+                        # 策略3: 同义词/泛化
+                        {
+                            "query": industry_aliases.get(industry_name, f"{industry_name} 行业"),
+                            "time_range": "",
+                            "category": "general",
+                            "name": "同义词"
+                        },
+                        # 策略4: 行业 + "投资"
+                        {
+                            "query": f"{industry_name} 投资",
+                            "time_range": "",
+                            "category": "general",
+                            "name": "投资"
+                        }
+                    ]
+                    
+                    print(f"[行业资讯] 搜索 [{industry_name}]")
+                    
+                    found = False
+                    for i, strategy in enumerate(strategies, 1):
+                        query = strategy["query"]
+                        time_range = strategy["time_range"]
+                        category = strategy.get("category", search_params["category"])
+                        strategy_name = strategy["name"]
+                        
+                        # 执行搜索（异步转同步）- 使用JSON格式
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            json_result = loop.run_until_complete(
+                                perform_search(
+                                    query=query,
+                                    category=category,
+                                    language=search_params["language"],
+                                    safe_search=search_params["safe_search"],
+                                    time_range=time_range,
+                                    output_format="json"
+                                )
+                            )
+                        finally:
+                            loop.close()
+                        
+                        # 解析JSON提取前3条新闻
+                        news_items = self._parse_search_results_json(json_result, limit=3)
+                        
+                        if news_items:
+                            industry_news[industry_name] = news_items
+                            print(f"[行业资讯] {industry_name}: 策略{i}({strategy_name}) 找到 {len(news_items)} 条新闻")
+                            found = True
+                            break
+                    
+                    if not found:
+                        print(f"[行业资讯] {industry_name}: 未找到相关新闻")
+                    
+                except Exception as e:
+                    print(f"[行业资讯] {industry_name} 搜索失败: {e}")
+                    continue
+            
+            print(f"[行业资讯] 搜索完成，共收集 {len(industry_news)} 个行业的资讯")
+            return industry_news
+            
+        except Exception as e:
+            print(f"[行业资讯] 搜索失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {}
+    
+    def _get_search_params_by_market(self, market: str) -> dict:
+        """根据市场类型返回搜索参数"""
+        if market == 'cn':
+            return {
+                "category": "news",
+                "language": "zh",
+                "safe_search": 1,
+                "time_range": "month"  # 最近一个月
+            }
+        elif market == 'hk':
+            return {
+                "category": "news",
+                "language": "zh-TW",
+                "safe_search": 1,
+                "time_range": "month"
+            }
+        else:  # us
+            return {
+                "category": "news",
+                "language": "en",
+                "safe_search": 1,
+                "time_range": "month"
+            }
+    
+    def _search_single_industry_news(self, industry_name: str, market: str, limit: int = 5) -> list:
+        """
+        搜索单个行业的财经资讯（使用本地搜索API，支持真实浏览器）
+        
+        Args:
+            industry_name: 行业名称
+            market: 市场类型 (cn/hk/us)
+            limit: 返回新闻数量限制
+            
+        Returns:
+            [{"title": "...", "url": "..."}, ...]
+        """
+        import requests
+        
+        try:
+            # 根据市场设置搜索参数
+            search_params = self._get_search_params_by_market(market)
+            
+            # 行业同义词映射（针对专业术语优化）
+            industry_aliases = {
+                "指数": "股市指数",
+                "产业互联网": "工业互联网",
+                "能源金属": "锂矿 新能源",
+                "煤炭开采": "煤炭行业",
+                "军工": "军工行业",
+                "新能源": "新能源汽车",
+                "光伏": "太阳能 光伏",
+                "芯片": "半导体 芯片"
+            }
+            
+            # 智能降级策略（针对中国区财经新闻）
+            strategies = [
+                f"{industry_name} 财经 中国",
+                f"{industry_name} 股票 投资",
+                industry_aliases.get(industry_name, f"{industry_name} 行业")
+            ]
+            
+            print(f"[行业资讯] 搜索 [{industry_name}] 使用本地API")
+            
+            # 使用本地搜索API（localhost:16888）
+            api_url = "http://localhost:16888/api/search"
+            
+            # 根据市场确定地区
+            region = "zh-CN" if market == "cn" else "auto"
+            
+            for i, keyword in enumerate(strategies, 1):
+                try:
+                    params = {
+                        'keyword': keyword,
+                        'type': 'news',  # 固定为新闻搜索
+                        'region': region,  # 中文系统使用简体中文
+                        'count': limit     # 用户要求的数量（默认5）
+                    }
+                    
+                    print(f"[行业资讯] 策略{i}: 搜索 '{keyword}'")
+                    
+                    response = requests.get(api_url, params=params, timeout=60)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if data.get('success') and data.get('results'):
+                        news_items = []
+                        for result in data['results']:
+                            news_items.append({
+                                'title': result.get('title', ''),
+                                'url': result.get('url', ''),
+                                'description': result.get('description', '')
+                            })
+                        
+                        if news_items:
+                            print(f"✅ [行业资讯] 找到 {len(news_items)} 条新闻")
+                            return news_items[:limit]
+                    else:
+                        print(f"[行业资讯] 策略{i}返回空结果")
+                
+                except Exception as e:
+                    print(f"[行业资讯] 策略{i}失败: {e}")
+                    continue
+            
+            # 所有策略都失败
+            print(f"❌ [行业资讯] {industry_name}: 未找到相关新闻")
+            return []
+            
+        except Exception as e:
+            print(f"[行业资讯] {industry_name} 搜索失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def _parse_search_results_json(self, json_result: str, limit: int = 3) -> list:
+        """
+        解析搜索结果JSON，提取新闻标题和URL
+        
+        Returns:
+            [{"title": "...", "url": "..."}, ...]
+        """
+        import json
+        
+        try:
+            # 解析JSON字符串
+            results = json.loads(json_result)
+            
+            if not isinstance(results, list):
+                print(f"[JSON解析] 返回格式错误，不是列表: {type(results)}")
+                return []
+            
+            # 空结果直接返回
+            if len(results) == 0:
+                return []
+            
+            news_items = []
+            for item in results[:limit]:
+                if isinstance(item, dict):
+                    title = item.get('title', '')
+                    url = item.get('url', '')
+                    
+                    # 过滤掉无效的URL
+                    if url and url.startswith('http'):
+                        news_items.append({
+                            "title": title,
+                            "url": url
+                        })
+            
+            return news_items
+            
+        except json.JSONDecodeError as e:
+            # JSON解析失败，可能是搜索引擎返回了文本错误信息
+            print(f"[JSON解析] 搜索引擎返回非JSON格式: {json_result[:100]}")
+            return []
+        except Exception as e:
+            print(f"[JSON解析] 失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
     
     def _check_api_key_before_llm(self, config, provider, use_english, base_path):
         """
@@ -1339,42 +1589,31 @@ Please provide a professional three-tier investment analysis report (Market-Indu
             
             # 中文版本的提示词
             prompt = f"""
-===== {market_name}综合投资分析报告 =====
-请基于以下完整的市场数据，提供专业的三层级投资分析报告（大盘-行业-个股）：
+===== {market_name}市场与行业分析报告 =====
+请基于以下完整的市场数据，提供专业的二层级投资分析报告（大盘-行业）：
 {market_context}
 【一、大盘市场分析数据】
-▪ MSCI市场情绪指数: {market_data.get('msci_value', 0):.2f}
+▪ MSCI市场情绪指数: {market_data.get('msci_value', 0):.2f}/80 (范围20-80：70+极度狂热，60-70健康乐观，50-60谨慎乐观，40-50中性，30-40悲观，23-30显著悲观，<23恐慌)
 ▪ 市场情绪状态: {market_data.get('market_sentiment', t_gui('unknown_sentiment'))}
+▪ 市场风险等级: {market_data.get('risk_level', t_gui('moderate_level'))}
 ▪ 市场5日趋势: {market_data.get('trend_5d', 0):.2f}%
-▪ 市场波动率: {market_data.get('volatility', 0):.2f}%
-▪ 成交量比率: {market_data.get('volume_ratio', 1):.2f}
+▪ 市场波动率: {market_data.get('volatility', 0):.2f}% (波动率越高，市场越不稳定)
+▪ 成交量比率: {market_data.get('volume_ratio', 1):.2f} (>1.2表示放量，<0.8表示缩量)
+▪ 多空力量对比: {market_data.get('bull_bear_ratio', 1.0):.2f} (>1.5多头占优，<0.7空头占优)
+▪ 市场参与度: {market_data.get('participation_rate', 0):.1f}% (参与度越高，市场越活跃)
 
-【二、行业轮动分析数据】
+【二、完整行业技术分析数据】
 ▪ 覆盖行业数量: {industry_data.get('sector_count', 0)}个
-▪ 强势行业排行（按TMA指数排序）:
+▪ 行业TMA技术强度指数（完整排名，范围0-100）:
 """
             
-            # 添加行业信息
-            top_industries = industry_data.get('top_performers', [])
-            for i, (industry, tma) in enumerate(top_industries[:5]):
+            # 添加完整行业TMA数据（而不是只前5名）
+            all_industries = industry_data.get('all_performers', [])  # 获取所有行业数据
+            if not all_industries:  # 如果没有all_performers，使用top_performers
+                all_industries = industry_data.get('top_performers', [])
+            
+            for i, (industry, tma) in enumerate(all_industries):
                 prompt += f"  {i+1}. {industry}: TMA {tma:.2f}\n"
-            
-            prompt += f"""
-
-【三、个股表现分析数据】
-▪ 分析股票总数: {stock_data.get('total_count', 0)}只
-▪ 平均RTSI指数: {stock_data.get('statistics', {}).get('average_rtsi', 0):.2f} (优化增强RTSI v2.3算法，范围0-90)
-▪ 强势股票数量: {stock_data.get('statistics', {}).get('strong_count', 0)}只 (RTSI≥50，技术面较好及以上)
-▪ 中性股票数量: {stock_data.get('statistics', {}).get('neutral_count', 0)}只 (40≤RTSI<50，技术面平衡)
-▪ 弱势股票数量: {stock_data.get('statistics', {}).get('weak_count', 0)}只 (RTSI<40，技术面较弱)
-
-▪ 优质个股推荐（按RTSI指数排序）:
-"""
-            
-            # 添加股票信息
-            top_stocks = stock_data.get('top_performers', [])
-            for i, (code, name, rtsi) in enumerate(top_stocks[:10]):
-                prompt += f"  {i+1}. {code} {name}: RTSI {rtsi:.2f}\n"
             
             # ===== 添加指数量价数据 (仅中国市场) =====
             if indices_data:
@@ -1382,12 +1621,29 @@ Please provide a professional three-tier investment analysis report (Market-Indu
                 fetcher = IndexDataFetcher(verbose=False)
                 prompt += f"\n{fetcher.format_indices_data_for_ai(indices_data)}\n"
             
-            # 添加数据完整性验证信息
-            prompt += f"\n【数据完整性确认】\n"
-            prompt += f"▪ 实际传递的优质股票数量: {len(top_stocks)}只\n"
-            prompt += f"▪ 筛选后可推荐股票总数: {len(top_stocks)}只\n"
-            if len(top_stocks) == 0:
-                prompt += f"▪  警告：当前没有符合条件的股票数据，请基于此情况给出相应的市场分析\n"
+            # ===== 添加行业资讯 =====
+            industry_news = analysis_data.get("industry_news", {})
+            if industry_news:
+                prompt += f"\n【三、前5名行业最新财经资讯】\n"
+                for industry_name, news_list in industry_news.items():
+                    prompt += f"\n▪ {industry_name}行业资讯:\n"
+                    for i, news_item in enumerate(news_list, 1):
+                        prompt += f"  {i}. {news_item['title']}\n"
+                        prompt += f"     来源: {news_item['url']}\n"
+                prompt += "\n"
+            
+            prompt += f"""
+
+【数据完整性确认】
+▪ 当前MSCI指数: {market_data.get('msci_value', 0):.2f}/80
+▪ 市场风险等级: {market_data.get('risk_level', t_gui('moderate_level'))}
+▪ 多空力量比: {market_data.get('bull_bear_ratio', 1.0):.2f}
+▪ 市场参与度: {market_data.get('participation_rate', 0):.1f}%
+▪ 当前行业数量: {industry_data.get('sector_count', 0)}个
+▪ 行业资讯数量: {len(industry_news)}个行业
+▪ 指数量价数据: {'已提供' if indices_data else '未提供'}
+▪ 分析数据质量: {'数据正常' if market_data.get('msci_value', 0) > 0 and industry_data.get('sector_count', 0) > 0 else '数据异常，请在分析中说明'}
+"""
         
         if use_english:
             # 英文版本的分析要求
@@ -1461,80 +1717,79 @@ Please use professional and systematic analysis methods, ensuring clear analysis
             prompt += f"""
 
 ===== 深度分析要求 =====
-请从以下三个层面进行全面、深入的投资分析：
+请从以下两个层面进行全面、深入的投资分析（专注大盘与行业，不涉及个股）：
 
-【第一层：大盘分析】
+【第一层：大盘市场分析】
 1. 市场趋势判断：
-   • 基于MSCI指数和技术指标，判断当前市场所处的牛熊周期阶段
+   • 基于MSCI指数（范围20-80）和技术指标，判断当前市场所处的牛熊周期阶段
+   • MSCI评分标准：70+极度狂热/泡沫预警，60-70健康乐观，50-60谨慎乐观，40-50中性，30-40悲观，23-30显著悲观，<23恐慌抛售
+   • 结合多空力量对比指标（>1.5多头占优，<0.7空头占优），分析市场内在动能
+   • 结合市场参与度（高参与度通常预示趋势延续）评估市场活跃程度
    • 分析市场情绪的持续性和转折可能性
-   • 评估系统性风险和市场流动性状况
+   • 评估系统性风险和市场流动性状况（成交量比率：>1.2放量，<0.8缩量）
 
 2. 宏观环境评估：
    • 分析当前市场环境对投资的整体影响
    • 评估政策、经济、资金面对市场的支撑或压制作用
    • 预测未来3-6个月大盘可能的运行区间
+   • 结合指数量价数据和成交量变化分析大盘走势
+   • 分析多空力量对比和市场参与度对后续走势的影响
 
-【第二层：行业轮动分析】
-3. 行业配置策略：
-   • 深度分析排名前3的强势行业投资价值和持续性
-   • 识别即将轮动的潜力行业和催化因素
-   • 评估各行业的风险收益比和最佳配置时机
-
-4. 主题投资机会：
-   • 挖掘当前市场热点主题和长期价值主题
-   • 分析政策导向和产业趋势对行业选择的指导意义
-   • 提供行业配置的具体权重建议
-
-【第三层：个股精选分析】
-5. 优质标的筛选：
-   • 从技术面角度分析推荐个股的买入时机和目标价位
-   • 结合基本面评估个股的中长期投资价值
-   • 分析个股所在行业地位和竞争优势
-
-6. 组合构建建议：
-   • 基于风险分散原则，推荐具体的投资组合
-   • 提供不同风险偏好投资者的配置方案
-   • 设置止盈止损位和动态调整策略
-
-【综合建议】
-7. 操作策略制定：
-   • 给出明确的买入、持有、卖出信号
-   • 提供分批建仓和仓位管理的具体方案
+3. 整体投资建议：
+   • 给出明确的市场仓位建议（轻仓/标准仓/重仓）
+   • 提供风险等级评估和投资者适宜性建议
    • 制定不同市场情况下的应对策略
 
-8. 风险控制措施：
-   • 识别当前最需要关注的风险点
+【第二层：行业轮动与配置分析】
+4. 行业技术强度分析：
+   • 基于完整的行业TMA技术强度指数（范围0-100），分析各行业技术面表现
+   • TMA评分标准：>=70强势（红色标记，建议重点关注），40-70中性（黄色），<=40弱势（绿色标记，谨慎配置）
+   • 深度分析排名前5-10的强势行业投资价值和持续性
+   • 识别技术面改善或恶化的行业及其催化因素
+   • 结合TMA排名变化，捕捉行业轮动信号
+
+5. 行业资讯与热点分析：
+   • 结合前5名行业的最新财经资讯，分析行业基本面和催化因素
+   • 评估资讯对行业走势的影响（政策支持、业绩改善、技术突破等）
+   • 识别资讯中的风险信号（政策风险、竞争加剧、需求下降等）
+   • 综合技术面（TMA）和基本面（资讯）给出投资建议
+
+6. 行业轮动策略：
+   • 识别当前市场主导行业和即将轮动的潜力行业
+   • 分析行业板块的轮动规律和时机把握
+   • 评估各行业的风险收益比和最佳配置时机
+   • 提供行业配置的具体权重建议（建议重点配置行业及比例）
+
+7. 主题投资机会：
+   • 挖掘当前市场热点主题和长期价值主题
+   • 分析政策导向和产业趋势对行业选择的指导意义
+   • 结合指数量价数据识别行业投资机会
+
+【综合建议】
+8. 操作策略制定：
+   • 给出明确的行业配置信号（增配/标配/减配）
+   • 提供分批建仓和行业轮动的具体方案
+   • 制定不同市场阶段的行业配置调整策略
+
+9. 风险控制措施：
+   • 识别当前最需要关注的市场和行业风险点
    • 提供风险控制的具体措施和预警信号
-   • 建议投资组合的最大回撤控制目标
+   • 建议行业配置的最大回撤控制目标
 
 【分析要求】
-• 价格单位：所有价格相关数据请统一使用"元"作为单位（如：股价12.50元，目标价15.00元）
-• 操作建议：各项操作建议（买入、持有、卖出等）比例不需要加起来等于100%，可以根据实际情况灵活调整
+• MSCI解读：必须严格按照20-80范围进行解读，70以上为高风险区，30以下为机会区
+• 行业评分：TMA技术强度指数范围0-100，>=70为强势行业，建议重点关注
 • 市场基准：分析A股市场时，请以上证指数为基准
 • 回复语言：请用中文回复所有内容
+• 分析深度：本分析专注于大盘研判和行业配置，不涉及个股推荐
 
-【重要：股票推荐要求】
-• 【严格约束】只能推荐上述"个股推荐"部分明确列出的股票，绝对禁止推荐分析数据之外的任何股票
-• 【数据验证】在推荐任何股票前，必须先确认该股票在上述列表中存在
-• 如果上述列表为空或股票数量为0，必须明确说明"当前分析数据中没有符合推荐标准的股票"
-• 不得编造、假设或推测任何股票代码和名称，即使是为了举例说明
-• 股票代码和名称必须与分析数据中的完全一致，包括标点符号和空格
-• 【逻辑一致性】确保推荐的股票数量与数据确认部分的数量一致
-• 绝对禁止使用任何虚构的股票代码，如"000818景德镇卫国"、"000921汇川石化"等
-• 如果数据有限，重点分析现有股票的投资价值，而不是寻求推荐更多股票
+【重要约束】
+• 【禁止推荐个股】本分析为市场和行业层面分析，严格禁止推荐任何个股
+• 【聚焦方向】分析重点应放在市场趋势判断和行业配置策略上
+• 【数据依据】所有分析必须基于提供的MSCI、TMA和指数量价数据
+• 【逻辑一致性】市场情绪判断、行业配置建议、风险控制措施应保持逻辑一致
 
-请用专业、系统的分析方法，确保分析逻辑清晰、结论明确、建议具体可操作。分析应当平衡风险与收益，避免极端观点。
-
-【重要：数据完整性确认】
-▪ 当前MSCI指数: {market_data.get('msci_value', 0):.2f}
-▪ 当前行业数量: {industry_data.get('sector_count', 0)}个
-▪ 当前股票数量: {len(stock_data.get('top_performers', []))}只
-
-{f" 数据缺失警告：MSCI指数为0.00，可能存在市场数据传递问题，请在分析中说明" if market_data.get('msci_value', 0) == 0 else ""}
-{f" 数据缺失警告：行业数量为0，无法进行行业轮动分析，请在分析中说明" if industry_data.get('sector_count', 0) == 0 else ""}
-{f" 数据缺失警告：股票数量为0，无法进行个股推荐，请在分析中说明" if len(stock_data.get('top_performers', [])) == 0 else ""}
-
-如果出现数据缺失，必须在相应分析部分明确说明数据不足的情况，不得编造或假设数据。
+请用专业、系统的分析方法，确保分析逻辑清晰、结论明确、建议具体可操作。分析应当平衡风险与收益，避免极端观点。重点关注市场大势和行业机会，为投资者提供宏观和中观层面的决策参考。
 """
         
         # 添加调试日志：确认提示词中的股票信息和约束条件
@@ -1556,7 +1811,7 @@ Please use professional and systematic analysis methods, ensuring clear analysis
         if industry_count_in_prompt == 0:
             print(f" [数据问题] 行业数量为0，AI将被提醒无法进行行业分析")
         if stock_count_in_prompt > 0:
-            print(f"[AI分析期望] AI应推荐 {stock_count_in_prompt} 只真实股票，禁止编造")
+            print(f"[AI分析提示] 注意：主分析已调整为聚焦大盘和行业，不应传递个股数据")
         else:
             print(f" [数据问题] 股票数量为0，AI将被提醒无法推荐股票")
         
@@ -1681,43 +1936,7 @@ Please use professional and systematic analysis methods, ensuring clear analysis
                     risk_level = t_gui('moderate_level')
                     trend_5d = 2.4
             
-            # 生成个股推荐表格HTML
-            stock_recommendations_html = ""
-            if top_stocks:
-                for i, stock_data in enumerate(top_stocks[:5], 1):
-                    if isinstance(stock_data, tuple) and len(stock_data) >= 3:
-                        code, name, rtsi = stock_data
-                        rtsi_value = float(rtsi) if isinstance(rtsi, (int, float)) else 0.0
-                        # 基于优化增强RTSI 0-100分制的推荐级别（方案C v2.3）
-                        if rtsi_value >= 70:
-                            recommendation = "强烈推荐"
-                        elif rtsi_value >= 60:
-                            recommendation = "积极关注"
-                        elif rtsi_value >= 50:
-                            recommendation = "适度关注"
-                        elif rtsi_value >= 40:
-                            recommendation = "谨慎观望"
-                        elif rtsi_value >= 30:
-                            recommendation = "规避风险"
-                        else:
-                            recommendation = "严重警告"
-                        stock_recommendations_html += f"""
-            <tr>
-                <td>{i}</td>
-                <td>{code}</td>
-                <td>{name}</td>
-                <td>{rtsi_value:.1f}</td>
-                <td>{recommendation}</td>
-            </tr>"""
-            else:
-                stock_recommendations_html = """
-            <tr>
-                <td>1</td>
-                <td>--</td>
-                <td>{t_gui('no_data')}</td>
-                <td>--</td>
-                <td>{t_gui('please_complete_analysis_first')}</td>
-            </tr>"""
+            # 个股推荐功能已移除，主分析聚焦大盘和行业
             
             # 生成行业分析HTML
             industry_analysis_html = ""
@@ -1814,8 +2033,19 @@ Please use professional and systematic analysis methods, ensuring clear analysis
         </div>
     </div>"""
             
-            # 生成市场情绪分析HTML - 符合红涨绿跌规范
-            sentiment_risk_color = "green" if msci_value > 70 else "red" if msci_value < 30 else "orange"  # 高位风险用绿色，低位机会用红色
+            # 生成市场情绪分析HTML - 符合红涨绿跌规范（修复：高位红色，低位绿色）
+            # MSCI颜色：>65红色警示，<45绿色机会
+            if msci_value >= 70:
+                sentiment_risk_color = "#dc3545"  # 红色-极度乐观/高位风险
+            elif msci_value >= 65:
+                sentiment_risk_color = "#ff6600"  # 橙红色-乐观
+            elif msci_value >= 45:
+                sentiment_risk_color = "orange"   # 橙色-中性
+            elif msci_value >= 35:
+                sentiment_risk_color = "#28a745"  # 绿色-悲观/低位机会
+            else:
+                sentiment_risk_color = "#00aa00"  # 深绿色-极度悲观/超跌机会
+            
             trend_color = "red" if trend_5d > 0 else "green"  # 上涨用红色，下跌用绿色（红涨绿跌）
             
             # 生成HTML内容
@@ -1853,14 +2083,6 @@ Please use professional and systematic analysis methods, ensuring clear analysis
     </div>
     
     <div class="section">
-        <h2>{t_gui('analysis_overview')}</h2>
-        <div class="metric">{t_gui('analyzed_stocks_count')}: <span class="highlight">{total_stocks:,}</span></div>
-        <div class="metric">{t_gui('industry_classification')}: <span class="highlight">{total_industries}</span>{t_gui('industries_unit')}</div>
-        <div class="metric">{t_gui('analysis_algorithm')}: <span class="highlight">优化RTSI + TMA + MSCI</span></div>
-        <div class="metric">{t_gui('data_quality')}: <span class="highlight">{t_gui('good_quality')}</span></div>
-    </div>
-    
-    <div class="section">
         <h2>{t_gui('market_sentiment_index')}</h2>
         <p>{t_gui('msci_based_market_sentiment_analysis')}</p>
         <div class="sentiment-grid">
@@ -1878,15 +2100,6 @@ Please use professional and systematic analysis methods, ensuring clear analysis
                 <p><strong>{t_gui('focus_points')}:</strong> {t_gui('prevent_bubble_risk') if msci_value > 70 else t_gui('seek_value_opportunities') if msci_value < 30 else t_gui('focus_rotation_opportunities')}</p>
             </div>
         </div>
-    </div>
-    
-    <div class="section">
-        <h2>{t_gui('stock_recommendations')}</h2>
-        <p>{t_gui('rtsi_based_quality_stock_analysis')}</p>
-        <table>
-            <tr><th>{t_gui('rank')}</th><th>{t_gui('stock_code')}</th><th>{t_gui('stock_name')}</th><th>{t_gui('rtsi_index')}</th><th>{t_gui('recommendation_reason')}</th></tr>
-            {stock_recommendations_html}
-        </table>
     </div>
     
     <div class="section">
@@ -2514,8 +2727,8 @@ class AnalysisPage(QWidget):
                     # 使用硬编码的试用配置
                     trial_config = {
                         "default_provider": "SiliconFlow",
-                        "default_chat_model": "Qwen/Qwen3-8B",
-                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "default_chat_model": "Qwen/Qwen2.5-7B-Instruct",
+                        "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
                         "request_timeout": 600,
                         "agent_role": "不使用",
                         "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
@@ -3277,7 +3490,11 @@ class AnalysisPage(QWidget):
         self.market_detail_tab = self.create_market_detail_tab()
         self.market_tab_widget.addTab(self.market_detail_tab, t_gui("详细分析"))
         
-        # Tab 2/3/4: 中国市场专属Tab（初始创建，可见性稍后由update_cn_market_tabs_visibility控制）
+        # Tab 2: 趋势图表 - 显示30天MSCI走势（全局可见，不受市场类型限制）
+        self.market_trend_tab = self.create_market_trend_tab()
+        self.market_tab_widget.addTab(self.market_trend_tab, t_gui("📈 趋势图表"))
+        
+        # Tab 3/4/5: 中国市场专属Tab（初始创建，可见性稍后由update_cn_market_tabs_visibility控制）
         # 初始化市场HTML Tab列表
         self.market_html_tabs = []
         
@@ -3339,6 +3556,148 @@ class AnalysisPage(QWidget):
         layout.addWidget(self.market_text)
         widget.setLayout(layout)
         return widget
+    
+    def create_market_trend_tab(self):
+        """创建市场趋势图表Tab - 显示30天MSCI走势"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # 使用matplotlib绘制图表
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.figure import Figure
+        import matplotlib.pyplot as plt
+        
+        # 设置中文字体
+        try:
+            plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'PingFang SC', 'Heiti SC']
+            plt.rcParams['axes.unicode_minus'] = False
+        except:
+            pass
+        
+        # 创建Figure和Canvas
+        self.market_trend_figure = Figure(figsize=(10, 6), dpi=100)
+        self.market_trend_canvas = FigureCanvas(self.market_trend_figure)
+        self.market_trend_canvas.setStyleSheet("background-color: white;")
+        
+        # 添加到布局
+        layout.addWidget(self.market_trend_canvas)
+        widget.setLayout(layout)
+        
+        return widget
+    
+    def update_market_trend_chart(self):
+        """更新市场趋势图表 - 显示30天MSCI走势"""
+        if not self.analysis_results_obj or not hasattr(self.analysis_results_obj, 'market'):
+            return
+        
+        try:
+            market_data = self.analysis_results_obj.market
+            history = market_data.get('history', [])
+            
+            if not history or len(history) < 2:
+                print("[趋势图表] 历史数据不足，无法绘制")
+                return
+            
+            # 提取最近30天的数据
+            recent_history = history[-30:]
+            dates = [item['date'] for item in recent_history]
+            msci_values = [item['msci'] for item in recent_history]
+            
+            # 检查是否为增强版MSCI
+            is_enhanced = market_data.get('enhanced', False)
+            
+            # 如果是增强版，还可以显示原始MSCI对比
+            if is_enhanced and 'original_msci' in recent_history[0]:
+                original_msci_values = [item.get('original_msci', item['msci']) for item in recent_history]
+                index_rating_values = [item.get('index_rating', 50) for item in recent_history]
+            else:
+                original_msci_values = None
+                index_rating_values = None
+            
+            # 清空并重新绘制
+            self.market_trend_figure.clear()
+            ax = self.market_trend_figure.add_subplot(111)
+            
+            # 设置图表样式
+            ax.set_facecolor('#f8f9fa')
+            self.market_trend_figure.patch.set_facecolor('white')
+            
+            # 绘制MSCI曲线
+            if is_enhanced:
+                # 增强版：显示改进MSCI和原始MSCI对比
+                ax.plot(dates, msci_values, 'o-', linewidth=2, markersize=4, 
+                       color='#0078d4', label='评级MSCI', zorder=3)
+                
+                if original_msci_values:
+                    ax.plot(dates, original_msci_values, '--', linewidth=1.5, 
+                           color='#6c757d', alpha=0.6, label='原始MSCI', zorder=2)
+                
+                if index_rating_values:
+                    ax.plot(dates, index_rating_values, ':', linewidth=1.5, 
+                           color='#28a745', alpha=0.6, label='指数评级', zorder=1)
+            else:
+                # 原版：只显示MSCI
+                ax.plot(dates, msci_values, 'o-', linewidth=2, markersize=4, 
+                       color='#0078d4', label='MSCI指数', zorder=3)
+            
+            # 添加情绪区域背景色（按20-80范围重新划分）
+            ax.axhspan(70, 80, alpha=0.1, color='red', label='极度狂热区')
+            ax.axhspan(60, 70, alpha=0.1, color='orange')
+            ax.axhspan(40, 60, alpha=0.05, color='gray', label='中性区')
+            ax.axhspan(25, 40, alpha=0.1, color='green')
+            ax.axhspan(20, 25, alpha=0.1, color='darkred', label='极度恐慌区')
+            
+            # 添加关键阈值线
+            ax.axhline(y=80, color='red', linestyle='--', linewidth=0.8, alpha=0.5, label='上限(80)')
+            ax.axhline(y=70, color='orange', linestyle='--', linewidth=0.8, alpha=0.5)
+            ax.axhline(y=50, color='gray', linestyle='-', linewidth=0.8, alpha=0.3, label='中性(50)')
+            ax.axhline(y=40, color='green', linestyle='--', linewidth=0.8, alpha=0.5)
+            ax.axhline(y=20, color='red', linestyle='--', linewidth=0.8, alpha=0.5, label='下限(20)')
+            
+            # 设置坐标轴
+            ax.set_xlabel('日期', fontsize=11, fontweight='bold')
+            ax.set_ylabel('MSCI指数', fontsize=11, fontweight='bold')
+            
+            title = '市场情绪综合指数（MSCI）30天走势'
+            if is_enhanced:
+                title += ''
+            ax.set_title(title, fontsize=13, fontweight='bold', pad=15)
+            
+            # 设置Y轴范围（最大80）
+            ax.set_ylim(0, 80)
+            
+            # 设置网格
+            ax.grid(True, linestyle=':', alpha=0.3)
+            
+            # X轴日期标签旋转
+            ax.tick_params(axis='x', rotation=45, labelsize=8)
+            
+            # 不显示图例（根据用户要求移除）
+            # ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
+            
+            # 在最新点标注数值
+            latest_msci = msci_values[-1]
+            latest_date = dates[-1]
+            ax.annotate(f'{latest_msci:.1f}', 
+                       xy=(latest_date, latest_msci), 
+                       xytext=(10, 10), textcoords='offset points',
+                       bbox=dict(boxstyle='round,pad=0.5', facecolor='#0078d4', alpha=0.8),
+                       color='white', fontsize=10, fontweight='bold',
+                       arrowprops=dict(arrowstyle='->', color='#0078d4', lw=1.5))
+            
+            # 调整布局
+            self.market_trend_figure.tight_layout()
+            
+            # 刷新画布
+            self.market_trend_canvas.draw()
+            
+            print(f"[趋势图表] 绘制完成: {len(dates)}天数据, 范围{min(msci_values):.1f}-{max(msci_values):.1f}")
+            
+        except Exception as e:
+            print(f"[趋势图表] 绘制失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def create_market_html_tab(self, filename):
         """创建打开本地HTML文件的Tab（延迟加载）"""
@@ -5668,7 +6027,7 @@ class AnalysisPage(QWidget):
         
         # 添加股票子项目
         if hasattr(self.analysis_results_obj, 'stocks'):
-            stocks_data = self.analysis_results_obj.stocks
+            stocks_data = self._get_analysis_stocks_map()
             # 按股票代码从小到大排序
             sorted_stocks = []
             for stock_code, stock_info in stocks_data.items():
@@ -5825,6 +6184,9 @@ class AnalysisPage(QWidget):
         content = self.generate_market_analysis_report(market_data)
         self.set_market_html(content)
         
+        # Tab 2: 趋势图表
+        self.update_market_trend_chart()
+        
 
         
     def generate_market_analysis_report(self, market_data):
@@ -5833,26 +6195,26 @@ class AnalysisPage(QWidget):
             # MSCI指数信息
             msci_value = market_data.get('current_msci', 0)
             
-            # 市场状态判断和颜色编码（红涨绿跌，红高绿低）
+            # 市场状态判断和颜色编码（红涨绿跌：>65红色，<45绿色）
             if msci_value >= 70:
                 market_mood = t_gui("极度乐观")
-                mood_color = "#28a745"  # 绿色-乐观/高位风险
+                mood_color = "#dc3545"  # 红色-极度乐观/高位
                 risk_warning = t_gui("高风险_市场可能过热_建议谨慎")
-            elif msci_value >= 60:
+            elif msci_value >= 65:
                 market_mood = t_gui("乐观")
-                mood_color = "#ff6600"  # 橙色-偏乐观
+                mood_color = "#ff6600"  # 橙红色-乐观
                 risk_warning = t_gui("⚡_中高风险_市场情绪偏乐观")
-            elif msci_value >= 40:
+            elif msci_value >= 45:
                 market_mood = t_gui("中性")
                 mood_color = "#6c757d"  # 灰色-中性
                 risk_warning = t_gui("中等风险_市场相对理性")
-            elif msci_value >= 30:
+            elif msci_value >= 35:
                 market_mood = t_gui("悲观")
-                mood_color = "#009900"  # 深绿色-偏悲观
+                mood_color = "#28a745"  # 绿色-悲观/低位
                 risk_warning = t_gui("机会信号_市场可能接近底部")
             else:
                 market_mood = t_gui("极度悲观")
-                mood_color = "#dc3545"  # 红色-悲观/低位机会
+                mood_color = "#00aa00"  # 深绿色-极度悲观/超跌机会
                 risk_warning = t_gui("重大机会_市场严重超跌")
             
             # 技术指标
@@ -5871,7 +6233,7 @@ class AnalysisPage(QWidget):
                 
                 <h3 style="color: #2c5aa0; margin-top: 25px; margin-bottom: 15px;">🌐 {t_gui('core_indicators')}</h3>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                    <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('msci_market_sentiment_index')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: {mood_color};"><strong>{msci_value:.2f}</strong></td></tr>
+                    <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('msci_market_sentiment_index')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: {mood_color};"><strong>{msci_value:.2f}/80</strong></td></tr>
                     <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('market_sentiment')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee; color: {mood_color};"><strong>{market_mood}</strong></td></tr>
                     <tr><td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>{t_gui('risk_warning')}:</strong></td><td style="padding: 5px; border-bottom: 1px solid #eee;">{risk_warning}</td></tr>
                 </table>
@@ -5972,26 +6334,18 @@ class AnalysisPage(QWidget):
         stock_count = industry_info.get('stock_count', 0)
         risk_level = self.get_industry_risk_level(tma_value)
         
-        # 判断强度等级和颜色（红涨绿跌）
-        if tma_value > 20:
+        # 判断强度等级和颜色（>=70强红，<=40弱绿，其它中黄）
+        if tma_value >= 70:
             strength = t_gui("强势")
-            strength_color = "#dc3545"  # 强势用红色（上涨）
+            strength_color = "#dc3545"  # 强势用红色
             color_desc = "🔴"
-        elif tma_value > 5:
-            strength = t_gui("中性偏强")
-            strength_color = "#ff6600"  # 中性偏强用橙色
-            color_desc = "🟠"
-        elif tma_value > -5:
+        elif tma_value > 40:
             strength = t_gui("中性")
-            strength_color = "#6c757d"  # 中性用灰色
-            color_desc = "⚪"
-        elif tma_value > -20:
-            strength = t_gui("中性偏弱")
-            strength_color = "#009900"  # 偏弱用深绿色
-            color_desc = "🟢"
+            strength_color = "#ffc107"  # 中性用黄色
+            color_desc = "🟡"
         else:
             strength = t_gui("弱势")
-            strength_color = "#28a745"  # 弱势用绿色（下跌）
+            strength_color = "#28a745"  # 弱势用绿色
             color_desc = "🟢"
         
         # 获取行业龙头股票
@@ -6086,7 +6440,7 @@ class AnalysisPage(QWidget):
         if not self.analysis_results_obj:
             return
             
-        stocks_data = self.analysis_results_obj.stocks
+        stocks_data = self._get_analysis_stocks_map()
         stock_info = stocks_data.get(stock_code, {})
         
         if not stock_info:
@@ -6240,7 +6594,7 @@ class AnalysisPage(QWidget):
         if not self.analysis_results_obj:
             return
             
-        stocks_data = self.analysis_results_obj.stocks
+        stocks_data = self._get_analysis_stocks_map()
         if stock_code not in stocks_data:
             self.clear_stock_analysis()
             return
@@ -6859,6 +7213,13 @@ class AnalysisPage(QWidget):
             
             # 计算行业平均值
             industry_avg_data = self.calculate_industry_averages(industry_stocks)
+            
+            # 【修复】确保返回的是字典类型
+            if not isinstance(industry_avg_data, dict):
+                print(f"[ERROR] calculate_industry_averages 返回了非字典类型: {type(industry_avg_data)}")
+                self.set_industry_chart_html(f"<p style='color: #dc3545;'>行业 {industry_name} 数据格式错误</p>")
+                return
+            
             print(f" 计算得到行业平均RTSI: {industry_avg_data.get('avg_rtsi', 0):.2f}")
             
             # 生成行业趋势图表HTML
@@ -6874,6 +7235,119 @@ class AnalysisPage(QWidget):
             traceback.print_exc()
             self.set_industry_chart_html(f"<p style='color: #dc3545;'>生成行业图表失败: {str(e)}</p>")
     
+    def _get_analysis_stocks_map(self):
+        """将analysis_results_obj.stocks统一转换为{'code': stock_info}结构"""
+        try:
+            if not hasattr(self, 'analysis_results_obj') or not self.analysis_results_obj:
+                return {}
+
+            raw_stocks = getattr(self.analysis_results_obj, 'stocks', None)
+            if not raw_stocks:
+                return {}
+
+            if isinstance(raw_stocks, dict):
+                return raw_stocks
+
+            stocks_map = {}
+            if isinstance(raw_stocks, (list, tuple, set)):
+                for item in raw_stocks:
+                    if not isinstance(item, dict):
+                        continue
+
+                    code = item.get('code') or item.get('股票代码') or item.get('symbol') or item.get('证券代码') or item.get('ts_code')
+                    if not code and 'meta' in item and isinstance(item['meta'], dict):
+                        code = item['meta'].get('code')
+
+                    if not code:
+                        continue
+
+                    code = str(code).strip()
+                    if not code:
+                        continue
+
+                    if code not in stocks_map:
+                        stocks_map[code] = item
+
+            return stocks_map
+
+        except Exception as e:
+            print(f"[WARNING] 转换stocks数据为字典失败: {e}")
+            return {}
+
+    def _normalize_industry_stocks(self, raw_stocks, industry_name=None):
+        """将行业股票数据统一规范为包含code/name/rtsi/data的字典列表"""
+        normalized = []
+
+        if not raw_stocks:
+            return normalized
+
+        stocks_map = self._get_analysis_stocks_map()
+
+        if isinstance(raw_stocks, dict):
+            iterable = raw_stocks.items()
+        elif isinstance(raw_stocks, (list, tuple)):
+            iterable = [(None, item) for item in raw_stocks]
+        else:
+            iterable = [(None, raw_stocks)]
+
+        seen_codes = set()
+
+        for key, item in iterable:
+            code = None
+            stock_payload = item
+
+            if isinstance(raw_stocks, dict):
+                code = str(key) if key is not None else None
+
+            if isinstance(stock_payload, dict):
+                code = str(stock_payload.get('code') or stock_payload.get('股票代码') or stock_payload.get('symbol') or code or '').strip()
+            elif isinstance(stock_payload, (list, tuple)) and stock_payload:
+                code = str(stock_payload[0]).strip()
+                stock_payload = {}
+            else:
+                if code is None:
+                    code = str(stock_payload).strip()
+                stock_payload = {}
+
+            if not code:
+                continue
+
+            if code in seen_codes:
+                continue
+
+            seen_codes.add(code)
+
+            base = {}
+            if isinstance(stock_payload, dict):
+                base.update(stock_payload)
+
+            base['code'] = code
+
+            fallback_data = stocks_map.get(code, {}) if stocks_map else {}
+
+            name = base.get('name') or base.get('股票名称') or base.get('symbol_name')
+            if not name:
+                name = fallback_data.get('name') or fallback_data.get('股票名称') or code
+            base['name'] = name
+
+            rtsi_data = base.get('rtsi')
+            if isinstance(rtsi_data, (int, float)):
+                rtsi_data = {'rtsi': float(rtsi_data)}
+            elif not isinstance(rtsi_data, dict):
+                rtsi_data = {}
+                if isinstance(fallback_data.get('rtsi'), dict):
+                    rtsi_data = fallback_data['rtsi']
+            base['rtsi'] = rtsi_data if isinstance(rtsi_data, dict) else {}
+
+            base['data'] = base.get('data') or fallback_data
+
+            if industry_name == "指数":
+                base['is_index'] = True
+
+            normalized.append(base)
+
+        return normalized
+
     def get_industry_stocks_data(self, industry_name):
         """获取行业内股票的数据 - 按当天成交金额排序，选择前10个"""
         try:
@@ -6895,14 +7369,20 @@ class AnalysisPage(QWidget):
                 
                 # 检查行业数据中是否已经包含股票信息
                 if 'stocks' in industry_info and industry_info['stocks']:
-                    industry_stocks_raw = industry_info['stocks']
+                    industry_stocks_raw = self._normalize_industry_stocks(industry_info['stocks'], industry_name)
                     print(f" 从行业数据中获取到 {len(industry_stocks_raw)} 只股票")
+                    
+                    # 【调试】打印数据结构，特别是在EXE中
+                    print(f" [调试] industry_stocks_raw 类型: {type(industry_stocks_raw)}")
+                    if len(industry_stocks_raw) > 0:
+                        print(f" [调试] 第一个元素类型: {type(industry_stocks_raw[0])}")
+                        print(f" [调试] 第一个元素内容: {industry_stocks_raw[0]}")
             
             # 如果行业数据中没有股票信息，则遍历所有股票查找
             if not industry_stocks_raw and hasattr(self.analysis_results_obj, 'stocks'):
                 print(" 从全部股票中筛选行业股票...")
                 
-                for stock_code, stock_data in self.analysis_results_obj.stocks.items():
+                for stock_code, stock_data in self._get_analysis_stocks_map().items():
                     # 检查股票是否属于该行业
                     stock_industry = stock_data.get('industry', '')
                     if stock_industry == industry_name:
@@ -6914,6 +7394,9 @@ class AnalysisPage(QWidget):
                         })
                 
                 print(f" 筛选得到 {len(industry_stocks_raw)} 只行业股票")
+
+            # 最终再统一规范一次结构，确保后续处理安全
+            industry_stocks_raw = self._normalize_industry_stocks(industry_stocks_raw, industry_name)
             
             if not industry_stocks_raw:
                 print(f"[ERROR] 行业 {industry_name} 没有找到股票数据")
@@ -7268,6 +7751,9 @@ class AnalysisPage(QWidget):
             # 检查股票代码是否为港股格式
             hk_stock_count = 0
             for stock in industry_stocks[:5]:  # 检查前5只股票
+                # 【修复EXE环境】确保stock是字典类型
+                if not isinstance(stock, dict):
+                    continue
                 code = stock.get('code', '')
                 if self._detect_stock_market(code) == 'hk':
                     hk_stock_count += 1
@@ -7285,6 +7771,9 @@ class AnalysisPage(QWidget):
             validated_stocks = []
             
             for stock in industry_stocks:
+                # 【修复EXE环境】确保stock是字典类型
+                if not isinstance(stock, dict):
+                    continue
                 code = stock.get('code', '')
                 name = stock.get('name', '')
                 
@@ -7325,6 +7814,9 @@ class AnalysisPage(QWidget):
             validated_stocks = []
             
             for stock in industry_stocks:
+                # 【修复EXE环境】确保stock是字典类型
+                if not isinstance(stock, dict):
+                    continue
                 code = stock.get('code', '')
                 name = stock.get('name', '')
                 
@@ -7471,7 +7963,7 @@ class AnalysisPage(QWidget):
             if hasattr(self.analysis_results_obj, 'industries') and "指数" in self.analysis_results_obj.industries:
                 industry_info = self.analysis_results_obj.industries["指数"]
                 if 'stocks' in industry_info and industry_info['stocks']:
-                    industry_stocks_raw = industry_info['stocks']
+                    industry_stocks_raw = self._normalize_industry_stocks(industry_info['stocks'], "指数")
                     print(f" 从指数行业数据中获取到 {len(industry_stocks_raw)} 只潜在指数")
             
             # 过滤：只保留真正的指数代码
@@ -7575,7 +8067,7 @@ class AnalysisPage(QWidget):
             
             # 如果没有找到匹配的，基于RTSI值生成权重
             if hasattr(self, 'analysis_results_obj') and self.analysis_results_obj:
-                stock_data = self.analysis_results_obj.stocks.get(stock_code, {})
+                stock_data = self._get_analysis_stocks_map().get(stock_code, {})
                 rtsi_data = stock_data.get('rtsi', {})
                 
                 if isinstance(rtsi_data, dict):
@@ -7609,6 +8101,11 @@ class AnalysisPage(QWidget):
             all_stock_ratings = {}
             
             for stock in industry_stocks:
+                # 【修复EXE环境】确保stock是字典类型
+                if not isinstance(stock, dict):
+                    print(f"[WARNING] 跳过非字典类型的股票数据: {type(stock)}")
+                    continue
+                
                 stock_code = stock.get('code', '')
                 stock_name = stock.get('name', stock_code)
                 
@@ -7652,7 +8149,7 @@ class AnalysisPage(QWidget):
                 if hasattr(self, 'analysis_results_obj') and self.analysis_results_obj:
                     rating_data = []
                     # 尝试从原始数据中获取评级
-                    stock_data = self.analysis_results_obj.stocks.get(stock_code, {})
+                    stock_data = self._get_analysis_stocks_map().get(stock_code, {})
                     
                     # 查找日期格式的评级数据
                     for key, value in stock_data.items():
@@ -7744,25 +8241,52 @@ class AnalysisPage(QWidget):
         """获取评级文件列表"""
         try:
             import os
-            import glob
+            from pathlib import Path
+            from utils.path_helper import get_base_path
             
-            # 查找可能的评级文件
-            rating_files = []
+            found_files = []
+            seen = set()
             
-            # 查找当前目录下的评级文件
+            # 优先使用主窗口记录的当前数据文件
+            current_file = self._get_current_rating_file()
+            if current_file and os.path.exists(current_file):
+                abs_path = os.path.abspath(current_file)
+                found_files.append(abs_path)
+                seen.add(abs_path)
+            
+            base_path = Path(get_base_path())
+            search_dirs = [base_path, Path.cwd()]
+            # 常见数据目录
+            for sub in ["data", "datas", "resources", "res", "assets"]:
+                candidate = base_path / sub
+                if candidate.exists():
+                    search_dirs.append(candidate)
+            
             patterns = [
                 "*.json.gz",
-                "*Data*.json.gz", 
+                "*Data*.json.gz",
                 "CN_Data*.json.gz",
                 "HK_Data*.json.gz",
                 "US_Data*.json.gz"
             ]
             
-            for pattern in patterns:
-                files = glob.glob(pattern)
-                rating_files.extend(files)
+            for directory in search_dirs:
+                try:
+                    for pattern in patterns:
+                        for file_path in directory.glob(pattern):
+                            abs_path = str(file_path.resolve())
+                            if abs_path not in seen and file_path.is_file():
+                                found_files.append(abs_path)
+                                seen.add(abs_path)
+                except Exception as inner_e:
+                    print(f"[WARNING] 搜索评级目录失败 {directory}: {inner_e}")
             
-            return rating_files[:3]  # 最多检查3个文件
+            if not found_files:
+                print("[WARNING] 未找到任何评级数据文件")
+            else:
+                print(f" 找到评级文件候选: {found_files}")
+            
+            return found_files[:5]
             
         except Exception as e:
             print(f"[ERROR] 获取评级文件列表失败: {e}")
@@ -7860,6 +8384,11 @@ class AnalysisPage(QWidget):
             weighted_rtsi_sum = 0
             
             for i, stock in enumerate(industry_stocks):
+                # 【修复EXE环境】确保stock是字典类型
+                if not isinstance(stock, dict):
+                    print(f"[WARNING] 跳过非字典类型的股票数据: {type(stock)}")
+                    continue
+                
                 stock_code = stock.get('code', '')
                 rtsi_data = stock.get('rtsi', {})
                 if isinstance(rtsi_data, dict):
@@ -7899,18 +8428,17 @@ class AnalysisPage(QWidget):
             rating_data = self._get_real_industry_rating_data(industry_stocks)
             
             if not rating_data:
-                print("  无法获取真实评级数据，返回空数据")
-                # 如果无法获取真实数据，直接返回空数据
-                return []
-            
-            print(f" 获取了{len(rating_data)}天的真实评级数据")
+                print("  ⚠️ 无法获取真实评级数据，将以空评级列表继续生成图表")
+            else:
+                print(f" 获取了{len(rating_data)}天的真实评级数据")
             
             return {
                 'avg_rtsi': avg_rtsi,
                 'stock_count': len(industry_stocks),
                 'volume_price_data': volume_price_data,
                 'rating_data': rating_data,
-                'stocks': industry_stocks
+                'stocks': industry_stocks,
+                'rating_warning': not bool(rating_data)
             }
             
         except Exception as e:
@@ -8092,6 +8620,11 @@ class AnalysisPage(QWidget):
             stock_count = industry_data.get('stock_count', 0)
             volume_price_data = industry_data.get('volume_price_data', [])
             rating_data = industry_data.get('rating_data', [])
+            rating_warning = industry_data.get('rating_warning', False)
+
+            rating_warning_html = """
+                    <div style=\"text-align:center;color:#ff9800;font-size:13px;margin-bottom:8px;\">暂无真实评级数据，已暂时隐藏评级曲线</div>
+            """ if rating_warning else ""
             
             # 准备图表数据
             dates = [f"'{item['date']}'" for item in volume_price_data]
@@ -8223,6 +8756,7 @@ class AnalysisPage(QWidget):
                 
                 <div class="chart-container">
                     <div class="chart-title">⭐ 行业平均评级趋势</div>
+                    {rating_warning_html}
                     <canvas id="ratingChart"></canvas>
                 </div>
                 
@@ -9768,10 +10302,11 @@ class AnalysisPage(QWidget):
 
 **分析要求：**
 1. **RTSI评分精准解读（强制要求）**：
-   •  特别注意：{rtsi_score:.2f}分属于60-69高分强势区间，必须按此标准解读
-   • 禁止将60-69分错误归类为"中性平衡"或"中等"，这是高分区间
-   • 必须明确说明当前技术面表现优秀，具备较强投资价值
-   • 分析建议必须与高分强势区间相匹配，采用积极配置策略
+   • 强势区间：>=70分，技术面强劲，积极配置
+   • 中性区间：45-70分，技术面平衡，谨慎关注
+   • 弱势区间：<=45分，技术面较弱，建议观望
+   • 当前评分{rtsi_score:.2f}分，必须按上述标准准确解读
+   • 分析建议必须与RTSI评分区间相匹配
 
 2. **数据驱动分析（强制要求）**：
    • 【必须引用】分析中必须明确引用具体的评级趋势数据和量价数据，不得忽略
@@ -9805,7 +10340,7 @@ class AnalysisPage(QWidget):
  数据引用：已引用具体的评级趋势和量价数据，包含具体日期和数值
  量价分析：已分析成交量与价格变化的配合情况
  趋势判断：已基于数据判断短期、中期、长期技术变化
- 仓位控制：仓位建议严格控制在对应区间内（当前应≤{20 if rtsi_score >= 70 else 15 if rtsi_score >= 60 else 12 if rtsi_score >= 50 else 10 if rtsi_score >= 40 else 8 if rtsi_score >= 30 else 5}%）
+ 仓位控制：仓位建议严格控制在对应区间内（当前应≤{20 if rtsi_score >= 70 else 10 if rtsi_score > 45 else 5}%）
  风险匹配：建议与RTSI评分区间完全匹配
  客观性：未夸大中性或偏弱评分的上涨潜力
  具体性：提供了明确的目标价位和止损位
@@ -9828,41 +10363,23 @@ class AnalysisPage(QWidget):
 当前技术信号：极其积极，适合各类投资者优先配置。"""
         elif rtsi_score >= 70:
             return f"""
-该股票RTSI评分{rtsi_score:.2f}分处于极强势区间（70-79），技术面表现极其强劲。
-注意：RTSI v2.3最高分约90分，70+属于高分区间，技术面优势显著。
+该股票RTSI评分{rtsi_score:.2f}分处于强势区间（>=70），技术面表现强劲。
+注意：RTSI v2.3最高分约90分，70+属于强势区间，技术面优势显著。
 这表明股票具有卓越的技术优势，短期内有很强的上涨动能。
 操作建议：积极关注，可适度增配，建议仓位不超过15-20%。
 当前技术信号：非常积极，适合稳健投资者重点配置。"""
-        elif rtsi_score >= 60:
+        elif rtsi_score > 45:
             return f"""
-该股票RTSI评分{rtsi_score:.2f}分处于高分强势区间（60-69），技术面表现强劲。
-技术指标显示良好的上涨趋势，具备较强的投资价值和上涨潜力。
-操作建议：积极关注，可适度配置，建议仓位不超过12-15%。
-当前技术信号：积极乐观，适合稳健投资者重点关注。"""
-        elif rtsi_score >= 50:
-            return f"""
-该股票RTSI评分{rtsi_score:.2f}分处于中等偏上区间（50-59），技术面较好。
-技术指标显示一定的上涨潜力，整体趋势相对稳健。
+该股票RTSI评分{rtsi_score:.2f}分处于中性区间（45-70），技术面平衡。
+技术指标显示一定的上涨潜力，但整体趋势相对平稳。
 操作建议：可适度关注，控制仓位在10%以内，重视风险管理。
-当前技术信号：中性偏好，适合保守型投资者小幅配置。"""
-        elif rtsi_score >= 40:
-            return f"""
-该股票RTSI评分{rtsi_score:.2f}分处于中性区间（40-49），技术面平衡。
-既无明显的强势信号，也无明显的弱势特征，技术面中性平衡。
-操作建议：需要谨慎，仅建议极小仓位试探（≤8%），重点关注风险控制。
-当前技术信号：中性平衡，不强不弱，需要更多确认信号。"""
-        elif rtsi_score >= 30:
-            return f"""
-该股票RTSI评分{rtsi_score:.2f}分处于偏弱区间（30-39），技术面较弱。
-技术指标显示一定的弱势特征，上涨动能不足。
-操作建议：建议观望为主，如配置仅限极小仓位（≤5%），严控风险。
-当前技术信号：偏向谨慎，不适合主动配置。"""
+当前技术信号：中性平衡，适合保守型投资者小幅配置。"""
         else:
             return f"""
-该股票RTSI评分{rtsi_score:.2f}分处于弱势区间（30分以下），技术面疲弱。
-技术指标显示明显的弱势特征，缺乏上涨动能。
-操作建议：强烈建议规避，如特殊情况配置仅限最小仓位（≤2%）。
-当前技术信号：明显偏弱，不建议投资配置。"""
+该股票RTSI评分{rtsi_score:.2f}分处于弱势区间（<=45），技术面较弱。
+技术指标显示明显的弱势特征，上涨动能不足。
+操作建议：建议观望为主，如配置仅限极小仓位（≤5%），严控风险。
+当前技术信号：偏向谨慎，不适合主动配置。"""
     
     def _get_rtsi_operation_framework(self, rtsi_score):
         """根据RTSI分数生成操作建议框架（基于最高90分实际情况 - RTSI v2.3）"""
@@ -9878,70 +10395,37 @@ class AnalysisPage(QWidget):
 ▪ 风险提示：注意高位回调风险，不宜追高"""
         elif rtsi_score >= 70:
             return f"""
-【极强势操作框架】(RTSI: {rtsi_score:.2f}/90)
-▪ 评级说明：接近满分的极强势表现
-▪ 推荐仓位：12-18%（可适度增配的优质标的）
+【强势操作框架】(RTSI: {rtsi_score:.2f}/90, >=70强势区间)
+▪ 评级说明：强势区间，技术面表现强劲
+▪ 推荐仓位：12-20%（可适度增配的优质标的）
 ▪ 买入策略：积极配置，可在回调时分批建仓
 ▪ 持有策略：积极持有，重点关注量价配合
-▪ 卖出信号：RTSI跌破65或出现明显技术破位
+▪ 卖出信号：RTSI跌破70或出现明显技术破位
 ▪ 止损位：建议设置在当前价格下方8-10%
 ▪ 目标收益：短期15-25%，中期25-40%
-▪ 风险提示：即使接近满分也需严控仓位，防范市场系统性风险"""
-        elif rtsi_score >= 60:
+▪ 风险提示：强势股票需严控仓位，防范市场系统性风险"""
+        elif rtsi_score > 45:
             return f"""
-【高分强势操作框架】(RTSI: {rtsi_score:.2f}/90)
-▪ 评级说明：高分区间，技术面表现优秀
-▪ 推荐仓位：10-15%（积极配置的优质标的）
-▪ 买入策略：积极配置，可在技术调整时适度加仓
-▪ 持有策略：积极持有，密切关注技术变化
-▪ 卖出信号：RTSI跌破55或技术形态破坏
-▪ 止损位：建议设置在当前价格下方10-12%
-▪ 目标收益：短期10-20%，中期20-35%
-▪ 风险提示：高分股票具备较强投资价值，但仍需控制仓位风险"""
-        elif rtsi_score >= 50:
-            return f"""
-【中等偏上操作框架】(RTSI: {rtsi_score:.2f}/90)
-▪ 评级说明：中等偏上水平，技术面相对稳健
-▪ 推荐仓位：6-10%（适度配置）
-▪ 买入策略：稳健配置，等待更好买点
-▪ 持有策略：谨慎持有，随时准备调整
+【中性操作框架】(RTSI: {rtsi_score:.2f}/90, 45-70中性区间)
+▪ 评级说明：中性区间，技术面平衡
+▪ 推荐仓位：5-10%（谨慎配置）
+▪ 买入策略：谨慎配置，等待更好买点
+▪ 持有策略：密切监控，随时准备调整
 ▪ 卖出信号：RTSI跌破45或出现技术疲软
-▪ 止损位：建议设置在当前价格下方12-15%
-▪ 目标收益：短期5-15%，中期10-20%
-▪ 风险提示：中等水平股票波动性较大，需密切监控"""
-        elif rtsi_score >= 40:
+▪ 止损位：建议设置在当前价格下方10-12%
+▪ 目标收益：短期5-12%，中期10-20%
+▪ 风险提示：中性股票方向不明，需密切监控技术变化"""
+        else:
             return f"""
-【中性平衡操作框架】(RTSI: {rtsi_score:.2f}/90)
-▪ 评级说明：中性平衡，技术面无明显强弱信号
-▪ 推荐仓位：3-8%（极度谨慎，试探性配置）
-▪ 买入策略：非常谨慎，等待明确向上信号
-▪ 持有策略：密切监控，随时准备退出
-▪ 卖出信号：RTSI跌破35或任何技术恶化信号
-▪ 止损位：严格设置在当前价格下方8-10%
-▪ 目标收益：短期3-8%，中期5-12%
-▪ 风险提示：中性股票方向不明，以风控为首要原则"""
-        elif rtsi_score >= 30:
-            return f"""
-【偏弱观望框架】(RTSI: {rtsi_score:.2f}/90)
-▪ 评级说明：偏弱水平，技术面表现不佳
-▪ 推荐仓位：1-5%（仅限特殊情况的最小配置）
+【弱势观望框架】(RTSI: {rtsi_score:.2f}/90, <=45弱势区间)
+▪ 评级说明：弱势区间，技术面较弱
+▪ 推荐仓位：0-5%（强烈建议观望或最小配置）
 ▪ 买入策略：强烈建议观望，等待技术改善
 ▪ 持有策略：如有持仓建议减仓或清仓
 ▪ 卖出信号：任何进一步的技术恶化
 ▪ 止损位：非常严格，当前价格下方5-8%
 ▪ 目标收益：以保本为主，期望收益很低
-▪ 风险提示：偏弱股票下跌风险大，强烈建议规避"""
-        else:
-            return f"""
-【弱势规避框架】(RTSI: {rtsi_score:.2f}/90)
-▪ 评级说明：弱势表现，技术面严重不佳
-▪ 推荐仓位：0-2%（强烈建议完全规避）
-▪ 买入策略：不建议买入，等待基本面重大改善
-▪ 持有策略：如有持仓建议尽快清仓
-▪ 卖出信号：立即卖出或等待反弹卖出
-▪ 止损位：不适用（建议直接规避）
-▪ 目标收益：无收益预期，以减损为目标
-▪ 风险提示：弱势股票风险极大，强烈建议完全规避"""
+▪ 风险提示：弱势股票下跌风险大，强烈建议规避"""
     
     def generate_master_analysis_prompt(self, analysis_data):
         """生成投资大师分析提示词 - 基于迷你投资大师的策略"""
@@ -10331,8 +10815,8 @@ class AnalysisPage(QWidget):
                     # 使用硬编码的试用配置
                     trial_config = {
                         "default_provider": "SiliconFlow",
-                        "default_chat_model": "Qwen/Qwen3-8B",
-                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "default_chat_model": "Qwen/Qwen2.5-7B-Instruct",
+                        "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
                         "request_timeout": 600,
                         "agent_role": "不使用",
                         "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
@@ -10875,20 +11359,74 @@ class AnalysisPage(QWidget):
                         print(f"[ERROR] [HTML调试] 无法读取基础HTML文件: {html_file_path}")
                         full_html_content = ""
                     
-                    # 在HTML报告中添加AI分析部分
+                    # 转换Markdown为HTML
+                    try:
+                        import markdown
+                        # 配置markdown扩展以支持表格、代码块等
+                        ai_result_html = markdown.markdown(
+                            ai_result, 
+                            extensions=['tables', 'fenced_code', 'nl2br']
+                        )
+                    except ImportError:
+                        # 如果markdown库未安装，使用简单的HTML转义
+                        import html
+                        ai_result_html = html.escape(ai_result).replace('\n', '<br>')
+                        print("⚠️ markdown库未安装，使用简单HTML转换")
+                    
+                    # 创建AI分析内容部分（不包含结束标签，将插入到header之后）
                     ai_section_html = f"""
-<!-- AI智能分析部分 -->
-<div class="section ai-analysis-section" style="border-top: 3px solid #007bff; margin-top: 30px;">
-    <h2 style="color: #007bff; display: flex; align-items: center;">
-        <span style="margin-right: 10px;"></span> AI智能分析
-    </h2>
-    <div class="ai-content" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0;">
-        <div style="white-space: pre-wrap; line-height: 1.6;">{ai_result}</div>
+<!-- AI智能分析内容 -->
+<div class="section ai-analysis-section" style="border: 2px solid #ffd700; margin: 20px 0; padding: 0;">
+    <div class="ai-content" style="padding: 20px;">
+        <div class="markdown-content" style="line-height: 1.8; color: #333;">{ai_result_html}</div>
     </div>
+    <style>
+        /* Markdown样式增强 */
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 {{ 
+            color: #2c5aa0; 
+            margin-top: 20px; 
+            margin-bottom: 10px; 
+            font-weight: 600;
+        }}
+        .markdown-content h3 {{ margin-top: 15px; font-size: 1.17em; }}
+        .markdown-content h4 {{ margin-top: 12px; font-size: 1.05em; color: #495057; }}
+        .markdown-content ul, .markdown-content ol {{ 
+            margin-left: 20px; 
+            margin-bottom: 10px; 
+        }}
+        .markdown-content li {{ margin-bottom: 5px; }}
+        .markdown-content p {{ margin-bottom: 10px; }}
+        .markdown-content strong {{ font-weight: 600; color: #212529; }}
+        .markdown-content code {{ 
+            background: #f1f3f5; 
+            padding: 2px 6px; 
+            border-radius: 3px; 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.9em;
+        }}
+        .markdown-content pre {{ 
+            background: #f8f9fa; 
+            border: 1px solid #dee2e6; 
+            border-radius: 4px; 
+            padding: 10px; 
+            overflow-x: auto; 
+        }}
+        .markdown-content table {{ 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 15px 0; 
+        }}
+        .markdown-content th, .markdown-content td {{ 
+            border: 1px solid #dee2e6; 
+            padding: 8px 12px; 
+            text-align: left; 
+        }}
+        .markdown-content th {{ 
+            background: #e9ecef; 
+            font-weight: 600; 
+        }}
+    </style>
 </div>
-
-</body>
-</html>
 """
                     
                     # 首先删除基础HTML中的AI占位符部分
@@ -10912,14 +11450,22 @@ class AnalysisPage(QWidget):
                     print(f"🚨 [HTML清理调试] 删除AI占位符后的HTML长度: {len(clean_html_content)}")
                     print(f"🚨 [HTML样式调试] 已更新标题和header背景色为金黄色")
                     
-                    # 将新的AI分析部分插入到清理后的HTML末尾（在</body></html>之前）
-                    if clean_html_content.endswith('</body>\n</html>'):
-                        complete_html = clean_html_content.replace('</body>\n</html>', ai_section_html)
-                    elif clean_html_content.endswith('</body></html>'):
-                        complete_html = clean_html_content.replace('</body></html>', ai_section_html)
+                    # 【修复】将AI分析部分插入到header之后（而不是底部）
+                    # 查找header结束的位置（</div>之后插入）
+                    header_end_pattern = r'(</div>\s*</div>\s*\n\s*<div class="section">)'
+                    if re.search(header_end_pattern, clean_html_content):
+                        # 在header之后、第一个section之前插入AI内容
+                        complete_html = re.sub(
+                            r'(</div>\s*</div>)(\s*\n\s*<div class="section">)',
+                            r'\1' + '\n' + ai_section_html + r'\2',
+                            clean_html_content,
+                            count=1  # 只替换第一次出现的位置
+                        )
+                        print(f"🚨 [HTML插入调试] AI内容已插入到header之后")
                     else:
-                        # 如果没有找到结束标签，直接添加到末尾
-                        complete_html = clean_html_content + ai_section_html
+                        # 回退方案：插入到body标签之后
+                        complete_html = clean_html_content.replace('<body>', '<body>\n' + ai_section_html)
+                        print(f"🚨 [HTML插入调试] 使用回退方案，AI内容插入到body之后")
                     
                     # 保存完整的HTML文件
                     with open(html_filename, 'w', encoding='utf-8') as f:
@@ -14135,7 +14681,7 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
         if not self.analysis_results_obj:
             return []
             
-        stocks_data = self.analysis_results_obj.stocks
+        stocks_data = self._get_analysis_stocks_map()
         industry_stocks = []
         
         for stock_code, stock_info in stocks_data.items():
@@ -14374,6 +14920,264 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
     
     # ==================== 行业AI分析功能 ====================
     
+    def _search_single_industry_news(self, industry_name: str, market: str, limit: int = 5) -> list:
+        """
+        搜索单个行业的财经资讯（使用本地搜索API：localhost:16888）
+        
+        Args:
+            industry_name: 行业名称
+            market: 市场类型 (cn/hk/us)
+            limit: 返回新闻数量限制（默认5）
+            
+        Returns:
+            [{"title": "...", "url": "..."}, ...]
+        """
+        import requests
+        
+        try:
+            # 根据市场设置搜索参数
+            search_params = self._get_search_params_by_market(market)
+            
+            # 行业同义词映射（针对专业术语优化）
+            industry_aliases = {
+                "指数": "股市指数",
+                "产业互联网": "工业互联网",
+                "能源金属": "锂矿 新能源",
+                "煤炭开采": "煤炭行业",
+                "军工": "军工行业",
+                "新能源": "新能源汽车",
+                "光伏": "太阳能 光伏",
+                "芯片": "半导体 芯片"
+            }
+            
+            # 智能降级策略（针对中国区财经新闻）
+            strategies = [
+                f"{industry_name} 财经 中国",
+                f"{industry_name} 股票 投资",
+                industry_aliases.get(industry_name, f"{industry_name} 行业")
+            ]
+            
+            print(f"[行业资讯] 搜索 [{industry_name}] 使用本地API")
+            
+            # 使用本地搜索API（localhost:16888）
+            api_url = "http://localhost:16888/api/search"
+            
+            # 根据市场确定地区
+            region = "zh-CN" if market == "cn" else "auto"
+            
+            for i, keyword in enumerate(strategies, 1):
+                try:
+                    params = {
+                        'keyword': keyword,
+                        'type': 'news',  # 固定为新闻搜索
+                        'region': region,  # 中文系统使用简体中文
+                        'count': limit     # 用户要求的数量（默认5）
+                    }
+                    
+                    print(f"[行业资讯] 策略{i}: 搜索 '{keyword}'")
+                    
+                    response = requests.get(api_url, params=params, timeout=60)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if data.get('success') and data.get('results'):
+                        news_items = []
+                        for result in data['results']:
+                            news_items.append({
+                                'title': result.get('title', ''),
+                                'url': result.get('url', ''),
+                                'description': result.get('description', '')
+                            })
+                        
+                        if news_items:
+                            print(f"✅ [行业资讯] 找到 {len(news_items)} 条新闻")
+                            return news_items[:limit]
+                    else:
+                        print(f"[行业资讯] 策略{i}返回空结果")
+                
+                except Exception as e:
+                    print(f"[行业资讯] 策略{i}失败: {e}")
+                    continue
+            
+            # 所有策略都失败
+            print(f"❌ [行业资讯] {industry_name}: 未找到相关新闻")
+            return []
+            
+        except Exception as e:
+            print(f"[行业资讯] {industry_name} 搜索失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    def _search_news_by_leading_stocks(self, top_stocks: list, year: int, market: str, limit: int = 5) -> list:
+        """
+        ✅ 用户要求：将5个龙头股票拼在一起搜索（不使用行业名称，不使用"财经"）
+        
+        Args:
+            top_stocks: 龙头股票列表 [{"code": "002945", "name": "华林证券", "rtsi": 63.89}, ...]
+            year: 当前年份（如2025）
+            market: 市场类型 (cn/hk/us)
+            limit: 返回新闻数量限制（默认5）
+            
+        Returns:
+            [{"title": "...", "url": "...", "description": "..."}, ...]
+        """
+        import requests
+        
+        try:
+            if not top_stocks or len(top_stocks) == 0:
+                print(f"[新闻搜索] 无龙头股票数据，无法搜索新闻")
+                return []
+            
+            # ✅ 用户要求：将5个龙头股票拼在一起搜索，只搜索1次
+            top_5_stocks = top_stocks[:5]
+            stock_names = [stock.get('name', '') for stock in top_5_stocks if stock.get('name')]
+            
+            print(f"[新闻搜索-调试] top_stocks总数: {len(top_stocks)}, 前5只: {len(top_5_stocks)}, 有效名称: {len(stock_names)}")
+            if stock_names:
+                print(f"[新闻搜索-调试] 股票名称列表: {stock_names}")
+            
+            if not stock_names:
+                print(f"❌ [新闻搜索] 股票名称为空，无法搜索")
+                return []
+            
+            # 拼接关键词："华林证券 首创证券 西部证券 东兴证券 锦龙股份 2025"
+            keyword = ' '.join(stock_names) + f" {year}"
+            
+            print(f"[新闻搜索] 将{len(stock_names)}只龙头股拼接搜索（要求10条）")
+            print(f"[新闻搜索] 关键词: '{keyword}'")
+            
+            # 使用本地搜索API（localhost:16888）
+            api_url = "http://localhost:16888/api/search"
+            region = "zh-CN" if market == "cn" else "auto"
+            
+            try:
+                params = {
+                    'keyword': keyword,
+                    'type': 'news',
+                    'region': region,
+                    'count': limit * 2  # 多搜索一些，去重后返回limit条
+                }
+                
+                response = requests.get(api_url, params=params, timeout=60)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get('success') and data.get('results'):
+                    all_news = []
+                    news_titles_seen = set()
+                    
+                    for result in data['results']:
+                        title = result.get('title', '')
+                        # 去重：避免重复新闻
+                        if title and title not in news_titles_seen:
+                            news_titles_seen.add(title)
+                            
+                            # 判断这条新闻属于哪只股票（通过标题匹配）
+                            matched_stock = None
+                            for stock_name in stock_names:
+                                if stock_name in title:
+                                    matched_stock = stock_name
+                                    break
+                            
+                            all_news.append({
+                                'title': title,
+                                'url': result.get('url', ''),
+                                'description': result.get('description', ''),
+                                'stock': matched_stock if matched_stock else '通用'  # 标记来源股票
+                            })
+                    
+                    result_news = all_news[:limit]
+                    print(f"✅ [新闻搜索] 找到 {len(result_news)} 条新闻（1次搜索，{len(stock_names)}只龙头股）")
+                    
+                    return result_news
+                else:
+                    print(f"[新闻搜索] 未找到相关新闻")
+                    return []
+            
+            except Exception as e:
+                print(f"[新闻搜索] 搜索失败: {e}")
+                import traceback
+                traceback.print_exc()
+                return []
+            
+        except Exception as e:
+            print(f"[新闻搜索] 搜索失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+
+    
+    def _parse_search_results_json(self, json_result: str, limit: int = 3) -> list:
+        """
+        解析搜索结果JSON，提取新闻标题和URL
+        
+        Returns:
+            [{"title": "...", "url": "..."}, ...]
+        """
+        import json
+        
+        try:
+            # 解析JSON字符串
+            results = json.loads(json_result)
+            
+            if not isinstance(results, list):
+                print(f"[JSON解析] 返回格式错误，不是列表: {type(results)}")
+                return []
+            
+            # 空结果直接返回
+            if len(results) == 0:
+                return []
+            
+            news_items = []
+            for item in results[:limit]:
+                if isinstance(item, dict):
+                    title = item.get('title', '')
+                    url = item.get('url', '')
+                    
+                    # 过滤掉无效的URL
+                    if url and url.startswith('http'):
+                        news_items.append({
+                            "title": title,
+                            "url": url
+                        })
+            
+            return news_items
+            
+        except json.JSONDecodeError as e:
+            # JSON解析失败，可能是搜索引擎返回了文本错误信息
+            print(f"[JSON解析] 搜索引擎返回非JSON格式: {json_result[:100]}")
+            return []
+        except Exception as e:
+            print(f"[JSON解析] 失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def _get_search_params_by_market(self, market: str) -> dict:
+        """根据市场类型返回搜索参数"""
+        if market == 'cn':
+            return {
+                "category": "news",
+                "language": "zh",
+                "safe_search": 1,
+                "time_range": "year"
+            }
+        elif market == 'hk':
+            return {
+                "category": "news",
+                "language": "zh",
+                "safe_search": 1,
+                "time_range": "year"
+            }
+        else:  # us
+            return {
+                "category": "news",
+                "language": "en",
+                "safe_search": 1,
+                "time_range": "month"
+            }
+    
     def perform_industry_ai_analysis(self):
         """执行行业AI分析 - 单线程避免崩溃"""
         try:
@@ -14398,13 +15202,14 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             # 生成行业AI分析提示词
             prompt = self.generate_industry_ai_analysis_prompt(analysis_data)
             
+            # ✅ 传递analysis_data给两阶段分析使用（包含新闻等完整数据）
             # 使用单线程直接调用，避免PyQt5多线程崩溃
-            QTimer.singleShot(100, lambda: self._perform_industry_ai_analysis_sync(prompt))
+            QTimer.singleShot(100, lambda: self._perform_industry_ai_analysis_sync(prompt, analysis_data))
             
         except Exception as e:
             self.on_industry_ai_analysis_error(str(e))
     
-    def _perform_industry_ai_analysis_sync(self, prompt):
+    def _perform_industry_ai_analysis_sync(self, prompt, analysis_data=None):
         """同步执行行业AI分析，避免多线程问题"""
         analysis_type = "行业AI分析"
         
@@ -14415,8 +15220,8 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                 self.on_industry_ai_analysis_error("执行前检查未通过")
                 return
             
-            # 执行分析
-            result = self._call_llm_for_industry_analysis(prompt)
+            # 执行分析（传递analysis_data给两阶段分析）
+            result = self._call_llm_for_industry_analysis(prompt, analysis_data)
             
             # 检查是否是API Key错误信息（用户取消配置或没有输入API Key）
             if result and isinstance(result, str) and ("需要配置API Key" in result or "API Key configuration required" in result):
@@ -14437,8 +15242,20 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             self._ai_analysis_after(success=False, analysis_type=analysis_type)
             self.on_industry_ai_analysis_error(str(e))
     
-    def _call_llm_for_industry_analysis(self, prompt):
-        """同步调用LLM进行行业分析"""
+    def _call_llm_for_industry_analysis(self, prompt, analysis_data=None):
+        """同步调用LLM进行行业分析 - 用户要求：只使用单阶段，直接分析个股"""
+        try:
+            # ✅ 用户要求：删除第1阶段，只保留第2阶段（个股深度分析）
+            print(f"[行业AI分析] 使用单阶段分析（仅个股深度分析）")
+            return self._single_stage_industry_analysis(prompt)
+        except Exception as e:
+            print(f"[行业AI分析] 单阶段分析失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"行业AI分析失败：{str(e)}\n\n请检查LLM配置是否正确。"
+    
+    def _single_stage_industry_analysis(self, prompt):
+        """单阶段行业分析（原方法，作为回退方案）"""
         try:
             import sys
             import time
@@ -14487,8 +15304,8 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                     # 使用硬编码的试用配置
                     trial_config = {
                         "default_provider": "SiliconFlow",
-                        "default_chat_model": "Qwen/Qwen3-8B",
-                        "default_structured_model": "Qwen/Qwen3-8B",
+                        "default_chat_model": "Qwen/Qwen2.5-7B-Instruct",
+                        "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
                         "request_timeout": 600,
                         "agent_role": "不使用",
                         "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
@@ -14614,7 +15431,8 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                 # LLMClient支持system_message
                 response = client.chat(
                     message=user_msg,
-                    system_message=system_msg
+                    system_message=system_msg,
+                    max_tokens=8192  # ✅ 设置最大输出token为8192，确保完整报告生成
                 )
                 print(f"[行业AI分析] LLMClient调用成功，耗时 {time.time() - start_time:.1f}s")
             
@@ -14622,6 +15440,368 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             
         except Exception as e:
             return f"行业AI分析失败：{str(e)}\n\n请检查LLM配置是否正确。"
+    
+    def _two_stage_industry_analysis(self, full_prompt, analysis_data=None):
+        """✅ 两阶段行业AI分析：第1次分析行业背景+新闻，第2次分析个股，最后合并"""
+        import sys
+        import time
+        import re
+        from pathlib import Path
+        
+        try:
+            # 优先使用传入的analysis_data（包含完整新闻数据）
+            if analysis_data is None:
+                # 回退：从完整提示词中提取关键数据
+                print(f"[两阶段分析] 从prompt提取数据...")
+                analysis_data = self._extract_data_from_prompt(full_prompt)
+            else:
+                print(f"[两阶段分析] 使用传入的analysis_data（包含新闻）")
+            
+            print(f"\n🎯 [两阶段分析] 开始两阶段行业AI分析")
+            print(f"[两阶段分析] 行业: {analysis_data.get('industry_name', '未知')}")
+            print(f"[两阶段分析] 龙头股数量: {len(analysis_data.get('top_stocks', []))}只")
+            print(f"[两阶段分析] 新闻数量: {analysis_data.get('news_count', 0)}条")
+            
+            # 初始化LLM客户端
+            client = self._initialize_llm_client()
+            if not client:
+                return "LLM客户端初始化失败"
+            
+            # ===== 第1阶段：行业背景分析 + 新闻解读 =====
+            print(f"\n📊 [第1阶段] 开始生成行业背景分析...")
+            stage1_prompt = self._generate_stage1_prompt(analysis_data)
+            
+            start_time = time.time()
+            stage1_response = client.chat(
+                message=stage1_prompt,
+                system_message="你是一位专业的中文金融分析师，精通行业分析和新闻解读。请用中文回复。",
+                max_tokens=4096  # 第1阶段：行业背景，不需要太长
+            )
+            print(f"✅ [第1阶段] 行业背景分析完成，耗时 {time.time() - start_time:.1f}s，长度: {len(stage1_response)} 字符")
+            
+            # ===== 第2阶段：个股深度分析 =====
+            print(f"\n🎯 [第2阶段] 开始生成个股深度分析...")
+            stage2_prompt = self._generate_stage2_prompt(analysis_data, stage1_response)
+            
+            start_time = time.time()
+            stage2_response = client.chat(
+                message=stage2_prompt,
+                system_message="你是一位专业的中文金融分析师，精通个股分析和投资建议。请用中文回复。",
+                max_tokens=6144  # 第2阶段：个股分析，需要较长输出
+            )
+            print(f"✅ [第2阶段] 个股深度分析完成，耗时 {time.time() - start_time:.1f}s，长度: {len(stage2_response)} 字符")
+            
+            # ===== 合并两阶段结果 =====
+            final_report = self._merge_two_stage_results(stage1_response, stage2_response, analysis_data)
+            print(f"\n✅ [两阶段分析] 完整报告生成成功，总长度: {len(final_report)} 字符")
+            
+            return final_report
+            
+        except Exception as e:
+            print(f"❌ [两阶段分析] 失败: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    def _extract_data_from_prompt(self, prompt):
+        """从完整提示词中提取关键数据"""
+        import re
+        
+        data = {
+            'industry_name': '',
+            'tma_index': 0,
+            'market_msci': 0,
+            'market_sentiment': '',
+            'top_stocks': [],
+            'news_items': [],
+            'news_count': 0
+        }
+        
+        try:
+            # 提取行业名称
+            match = re.search(r'分析对象：(.+)', prompt)
+            if match:
+                data['industry_name'] = match.group(1).strip()
+            
+            # 提取TMA指数
+            match = re.search(r'行业TMA指数：([\d.]+)', prompt)
+            if match:
+                data['tma_index'] = float(match.group(1))
+            
+            # 提取MSCI指数
+            match = re.search(r'大盘MSCI指数：([\d.]+)', prompt)
+            if match:
+                data['market_msci'] = float(match.group(1))
+            
+            # 提取市场情绪
+            match = re.search(r'市场情绪：(.+)', prompt)
+            if match:
+                data['market_sentiment'] = match.group(1).strip()
+            
+            # 提取龙头股票
+            stock_section = re.search(r'===== 行业龙头股票.*?=====\n(.+?)(?=\n=====|\n【|$)', prompt, re.DOTALL)
+            if stock_section:
+                stock_lines = stock_section.group(1).strip().split('\n')
+                for line in stock_lines:
+                    match = re.match(r'\d+\.\s+(\d+)\s+(.+?)\s+-\s+RTSI:\s+([\d.]+)', line)
+                    if match:
+                        data['top_stocks'].append({
+                            'code': match.group(1),
+                            'name': match.group(2),
+                            'rtsi': float(match.group(3))
+                        })
+            
+            # 提取新闻
+            news_section = re.search(r'===== .+?行业资讯.*?=====\n(.+?)(?=\n=====|\n【|$)', prompt, re.DOTALL)
+            if news_section:
+                news_text = news_section.group(1)
+                # 计算新闻条数
+                news_items = re.findall(r'\d+\.\s+(.+?)(?:\n|$)', news_text)
+                data['news_items'] = news_items
+                data['news_count'] = len(news_items)
+            
+            print(f"[数据提取] 行业: {data['industry_name']}, TMA: {data['tma_index']}, MSCI: {data['market_msci']}")
+            print(f"[数据提取] 龙头股: {len(data['top_stocks'])}只, 新闻: {data['news_count']}条")
+            
+        except Exception as e:
+            print(f"[数据提取] 失败: {e}")
+        
+        return data
+    
+    def _generate_stage1_prompt(self, data):
+        """生成第1阶段提示词：行业背景分析 + 新闻解读"""
+        industry_name = data.get('industry_name', '未知行业')
+        tma_index = data.get('tma_index', 0)
+        market_msci = data.get('market_msci', 0)
+        market_sentiment = data.get('market_sentiment', '未知')
+        
+        # ✅ 优先从analysis_data中获取新闻（collect_industry_analysis_data收集的）
+        news_items = data.get('industry_news', [])
+        if not news_items:
+            # 回退：从_extract_data_from_prompt提取的news_items
+            news_items = data.get('news_items', [])
+        news_count = len(news_items)
+        
+        # ✅ 用户要求：改为"龙头个股新闻"，不是"行业新闻"
+        # 构建新闻文本
+        news_text = ""
+        if news_items:
+            news_text = f"\n===== {industry_name}行业龙头股最新动态（{news_count}条） =====\n"
+            for i, news in enumerate(news_items, 1):
+                news_text += f"{i}. {news}\n"
+        else:
+            news_text = "\n===== 龙头股新闻 =====\n暂无龙头股最新新闻数据\n"
+        
+        # 构建资讯解读文本
+        news_intro = f"根据检索到的{news_count}条龙头股新闻，{industry_name}行业龙头公司近期出现以下重要动态：" if news_count > 0 else "暂无龙头股最新新闻"
+        news_list = "\n".join([f"{i+1}. {news}" for i, news in enumerate(news_items)]) if news_items else ""
+        
+        prompt = f"""
+【第1阶段任务：行业背景分析 + 龙头股新闻解读】
+
+🎯 **核心任务**：
+- 生成{industry_name}行业的背景分析
+- **重点解读龙头股最新新闻对行业的影响**
+- 为后续个股分析提供行业环境支撑
+
+📊 **核心数据**：
+- 行业名称：{industry_name}
+- 行业TMA指数：{tma_index:.2f}（20+强势，5-20中性，<5弱势）
+- 大盘MSCI指数：{market_msci:.2f}/80（70+极度乐观，60-70健康，40-60中性，<40悲观）
+- 市场情绪：{market_sentiment}
+
+{news_text}
+
+🚨 **强制要求**：
+
+请按以下格式生成报告，**不要跳过任何章节**：
+
+#### 🔥 行业核心数据解读
+
+TMA指数为{tma_index:.2f}，属于[强势上涨/中性/弱势下跌]，表明行业处于[积极向上/震荡整理/疲软调整]的趋势。
+结合市场MSCI情绪指数为{market_msci:.2f}，处于[极度乐观/健康乐观/中性/悲观]区间，这意味着整个市场对{industry_name}行业持[乐观/谨慎/悲观]态度。
+行业当前阶段：[成长期/成熟期/衰退期]
+
+#### 📰 行业基本面分析
+
+##### 政策支持度和市场环境
+
+**📰 龙头股最新动态解读：**
+{news_intro}
+{news_list}
+
+**龙头股新闻影响分析：**
+- 正面影响：[分析龙头股新闻中的正面事件，如业绩增长、业务扩张等]
+- 催化因素：[识别可能推动行业上涨的催化剂，如龙头股获得新业务、技术突破等]
+- 风险提示：[指出龙头股新闻中的风险信号，如业绩下滑、监管处罚等]
+
+##### 核心驱动因素
+1. **政策导向：** [政策对行业的支持力度，结合龙头股响应]
+2. **市场需求：** [行业需求变化趋势，龙头股业务增长情况]
+3. **技术突破：** [技术创新对行业的影响，龙头股技术布局]
+
+##### 核心风险点
+1. **政策变化：** [政策调整的风险，对龙头股的影响]
+2. **竞争加剧：** [行业竞争加剧的风险，龙头股面临的挑战]
+3. **需求下降：** [市场需求下降的风险，龙头股业绩压力]
+
+⚠️ **注意**：
+- 只输出"行业核心数据解读"和"行业基本面分析"两个章节
+- **不要分析具体个股**（第2阶段才分析）
+- **必须引用上述龙头股新闻内容**，不要说"暂无"
+"""
+        
+        return prompt
+    
+    def _generate_stage2_prompt(self, data, stage1_result):
+        """生成第2阶段提示词：个股深度分析"""
+        industry_name = data.get('industry_name', '未知行业')
+        top_stocks = data.get('top_stocks', [])
+        
+        # 构建股票列表
+        stocks_text = ""
+        if top_stocks:
+            stocks_text = f"\n===== 行业龙头股票（{len(top_stocks)}只，按RTSI排序） =====\n"
+            for i, stock in enumerate(top_stocks, 1):
+                stocks_text += f"{i}. {stock['code']} {stock['name']} - RTSI: {stock['rtsi']:.2f}分\n"
+        
+        prompt = f"""
+【第2阶段任务：龙头个股深度分析】
+
+🎯 **核心任务**：
+- 基于第1阶段的行业背景，分析{len(top_stocks)}只龙头股的投资价值
+- 每只股票都必须有独立章节，包含RTSI解读、投资价值、操作建议
+- **必须结合行业资讯分析每只股票的受益程度**
+
+📊 **行业背景（来自第1阶段）**：
+{stage1_result}
+
+{stocks_text}
+
+🚨 **强制要求**：
+
+请按以下格式逐一分析每只股票：
+
+## {top_stocks[0]['code'] if top_stocks else 'XXXXXX'} {top_stocks[0]['name'] if top_stocks else 'XXX股票'} (RTSI: {top_stocks[0]['rtsi'] if top_stocks else 0:.2f}分)
+
+**RTSI评分解读：**
+{top_stocks[0]['rtsi'] if top_stocks else 0:.2f}分属于[高分70+/中等50-70/偏低<50]水平，表明该股在行业中[具有较强竞争力/表现稳定/存在提升空间]。
+
+**投资价值分析：**
+- 行业地位：[该股在行业中的地位和市场份额]
+- **📰 资讯影响：** 根据上述行业资讯，[该股的受益程度或风险敞口]
+- 基本面优势：[业绩、技术、管理等方面的优势]
+- 估值水平：[当前估值是否合理]
+
+**操作建议：**
+- 明确操作：买入/持有/观望
+- 具体仓位：建议配置X-X%
+- 进入时机：立即/回调到X元/观望
+- 风险提示：该股的主要风险
+
+---
+
+[重复上述格式分析其余{len(top_stocks)-1 if top_stocks else 0}只股票]
+
+#### 行业配置建议
+- 行业整体配置权重：建议配置X-X%
+- 最佳进入时机：[当前/等待回调/暂缓]
+- 风险控制策略：[分散投资、止损设置等]
+
+✅ 已完成所有{len(top_stocks)}只龙头股票的深度分析
+
+⚠️ **注意**：
+- **必须逐一分析所有{len(top_stocks)}只股票**
+- **每只股票的"投资价值分析"必须包含"📰 资讯影响"**
+- 不要重复输出行业背景（已在第1阶段完成）
+"""
+        
+        return prompt
+    
+    def _merge_two_stage_results(self, stage1, stage2, data):
+        """合并两阶段结果为完整报告"""
+        industry_name = data.get('industry_name', '未知行业')
+        
+        # 清理两阶段结果（去除多余的标题）
+        stage1_clean = stage1.strip()
+        stage2_clean = stage2.strip()
+        
+        # 如果第2阶段包含了标题行（如"### 龙头个股深度分析"），去除
+        import re
+        stage2_clean = re.sub(r'^#+\s*龙头个股深度分析.*?\n', '', stage2_clean, flags=re.MULTILINE)
+        stage2_clean = re.sub(r'^#+\s*个股深度分析.*?\n', '', stage2_clean, flags=re.MULTILINE)
+        
+        # 合并报告
+        final_report = f"""### {industry_name}行业投资分析报告
+
+{stage1_clean}
+
+#### 🎯 龙头个股深度分析
+
+{stage2_clean}
+"""
+        
+        return final_report
+    
+    def _initialize_llm_client(self):
+        """初始化LLM客户端（用于两阶段分析）"""
+        import sys
+        from pathlib import Path
+        
+        try:
+            # 添加llm-api到路径
+            from utils.path_helper import get_base_path
+            base_path = get_base_path()
+            llm_api_path = base_path / "llm-api"
+            if str(llm_api_path) not in sys.path:
+                sys.path.insert(0, str(llm_api_path))
+            
+            # 加载配置
+            import json
+            config_path = llm_api_path / "config" / "user_settings.json"
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+            
+            # 检查试用模式
+            is_trial_mode = False
+            try:
+                from utils.ai_usage_counter import get_ai_usage_count
+                provider = config.get('default_provider', '').lower()
+                api_key = config.get('SILICONFLOW_API_KEY', '').strip()
+                current_count = get_ai_usage_count()
+                
+                if provider == 'siliconflow' and not api_key and current_count < 20:
+                    is_trial_mode = True
+                    config = {
+                        "default_provider": "SiliconFlow",
+                        "default_chat_model": "Qwen/Qwen2.5-7B-Instruct",
+                        "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
+                        "request_timeout": 600,
+                        "agent_role": "不使用",
+                        "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
+                        "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
+                        "dont_show_api_dialog": True
+                    }
+                    print(f"[LLM客户端] 使用试用模式，剩余 {20 - current_count} 次")
+            except:
+                pass
+            
+            # 创建客户端
+            from client import LLMClient
+            if is_trial_mode:
+                client = LLMClient(temp_config=config)
+            else:
+                client = LLMClient()
+            
+            print(f"[LLM客户端] 初始化成功")
+            return client
+            
+        except Exception as e:
+            print(f"[LLM客户端] 初始化失败: {e}")
+            return None
     
     def collect_industry_analysis_data(self, industry_name):
         """收集行业分析数据"""
@@ -14638,12 +15818,19 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             'analysis_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         
+        print(f"\n🔍 [数据收集调试] 开始收集行业数据: {industry_name}")
+        
         try:
             # 从分析结果中获取行业数据
             if hasattr(self, 'analysis_results_obj') and self.analysis_results_obj:
                 industries = getattr(self.analysis_results_obj, 'industries', {})
+                print(f"🔍 [数据收集调试] industries对象类型: {type(industries)}, 行业总数: {len(industries) if industries else 0}")
+                print(f"🔍 [数据收集调试] 行业名称 '{industry_name}' 是否存在: {industry_name in industries}")
+                
                 if industry_name in industries:
                     industry_info = industries[industry_name]
+                    print(f"🔍 [数据收集调试] industry_info类型: {type(industry_info)}")
+                    print(f"🔍 [数据收集调试] industry_info.keys(): {industry_info.keys() if isinstance(industry_info, dict) else 'N/A'}")
                     
                     # 获取TMA/IRSI指数
                     tma_data = industry_info.get('irsi', {})
@@ -14656,23 +15843,27 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                     
                     # 获取股票数量
                     data['stock_count'] = industry_info.get('stock_count', 0)
+                    print(f"🔍 [数据收集调试] stock_count: {data['stock_count']}")
                     
                     # 获取行业内股票信息
                     stocks = industry_info.get('stocks', {})
+                    print(f"🔍 [数据收集调试] stocks类型: {type(stocks)}, 是否为dict: {isinstance(stocks, dict)}")
+                    
+                    # ✅ 修复：stocks可能是list或dict，需要统一处理
+                    stock_list = []
+                    
+                    # 情况1：stocks是dict（旧格式：{code: {name, rtsi, ...}}）
                     if isinstance(stocks, dict):
-                        # 按RTSI排序获取行业龙头股票，放宽筛选条件确保有足够数据传递给AI
-                        stock_list = []
+                        print(f"🔍 [数据收集调试] stocks字典长度: {len(stocks)}")
                         for code, stock_info in stocks.items():
                             rtsi_data = stock_info.get('rtsi', {})
                             rtsi_value = rtsi_data.get('rtsi', 0) if isinstance(rtsi_data, dict) else float(rtsi_data) if rtsi_data else 0
                             
                             # 行业AI分析优化：放宽筛选条件，优先基于RTSI分数筛选
-                            # 指数行业：直接通过
-                            # 其他行业：RTSI >= 30 或者是大盘股
                             if industry_name == "指数":
                                 pass  # 指数股票直接通过
                             else:
-                                # 放宽筛选：RTSI >= 30 或者是大盘股，确保有足够股票供AI分析
+                                # 放宽筛选：RTSI >= 30 或者是大盘股
                                 if rtsi_value < 30 and not self._is_large_cap_stock(code):
                                     continue
                             
@@ -14683,14 +15874,64 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                                     'name': stock_info.get('name', code),
                                     'rtsi': rtsi_value
                                 })
+                    
+                    # 情况2：stocks是list（新格式：[{code, name, rtsi, ...}, ...]）
+                    elif isinstance(stocks, list):
+                        print(f"🔍 [数据收集调试] stocks列表长度: {len(stocks)}")
                         
-                        # 排序并取前8只股票（增加数量确保AI有足够分析对象）
+                        # ✅ 调试：打印前2个stock的完整结构
+                        if len(stocks) > 0:
+                            print(f"🔍 [数据收集调试] 第1个stock结构: {stocks[0]}")
+                        if len(stocks) > 1:
+                            print(f"🔍 [数据收集调试] 第2个stock结构: {stocks[1]}")
+                        
+                        for stock_info in stocks:
+                            # ✅ 处理list格式的stock数据
+                            if not isinstance(stock_info, dict):
+                                print(f"⚠️ [数据收集调试] stock_info不是dict: {type(stock_info)}")
+                                continue
+                            
+                            code = stock_info.get('code', '')
+                            if not code:
+                                print(f"⚠️ [数据收集调试] stock没有code字段，keys: {stock_info.keys()}")
+                                continue
+                            
+                            # 获取RTSI评分（可能在多层结构中）
+                            rtsi_data = stock_info.get('rtsi', {})
+                            if isinstance(rtsi_data, dict):
+                                rtsi_value = rtsi_data.get('rtsi', 0)
+                            elif isinstance(rtsi_data, (int, float)):
+                                rtsi_value = float(rtsi_data)
+                            else:
+                                rtsi_value = 0
+                            
+                            # 行业AI分析优化：放宽筛选条件
+                            if industry_name == "指数":
+                                pass  # 指数股票直接通过
+                            else:
+                                # 放宽筛选：RTSI >= 30 或者是大盘股
+                                if rtsi_value < 30 and not self._is_large_cap_stock(code):
+                                    continue
+                            
+                            # 收集有效的股票数据（RTSI > 0）
+                            if rtsi_value > 0:
+                                stock_list.append({
+                                    'code': code,
+                                    'name': stock_info.get('name', code),
+                                    'rtsi': rtsi_value
+                                })
+                    
+                    else:
+                        print(f"❌ [数据收集调试] stocks类型不支持: {type(stocks)}")
+                    
+                    # 统一处理：排序并取前5只股票（用户要求）
+                    if stock_list:
                         stock_list.sort(key=lambda x: x['rtsi'], reverse=True)
-                        data['top_stocks'] = stock_list[:8]
+                        data['top_stocks'] = stock_list[:5]  # ✅ 修改为5只
                         
                         # 添加调试日志：确认传递给AI的股票数量
                         print(f"[行业AI数据收集] 行业: {industry_name}")
-                        print(f"[行业AI数据收集] 原始股票总数: {len(stocks)}")
+                        print(f"[行业AI数据收集] 原始股票总数: {len(stocks) if stocks else 0}")
                         print(f"[行业AI数据收集] 筛选后股票数量: {len(stock_list)}")
                         print(f"[行业AI数据收集] 传递给AI的股票数量: {len(data['top_stocks'])}")
                         for i, stock in enumerate(data['top_stocks'][:5]):  # 只显示前5只
@@ -14700,9 +15941,11 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                         
                         # 数据质量验证
                         if len(data['top_stocks']) == 0:
-                            print(f" [行业AI警告] 没有股票数据传递给LLM，AI可能无法进行具体股票分析")
+                            print(f"⚠️ [行业AI警告] 没有股票数据传递给LLM，AI可能无法进行具体股票分析")
                         elif len(data['top_stocks']) < 3:
-                            print(f" [行业AI警告] 传递给LLM的股票数量较少({len(data['top_stocks'])}只)，可能影响分析质量")
+                            print(f"⚠️ [行业AI警告] 传递给LLM的股票数量较少({len(data['top_stocks'])}只)，可能影响分析质量")
+                    else:
+                        print(f"❌ [行业AI数据收集] 未能提取到任何有效股票数据")
                 
                 # 获取市场数据
                 market = getattr(self.analysis_results_obj, 'market', {})
@@ -14822,6 +16065,24 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                 top_stocks_info += f"▪  No analyzable leading stock data available for current industry\n"
                 top_stocks_info += f"▪ AI should focus on overall industry trends without specific stock recommendations\n"
             
+            # ✅ 新闻已在collect_industry_analysis_data中收集，不再重复搜索
+            industry_news = []
+            
+            # Build industry news information
+            news_info = ""
+            if industry_news:
+                news_info = f"\n===== Latest {industry_name} Industry News ({len(industry_news)} items) =====\n"
+                for i, news_item in enumerate(industry_news, 1):
+                    news_info += f"{i}. {news_item['title']}\n"
+                    news_info += f"   Source: {news_item['url']}\n"
+                news_info += "\n【News Analysis Requirements】\n"
+                news_info += "▪ Analyze industry fundamentals and catalysts based on the latest news\n"
+                news_info += "▪ Evaluate news impact on industry trends (policy support, earnings growth, tech breakthroughs, etc.)\n"
+                news_info += "▪ Identify risk signals in news (policy risks, intensified competition, demand decline, etc.)\n"
+            else:
+                news_info = f"\n===== {industry_name} Industry News =====\n"
+                news_info += "▪ No latest industry news data available\n"
+            
             # 判断TMA强度级别 - 英文版
             if tma_index > 20:
                 tma_level = "Strong Uptrend"
@@ -14859,18 +16120,22 @@ Analysis Time: {analysis_time}
 ===== Core Data =====
 • Industry TMA Index: {tma_index:.2f} ({tma_level})
 • Number of Industry Stocks: {stock_count}
-• Market MSCI Index: {market_msci:.2f}
+• Market MSCI Index: {market_msci:.2f}/80 (Range 20-80: 70+ Extreme Euphoria, 60-70 Healthy Optimism, 50-60 Cautious Optimism, 40-50 Neutral, 30-40 Pessimism, 23-30 Significant Pessimism, <23 Panic)
 • Market Sentiment: {market_sentiment}
 • Preliminary Investment Recommendation: {investment_tendency}
 
 {top_stocks_info}
 
+{news_info}
+
 ===== Analysis Requirements =====
 Please focus on analyzing the overall investment value and development trends of the {industry_name} industry:
 
-1. 【In-depth Industry Analysis】(Key Focus)
+1. 【In-depth Industry Analysis + Latest News Interpretation】(Key Focus)
    - Analyze current development stage and trend characteristics of the {industry_name} industry
+   - **⚠️ MUST combine industry news above to analyze fundamental catalysts**
    - Evaluate industry fundamentals, policy support, and market environment
+   - **Evaluate news impact on industry trends (positive/neutral/negative)**
    - Analyze overall competitive landscape and development prospects of major companies in the industry
    - Identify key driving factors and risk points affecting industry development
 
@@ -14914,19 +16179,46 @@ Please provide investment recommendations and risk alerts based on industry fund
         else:
             # 构建顶级股票信息 - 中文版（明确标识为行业龙头股票）
             top_stocks_info = ""
-            if top_stocks:
+            has_stocks = top_stocks and len(top_stocks) > 0
+            
+            # 🔍 关键调试：打印top_stocks原始数据
+            print(f"\n🔍 [提示词生成调试] top_stocks原始数据: {top_stocks}")
+            print(f"🔍 [提示词生成调试] top_stocks类型: {type(top_stocks)}")
+            print(f"🔍 [提示词生成调试] has_stocks判断结果: {has_stocks}")
+            
+            if has_stocks:
+                print(f"✅ [提示词生成] 检测到{len(top_stocks)}只龙头股票，将强制要求AI逐一分析")
                 top_stocks_info = f"\n===== 行业龙头股票（{len(top_stocks)}只，按RTSI排序） =====\n"
                 for i, stock in enumerate(top_stocks, 1):
                     top_stocks_info += f"{i}. {stock['code']} {stock['name']} - RTSI: {stock['rtsi']:.2f}分\n"
+                    print(f"  🎯 {i}. {stock['code']} {stock['name']}: RTSI {stock['rtsi']:.2f}分")
                 top_stocks_info += f"\n【数据完整性确认】\n"
                 top_stocks_info += f"▪ 实际传递的龙头股票数量: {len(top_stocks)}只\n"
                 top_stocks_info += f"▪ 需要逐一分析的股票总数: {len(top_stocks)}只\n"
-                if len(top_stocks) == 0:
-                    top_stocks_info += f"▪  警告：当前没有符合条件的股票数据，请基于此情况给出相应的行业分析\n"
             else:
-                top_stocks_info = f"\n===== 行业龙头股票（0只） =====\n"
-                top_stocks_info += f"▪  当前行业没有可分析的龙头股票数据\n"
-                top_stocks_info += f"▪ AI应重点分析行业整体趋势，无需进行具体股票推荐\n"
+                print(f"❌ [提示词生成] 未检测到龙头股票数据，将生成无个股的行业分析")
+                top_stocks_info = f"\n===== 行业龙头股票数据状态 =====\n"
+                top_stocks_info += f"▪  当前行业没有可用的龙头股票数据（可能原因：行业数据不足、RTSI评级未达标等）\n"
+                top_stocks_info += f"▪ ⚠️ 分析重点调整：请聚焦行业整体分析，不需要进行个股推荐\n"
+                top_stocks_info += f"▪  分析方向：行业趋势、政策环境、竞争格局、投资机会等宏观层面\n"
+            
+            # ✅ 新闻已在collect_industry_analysis_data中收集，不再重复搜索
+            industry_news = []
+            
+            # 构建行业资讯信息
+            news_info = ""
+            if industry_news:
+                news_info = f"\n===== {industry_name}行业最新财经资讯（{len(industry_news)}条） =====\n"
+                for i, news_item in enumerate(industry_news, 1):
+                    news_info += f"{i}. {news_item['title']}\n"
+                    news_info += f"   来源: {news_item['url']}\n"
+                news_info += "\n【资讯分析要求】\n"
+                news_info += "▪ 请结合以上最新资讯分析行业基本面和催化因素\n"
+                news_info += "▪ 评估资讯对行业走势的影响（政策支持、业绩改善、技术突破等）\n"
+                news_info += "▪ 识别资讯中的风险信号（政策风险、竞争加剧、需求下降等）\n"
+            else:
+                news_info = f"\n===== {industry_name}行业资讯 =====\n"
+                news_info += "▪ 暂无最新行业资讯数据\n"
             
             # 判断TMA强度级别 - 中文版
             if tma_index > 20:
@@ -14945,19 +16237,46 @@ Please provide investment recommendations and risk alerts based on industry fund
             prompt = f"""
 {t_gui("【行业AI智能分析】")}
 
-🚨【强制执行约束条件 - 违反将被认定为不合格报告】🚨
+🚨【分析要求 - 根据数据情况灵活调整】🚨
 
-【1. 股票分析强制要求（最高优先级）】
-▪ 【强制完成】必须逐一分析下方"行业龙头股票"部分列出的每一只股票
-▪ 【强制格式】每只股票必须使用格式："股票代码 股票名称: RTSI XX.XX分 → [评分解读] → [投资建议]"
-▪ 【完整性验证】报告结尾必须确认已分析完所有{len(top_stocks) if top_stocks else 0}只龙头股票
-▪ 【绝对禁止】不得使用"假设选择XXX企业"、"重点企业可能包括"等虚构表述
-▪ 【数据约束】所有股票代码、名称、RTSI评分必须严格按照下方数据，不得编造
+{"【情况A：有龙头股票数据时的分析要求】" if has_stocks else "【情况B：无龙头股票数据时的分析要求】"}
 
-【2. 内容聚焦要求（强制执行）】
-▪ 【主要内容】80%内容必须围绕具体股票的投资价值和操作建议
-▪ 【理论限制】宏观理论分析不得超过20%
-▪ 【实用导向】每个分析点必须对应具体投资操作
+{'''【🎯 核心任务：龙头个股深度分析】
+
+【1. 个股分析强制要求】
+▪ 【分析格式】必须为每只股票创建专门章节，格式如下：
+   "## 股票代码 股票名称 (RTSI: XX.XX分)
+   
+   **RTSI评分解读：**
+   [详细解读该股RTSI评分的含义，如：67.29分属于中等偏上水平，说明...]
+   
+   **投资价值分析：**
+   [结合行业地位、基本面、技术面分析该股投资价值]
+   
+   **操作建议：**
+   [明确给出买入/持有/观望建议，含具体仓位，如：建议配置5-8%]"
+
+▪ 【必须逐一分析】下方列出了''' + str(len(top_stocks) if top_stocks else 0) + '''只龙头股票，每只股票都必须按上述格式详细分析
+▪ 【完整性验证】报告结尾必须确认："✅ 已完成所有''' + str(len(top_stocks) if top_stocks else 0) + '''只龙头股票的深度分析"
+▪ 【绝对禁止】严禁编造股票、使用"假设"、"可能包括"等模糊表述
+▪ 【数据来源】所有股票代码、名称、RTSI评分必须严格引用下方提供的数据
+
+【2. 内容配比要求（实用导向）】
+▪ 【个股分析】≥70% - 详细分析每只龙头股的投资价值和操作建议
+▪ 【行业背景】≤30% - 简要分析行业整体情况，为个股分析提供支撑
+▪ 【严禁理论堆砌】每个分析点必须对应具体投资操作或仓位建议
+▪ 【不要国际对标】聚焦国内市场，不讨论国际比较''' if has_stocks else '''【1. 行业整体分析要求】
+▪ 【分析重点】聚焦行业整体投资价值、发展趋势、政策环境
+▪ 【禁止虚构】严格禁止编造任何股票代码、公司名称或数据
+▪ 【如实说明】需在报告中明确说明：当前行业缺乏龙头股票数据，分析基于行业整体情况
+▪ 【投资建议】基于行业TMA指数''' + f"{tma_index:.2f}" + '''和市场环境，给出行业配置建议
+
+【2. 内容结构要求】
+▪ 【行业趋势】40% - 深入分析行业发展阶段、周期特征、未来趋势
+▪ 【基本面分析】30% - 政策支持、市场环境、竞争格局、驱动因素
+▪ 【投资策略】30% - 行业配置权重、进入时机、风险控制、轮动策略
+▪ 【禁止空谈】避免过多理论，聚焦可操作的投资建议
+▪ 【不要国际对标】聚焦国内市场，不讨论国际比较'''}
 
 {t_gui("分析对象")}：{industry_name}
 {t_gui("分析时间：")} {analysis_time}
@@ -14965,7 +16284,7 @@ Please provide investment recommendations and risk alerts based on industry fund
 ===== 核心数据 =====
 • 行业TMA指数：{tma_index:.2f} ({tma_level})
 • 行业股票数量：{stock_count}只
-• 大盘MSCI指数：{market_msci:.2f}
+• 大盘MSCI指数：{market_msci:.2f}/80 (范围20-80：70+极度狂热，60-70健康乐观，50-60谨慎乐观，40-50中性，30-40悲观，23-30显著悲观，<23恐慌)
 • 市场情绪：{market_sentiment}
 • 初步投资建议：{investment_tendency}
 
@@ -14976,104 +16295,129 @@ Please provide investment recommendations and risk alerts based on industry fund
 
 {top_stocks_info}
 
-===== 分析要求 =====
-请重点分析{industry_name}行业的整体投资价值和发展趋势：
+{news_info}
 
-1. 【行业深度分析】（重点）
-   - 深入分析{industry_name}行业当前发展阶段和趋势特征
-   - 评估行业的基本面状况、政策支持和市场环境
-   - 分析行业内主要企业的整体竞争格局和发展前景
-   - 识别影响行业发展的关键驱动因素和风险点
+===== 📊 分析框架（精简实用）=====
 
-2. 【行业趋势分析】（新增重点）
-   - 基于历史数据分析{industry_name}行业的长期发展趋势
-   - 评估行业所处的生命周期阶段（导入期、成长期、成熟期、衰退期）
-   - 分析影响行业趋势的宏观经济、政策导向、技术创新等因素
-   - 预测行业未来1-3年的发展轨迹和关键转折点
-   - 对比行业趋势与大盘走势的相关性和独立性
+🚨【强制要求 - 必须按顺序完成】🚨
 
-3. 【行业轮动分析】（新增重点）
-   - 分析{industry_name}行业在市场轮动中的历史表现和周期特征
-   - 基于当前TMA指数{tma_index:.2f}判断行业在轮动周期中的位置
-   - 评估行业资金流入流出趋势和机构配置偏好变化
-   - 识别可能引发行业轮动的催化因素和时间窗口
-   - 分析与其他行业的轮动关系和替代效应
+**第一步：行业背景分析（必须先完成，占25%）**
 
-4. 【行业投资逻辑分析】（重点）
-   - 基于TMA指数{tma_index:.2f}分析行业相对强弱
-   - 评估行业估值水平和投资性价比
-   - 分析行业在当前市场环境下的配置价值
-   - 研判行业未来3-6个月的发展趋势
+1. 【🔥 行业核心数据解读】（10%）
+   **⚠️ 报告必须从这里开始！不要直接跳到个股分析！**
+   
+   - 快速解读TMA指数{tma_index:.2f}的实际含义（强势/中性/弱势）
+   - 结合市场MSCI情绪{market_msci:.2f}判断行业相对强弱
+   - 识别行业当前阶段（成长/成熟/衰退）
+   
+   **输出格式：**
+   ```
+   #### 🔥 行业核心数据解读
+   TMA指数为{tma_index:.2f}，属于[强势上涨/中性/弱势]...
+   结合市场MSCI情绪指数为{market_msci:.2f}...
+   ```
 
-5. 【行业风险评估】（重点）
-   - 识别{industry_name}行业面临的主要风险因素
-   - 分析行业波动性和周期性特征
-   - 评估政策变化、市场竞争等对行业的影响
-   - 提供行业投资的风险控制建议
+2. 【📰 行业基本面分析 + 最新资讯解读】（15%）
+   **⚠️ 这一步必须在"行业核心数据解读"之后，个股分析之前！**
+   
+   - 快速评估行业的政策支持度和市场环境
+   - **⚠️ 必须结合上方【行业资讯】分析基本面催化因素**
+   - 识别核心驱动因素（政策/需求/技术）
+   - **评估资讯对行业走势的影响（正面/中性/负面）**
+   - 分析关键风险点（政策变化/竞争/周期）
+   
+   **输出格式：**
+   ```
+   #### 📰 行业基本面分析
+   
+   ##### 政策支持度和市场环境
+   **📰 最新资讯解读：**
+   根据检索到的X条财经资讯，行业近期出现以下动态：
+   1. [具体新闻标题和内容]
+   ...
+   ```
 
-6. 【国际对标行业比较分析】（新增重点）
-   - 对比{industry_name}行业与海外同类行业的发展水平和竞争力
-   - 分析全球行业发展趋势对国内行业的影响和启示
-   - 评估国内行业在全球价值链中的地位和发展空间
-   - 识别国际先进经验和技术对行业的推动作用
-   - 分析汇率、贸易政策等国际因素对行业的影响
+**第二步：龙头个股深度分析（70%）**
 
-7. 【行业配置建议】（重点）
-   - 基于行业分析给出配置建议和时机判断
-   - 分析行业在投资组合中的配置权重
-   - 评估行业轮动的可能性和时机
-   - 提供行业投资的策略性建议
-   - 结合国际对标分析，提供全球视野下的配置建议
+3. 【🎯 龙头个股深度分析】（≥70%）
+   **这是报告的核心部分！必须为每只股票创建独立章节：**
+   
+   对下方列出的每只龙头股，必须按以下格式详细分析：
+   
+   ## [股票代码] [股票名称] (RTSI: XX.XX分)
+   
+   **RTSI评分解读：**
+   - 评分水平分析（高分70+/中等50-70/偏低<50）
+   - 与行业平均对比
+   
+   **投资价值分析：**
+   - 该股在行业中的地位和竞争力
+   - **结合上方【行业资讯】分析该股的受益程度或风险敞口**
+   - 基本面优势（业绩/技术/市场份额等）
+   - 当前估值水平评估
+   
+   **操作建议：**
+   - 明确操作：买入/持有/观望
+   - 具体仓位：建议配置X-X%
+   - 进入时机：立即/回调到X元/观望
+   - 风险提示：该股的主要风险
 
-===== 国际对标分析要求 =====
-请特别关注以下国际对标维度：
+4. 【行业配置建议】（5%）
+   - 行业整体配置权重（如：15-20%）
+   - 最佳进入时机（当前/等待回调/暂缓）
+   - 风险控制策略
 
-1. **全球行业地位对比**：
-   - 对比国内外同行业的市场规模、技术水平、盈利能力
-   - 分析国内行业的全球竞争优势和劣势
-   - 评估国内行业在全球供应链中的地位
+**⚠️ 注意事项：**
+- 聚焦国内市场，不讨论国际对标
+- 避免理论堆砌，每个观点必须对应具体操作
+- **必须在"行业基本面分析"和"个股投资价值分析"中引用上方【行业资讯】**
+- 严禁编造数据或使用"假设"、"可能"等模糊表述
 
-2. **国际发展趋势借鉴**：
-   - 分析海外同行业的发展模式和成功经验
-   - 识别可借鉴的技术创新和商业模式
-   - 评估国际趋势对国内行业的指导意义
+{'''🔥【最终检查清单 - 有龙头股时的强制要求】🔥
 
-3. **跨境投资机会**：
-   - 分析相关海外资产的投资价值
-   - 评估汇率变动对行业投资的影响
-   - 识别全球化背景下的投资机会和风险
+【✓ 个股分析完整性】
+每只股票必须有独立的Markdown二级标题章节：
+## 股票代码 股票名称 (RTSI: XX.XX分)
 
-注：重点关注{industry_name}行业的整体投资价值和发展趋势，结合国际视野为行业配置决策提供专业分析支持。
-请提供基于行业基本面和国际对标的投资建议和风险提示。
+【✓ 必须包含的四大要素】
+1. RTSI评分解读（高/中/低+具体分析）
+2. 投资价值分析（行业地位+基本面+估值）
+3. 操作建议（买入/持有/观望）
+4. 具体仓位（如：建议配置5-8%）
 
-🔥【最终强制检查 - 报告提交前必须完成以下所有项目】🔥
+【✓ 报告结尾验证】
+必须在报告末尾确认：
+"✅ 本报告已完成所有''' + str(len(top_stocks) if top_stocks else 0) + '''只龙头股票的深度分析"
 
-【强制性股票分析检查清单】
-每只股票必须包含以下四个要素，缺一不可：
- 股票代码（必须与上方数据完全一致）
- 股票名称（必须与上方数据完全一致） 
- RTSI评分解读（必须引用上方具体数值）
- 具体投资建议（买入/持有/观望，含仓位建议）
+【✓ 内容配比验证】
+- 个股分析章节占比≥70%（这是核心！）
+- 行业背景≤30%（简要即可）
+- 禁止国际对标、理论堆砌
+- 每个观点必须有具体操作建议
 
-【报告结构强制要求】
- 必须有专门的"行业龙头股票分析"章节
- 逐一分析上方列出的所有{len(top_stocks) if top_stocks else 0}只股票
- 每只股票使用统一格式："股票代码 股票名称: RTSI XX.XX分 → [评分解读] → [投资建议]"
- 报告末尾确认："已完成所有{len(top_stocks) if top_stocks else 0}只龙头股票的分析"
+【✓ 数据准确性】
+- 所有股票代码、名称、RTSI分必须与上方数据一致
+- 严禁编造、假设、使用"可能包括XX企业"等表述''' if has_stocks else '''🔥【最终检查清单 - 无龙头股时的报告要求】🔥
 
-【内容质量强制标准】
- 具体股票投资建议占比≥80%，理论分析≤20%
- 每个投资建议必须包含具体仓位或配置权重
- 禁止使用任何虚构、假设或泛化表述
- 所有数据引用必须与上方提供的数据完全一致
+【✓ 如实说明】
+报告开头必须说明："当前行业暂无可用的龙头股票数据，本报告基于行业整体分析"
 
-【不合格判定标准】
-如出现以下任一情况，报告将被认定为不合格：
-[ERROR] 遗漏任何一只上方列出的龙头股票分析
-[ERROR] 使用虚构的股票代码或公司名称
-[ERROR] 编造不存在的RTSI评分数据
-[ERROR] 过多理论化内容（>20%），缺乏具体投资指导
-[ERROR] 使用"假设"、"可能包括"等模糊表述替代具体分析
+【✓ 核心内容】
+- TMA指数''' + f"{tma_index:.2f}" + '''的深度解读
+- 行业发展阶段判断（成长/成熟/衰退）
+- 政策环境和市场趋势分析
+- 具体配置建议（如：15-20%权重）
+
+【✓ 内容配比】
+- 行业趋势分析：40%
+- 基本面分析：30%
+- 投资策略：30%
+- 禁止国际对标和理论堆砌
+
+【✓ 实用性验证】
+- 每个建议必须具体可操作
+- 禁止编造股票代码或公司名称
+- 报告末尾确认："本报告基于行业整体分析，当前暂无龙头股票数据"'''}
 
 **重要：请用中文回复所有内容。**
 """
@@ -15614,37 +16958,63 @@ Please provide professional analysis based on index technical patterns and relat
             return f"<p style='color: #dc3545;'>格式化AI分析结果失败: {str(e)}</p>"
     
     def format_ai_text_to_html(self, text):
-        """将AI分析文本格式化为HTML"""
+        """将AI分析文本格式化为HTML（支持Markdown）"""
         try:
-            # 将换行符转换为HTML换行
-            formatted = text.replace('\n', '<br/>')
+            # 尝试使用Markdown库渲染
+            try:
+                import markdown
+                # 配置markdown扩展以支持表格、代码块等
+                formatted = markdown.markdown(
+                    text, 
+                    extensions=['tables', 'fenced_code', 'nl2br']
+                )
+                
+                # 添加额外的关键词高亮
+                import re
+                keywords = ['增持', '持有', '减持', '买入', '卖出', '建议', '风险', '机会', '强势', '弱势', '上涨', '下跌']
+                for keyword in keywords:
+                    formatted = re.sub(
+                        rf'(?<![>])({keyword})(?![<])',
+                        r"<span class='highlight'><strong>\1</strong></span>",
+                        formatted
+                    )
+                
+                return formatted
+                
+            except ImportError:
+                # markdown库未安装，使用简化的HTML转换
+                print("⚠️ markdown库未安装，使用简化HTML转换")
+                import re
+                
+                # 将换行符转换为HTML换行
+                formatted = text.replace('\n', '<br/>')
+                
+                # 格式化标题（以【】包围的内容）
+                formatted = re.sub(r'【([^】]+)】', r'<h2>📌 \1</h2>', formatted)
+                
+                # 格式化子标题（以数字开头的行）
+                formatted = re.sub(r'^(\d+\.\s*【[^】]+】)', r'<h3>\1</h3>', formatted, flags=re.MULTILINE)
+                
+                # 格式化列表项（以•或-开头的行）
+                formatted = re.sub(r'^[•\-]\s*(.+)$', r'<li>\1</li>', formatted, flags=re.MULTILINE)
+                
+                # 包装连续的li标签为ul
+                formatted = re.sub(r'(<li>.*?</li>)(?:\s*<br/>)*', r'\1', formatted, flags=re.DOTALL)
+                formatted = re.sub(r'(<li>.*?</li>)', r'<ul>\1</ul>', formatted, flags=re.DOTALL)
+                
+                # 突出显示关键词
+                keywords = ['增持', '持有', '减持', '买入', '卖出', '建议', '风险', '机会', '强势', '弱势', '上涨', '下跌']
+                for keyword in keywords:
+                    formatted = formatted.replace(keyword, f"<span class='highlight'><strong>{keyword}</strong></span>")
+                
+                # 格式化投资建议
+                formatted = re.sub(r'(投资建议：[^<]+)', r'<div class="recommendation">\1</div>', formatted)
+                formatted = re.sub(r'(风险提示：[^<]+)', r'<div class="risk-warning">\1</div>', formatted)
+                
+                return formatted
             
-            # 格式化标题（以【】包围的内容）
-            import re
-            formatted = re.sub(r'【([^】]+)】', r'<h2>📌 \1</h2>', formatted)
-            
-            # 格式化子标题（以数字开头的行）
-            formatted = re.sub(r'^(\d+\.\s*【[^】]+】)', r'<h3>\1</h3>', formatted, flags=re.MULTILINE)
-            
-            # 格式化列表项（以•或-开头的行）
-            formatted = re.sub(r'^[•\-]\s*(.+)$', r'<li>\1</li>', formatted, flags=re.MULTILINE)
-            
-            # 包装连续的li标签为ul
-            formatted = re.sub(r'(<li>.*?</li>)(?:\s*<br/>)*', r'\1', formatted, flags=re.DOTALL)
-            formatted = re.sub(r'(<li>.*?</li>)', r'<ul>\1</ul>', formatted, flags=re.DOTALL)
-            
-            # 突出显示关键词
-            keywords = ['增持', '持有', '减持', '买入', '卖出', '建议', '风险', '机会', '强势', '弱势', '上涨', '下跌']
-            for keyword in keywords:
-                formatted = formatted.replace(keyword, f"<span class='highlight'><strong>{keyword}</strong></span>")
-            
-            # 格式化投资建议
-            formatted = re.sub(r'(投资建议：[^<]+)', r'<div class="recommendation">\1</div>', formatted)
-            formatted = re.sub(r'(风险提示：[^<]+)', r'<div class="risk-warning">\1</div>', formatted)
-            
-            return formatted
-            
-        except Exception:
+        except Exception as e:
+            print(f"格式化AI文本失败: {e}")
             return f"<pre>{text}</pre>"
     
     def on_industry_ai_analysis_finished(self, result):
@@ -16074,36 +17444,35 @@ class NewPyQt5Interface(QMainWindow):
             os._exit(0)
     
     def _shutdown_server_if_started_by_us(self):
-        """无条件关闭大师服务器 (http://localhost:16888) - 使用API+进程管理双保险"""
+        """无条件关闭大师服务器 (http://localhost:16888) - 异步方式，立即返回"""
         try:
-            print("[服务器管理] 准备关闭大师服务器...")
+            print("[服务器管理] 发送关闭指令到服务器...")
             
-            # 方法1: 尝试通过API优雅关闭
-            api_success = self._try_api_shutdown()
+            # 异步发送关闭请求，不等待结果
+            import threading
             
-            # 等待并验证
-            if api_success:
-                import time
-                time.sleep(1)  # 等待服务器关闭
-                
-                # 验证服务器是否真的关闭了
-                if not self._check_server_running():
-                    print("[服务器管理] ✅ 服务器已通过API成功关闭")
-                    return
-                else:
-                    print("[服务器管理] ⚠️ API关闭后服务器仍在运行，尝试进程终止")
+            def async_shutdown():
+                try:
+                    # ✅ 用户要求：直接使用方法2（进程管理），不使用方法1（API）
+                    print("[服务器管理] 方法2: 使用进程管理强制关闭服务器...")
+                    process_success = self._try_process_shutdown()
+                    
+                    if process_success:
+                        print("[服务器管理] ✅ 服务器已通过进程管理成功关闭")
+                    else:
+                        print("[服务器管理] ⚠️ 无法关闭服务器，可能需要手动关闭")
+                        
+                except Exception as e:
+                    print(f"[ERROR] 异步关闭服务器时出错: {e}")
             
-            # 方法2: 如果API失败，使用进程管理强制关闭
-            print("[服务器管理] 使用进程管理强制关闭服务器...")
-            process_success = self._try_process_shutdown()
+            # 启动异步线程，立即返回
+            shutdown_thread = threading.Thread(target=async_shutdown, daemon=True)
+            shutdown_thread.start()
             
-            if process_success:
-                print("[服务器管理] ✅ 服务器已通过进程管理成功关闭")
-            else:
-                print("[服务器管理] ⚠️ 无法关闭服务器，可能需要手动关闭")
+            print("[服务器管理] ✅ 关闭指令已发送，程序即将退出")
                 
         except Exception as e:
-            print(f"[ERROR] 关闭大师服务器时出错: {e}")
+            print(f"[ERROR] 发送关闭指令时出错: {e}")
             import traceback
             traceback.print_exc()
     

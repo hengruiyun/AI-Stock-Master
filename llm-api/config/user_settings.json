@@ -1,8 +1,10 @@
 {
-  "default_provider": "Ollama",
-  "default_chat_model": "gemma3:1b",
-  "default_structured_model": "gemma3:1b",
-  "request_timeout": 300,
+  "default_provider": "SiliconFlow",
+  "default_chat_model": "Qwen/Qwen2.5-7B-Instruct",
+  "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
+  "request_timeout": 600,
   "agent_role": "不使用",
-  "OLLAMA_BASE_URL": "http://localhost:11434"
+  "dont_show_api_dialog": false,
+  "SILICONFLOW_API_KEY": "",
+  "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1"
 }

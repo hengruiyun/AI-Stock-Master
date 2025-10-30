@@ -178,7 +178,8 @@ class EnhancedTMAAnalyzer:
                  enable_ai_enhancement: bool = True,
                  min_credibility: float = 0.3,
                  max_interpolation_ratio: float = 0.5,
-                 min_stocks_per_industry: int = 3):
+                 min_stocks_per_industry: int = 3,
+                 top_n_leading_stocks: int = 5):
         """
         初始化增强版TMA分析器
         
@@ -187,15 +188,21 @@ class EnhancedTMAAnalyzer:
             min_credibility: 最小可信度阈值
             max_interpolation_ratio: 最大插值比例阈值
             min_stocks_per_industry: 每个行业最少股票数
+            use_volume_price_tma: 是否使用量价数据TMA
+            top_n_stocks: 每个行业使用前N个龙头股票
         """
         self.logger = logging.getLogger(__name__)
         # 设置日志级别为WARNING，减少INFO输出
         self.logger.setLevel(logging.WARNING)
         self.enable_ai = enable_ai_enhancement and AI_ENHANCED_AVAILABLE
         self.min_stocks_per_industry = min_stocks_per_industry
+        self.top_n_leading_stocks = top_n_leading_stocks
         
         # 初始化基础分析器
-        self.base_analyzer = CoreStrengthAnalyzer(min_stocks_per_industry=min_stocks_per_industry)
+        self.base_analyzer = CoreStrengthAnalyzer(
+            min_stocks_per_industry=min_stocks_per_industry,
+            top_n_leading_stocks=top_n_leading_stocks
+        )
         
         # 初始化可信度过滤器
         self.credibility_filter = CredibilityFilter(min_credibility, max_interpolation_ratio)
@@ -244,7 +251,8 @@ class EnhancedTMAAnalyzer:
     def analyze_industry_with_enhancement(self, 
                                         industry_data: pd.DataFrame,
                                         market_data: pd.DataFrame = None,
-                                        industry_name: str = None) -> Dict[str, Union[float, str, Dict]]:
+                                        industry_name: str = None,
+                                        stocks_results: Dict = None) -> Dict[str, Union[float, str, Dict]]:
         """
         增强版行业分析
         
@@ -299,7 +307,7 @@ class EnhancedTMAAnalyzer:
             limited_date_cols = self._limit_date_columns(filtered_data, max_days=60)
             
             base_result = self.base_analyzer.calculate(
-                filtered_data, market_data, industry_name
+                filtered_data, market_data, industry_name, stocks_results=stocks_results
             )
             
             # ================ 第三阶段：AI增强分析（如果启用） ================
@@ -717,8 +725,15 @@ class EnhancedTMAAnalyzer:
             'risk_assessment': {'risk_level': '高', 'risk_factors': ['分析异常']}
         }
     
-    def batch_analyze_industries_enhanced(self, stock_data: pd.DataFrame) -> Dict[str, Dict]:
-        """批量增强行业分析"""
+    def batch_analyze_industries_enhanced(self, stock_data: pd.DataFrame, 
+                                         stocks_results: Dict = None) -> Dict[str, Dict]:
+        """
+        批量增强行业分析
+        
+        Args:
+            stock_data: 评级数据DataFrame
+            stocks_results: 股票RTSI结果 {stock_code: {'rtsi': {...}, 'name': ...}}
+        """
         results = {}
         
         # 获取所有行业
@@ -735,7 +750,8 @@ class EnhancedTMAAnalyzer:
                 result = self.analyze_industry_with_enhancement(
                     industry_data=industry_data,
                     market_data=stock_data,
-                    industry_name=industry
+                    industry_name=industry,
+                    stocks_results=stocks_results  # ✅ 传递RTSI数据
                 )
                 results[industry] = result
                     
