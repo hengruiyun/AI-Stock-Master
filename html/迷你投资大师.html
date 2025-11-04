@@ -303,7 +303,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🧠 迷你投资大师 （大师版）</h1>
+            <h1>迷你投资大师 （大师版）</h1>
             <div class="subtitle">融合技术分析、资金流向、市场情绪的智能决策</div>
             <div class="subtitle">作者：267278466@qq.com</div>
         </div>
@@ -412,21 +412,40 @@
         function validateStockCode(code) {
             return /^[0-9]{6}$/.test(code);
         }
+
+        function decodeText(value) {
+            if (!value) return '';
+            try {
+                return decodeURIComponent(escape(value));
+            } catch (error) {
+                return value;
+            }
+        }
         
-        // 获取股票基本信息
+        // 获取股票基本信息（使用本地数据）
         async function fetchStockBasic(code) {
             try {
-                const response = await fetch(`${LOCAL_SERVER}/api/stock/basic?source=akshare`);
+                const response = await fetch(`${LOCAL_SERVER}/api/stock/basic`);
                 if (!response.ok) throw new Error('获取基本信息失败');
                 
                 const data = await response.json();
                 if (!data.success) throw new Error(data.message || '获取基本信息失败');
                 
-                const stockInfo = data.data.find(item => item.code === code || item.symbol === code);
+                const list = Array.isArray(data.data) ? data.data : [];
+                const stockInfo = list.find(item => item.code === code || item.symbol === code);
                 if (!stockInfo) {
                     throw new Error(`股票代码 ${code} 不存在`);
                 }
-                return stockInfo;
+
+                const name = decodeText(stockInfo.name || '');
+                const symbol = stockInfo.code || stockInfo.symbol || code;
+
+                return {
+                    ...stockInfo,
+                    code: symbol,
+                    symbol: symbol,
+                    name: name || code
+                };
             } catch (error) {
                 throw error;
             }
@@ -435,73 +454,91 @@
         // 获取股票行情数据
         async function fetchStockMarket(code) {
             try {
-                // 获取60天的行情数据以确保有足够的数据计算技术指标（至少40个交易日）
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 60); // 获取60天数据，确保有足够交易日
-                
-                const startDateStr = startDate.toISOString().split('T')[0];
-                const endDateStr = endDate.toISOString().split('T')[0];
-                
-                const response = await fetch(`${LOCAL_SERVER}/api/stock/market?code=${code}&source=akshare&start_date=${startDateStr}&end_date=${endDateStr}`);
+                const response = await fetch(`${LOCAL_SERVER}/api/lj/stock/history?symbol=${code}&market=CN&top_n=200`);
                 if (!response.ok) throw new Error('获取行情数据失败');
                 
                 const data = await response.json();
                 if (!data.success) throw new Error(data.message || '获取行情数据失败');
-                
-                if (!data.data || data.data.length === 0) {
+
+                const records = Array.isArray(data.data) ? data.data : [];
+                if (records.length === 0) {
                     throw new Error('该股票没有行情数据');
                 }
-                
-                // 检查数据是否足够计算技术指标
-                if (data.data.length < 20) {
-                    throw new Error(`数据不足，无法计算技术指标（需要至少20个交易日数据，当前仅有${data.data.length}个交易日）`);
+
+                const normalized = records
+                    .map(item => ({
+                        date: item.date || item.trade_date,
+                        close: Number(item.close ?? item['收盘价'] ?? 0),
+                        open: Number(item.open ?? item['开盘价'] ?? 0),
+                        high: Number(item.high ?? item['最高价'] ?? 0),
+                        low: Number(item.low ?? item['最低价'] ?? 0),
+                        volume: Number(item.volume ?? item['成交量'] ?? 0),
+                        amount: Number(item.amount ?? item['成交额'] ?? 0)
+                    }))
+                    .filter(item => item.date)
+                    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                if (normalized.length < 20) {
+                    throw new Error(`数据不足，无法计算技术指标（需要至少20个交易日数据，当前仅有${normalized.length}个交易日）`);
                 }
-                
-                return data.data;
+
+                return normalized;
             } catch (error) {
                 throw error;
             }
         }
         
-        // 获取资金流向数据
+        // 获取资金流向数据（使用本地数据）
         async function fetchMoneyFlow(code) {
             try {
-                const response = await fetch(`${LOCAL_SERVER}/api/stock/money_flow?code=${code}&period=30`);
+                const response = await fetch(`${LOCAL_SERVER}/api/lj/money/flow?symbol=${code}&top_n=200`);
                 if (!response.ok) throw new Error('获取资金流向数据失败');
                 
                 const data = await response.json();
-                if (!data.success) throw new Error(data.message || '获取资金流向数据失败');
+                if (!data.success) throw new Error(data.message || data.error || '获取资金流向数据失败');
                 
-                if (!data.data || !data.data.data || data.data.data.length === 0) {
+                const records = Array.isArray(data.data) ? data.data : [];
+                if (records.length === 0) {
                     throw new Error('该股票没有资金流向数据');
                 }
                 
-                return data.data;
+                return records
+                    .map(item => ({
+                        trade_date: item.trade_date || item.date,
+                        net_amount: Number(item.net_mf_amount ?? item.net_amount ?? 0),
+                        buy_elg_amount: Number(item.buy_elg_amount ?? 0),
+                        buy_lg_amount: Number(item.buy_lg_amount ?? 0),
+                        buy_md_amount: Number(item.buy_md_amount ?? 0),
+                        buy_sm_amount: Number(item.buy_sm_amount ?? 0),
+                        sell_elg_amount: Number(item.sell_elg_amount ?? 0),
+                        sell_lg_amount: Number(item.sell_lg_amount ?? 0),
+                        sell_md_amount: Number(item.sell_md_amount ?? 0),
+                        sell_sm_amount: Number(item.sell_sm_amount ?? 0)
+                    }))
+                    .filter(item => item.trade_date)
+                    .sort((a, b) => new Date(a.trade_date) - new Date(b.trade_date));
             } catch (error) {
                 throw error;
             }
         }
         
-        // 获取大单数据
-        async function fetchLargeOrders(code) {
+        // 获取大单数据（基于资金流向的特大/大单统计）
+        async function fetchLargeOrders(code, existingMoneyFlow = null) {
             try {
-                // 使用正确的参数名 code 而不是 symbol
-                const response = await fetch(`${LOCAL_SERVER}/api/stock/large_orders?code=${code}`);
-                if (!response.ok) {
-                    throw new Error(`获取大单数据失败: HTTP ${response.status}`);
-                }
-                
-                const data = await response.json();
-                if (data.rc !== 0) {
-                    throw new Error(data.msg || '获取大单数据失败');
-                }
-                
-                if (!data.data || !data.data.data || data.data.data.length === 0) {
+                const source = Array.isArray(existingMoneyFlow) && existingMoneyFlow.length > 0
+                    ? existingMoneyFlow
+                    : await fetchMoneyFlow(code);
+
+                const recent = source.slice(-10);
+                if (recent.length === 0) {
                     throw new Error('该股票没有大单数据');
                 }
-                
-                return data.data.data;
+
+                return recent.map(item => ({
+                    date: item.trade_date,
+                    buyAmount: ((item.buy_elg_amount || 0) + (item.buy_lg_amount || 0)) / 10000,
+                    sellAmount: ((item.sell_elg_amount || 0) + (item.sell_lg_amount || 0)) / 10000
+                }));
             } catch (error) {
                 throw error;
             }
@@ -509,46 +546,56 @@
         
         // 计算技术指标
         function calculateTechnicalIndicators(marketData) {
-            if (!marketData || marketData.length < 20) {
+            if (!Array.isArray(marketData) || marketData.length < 20) {
                 throw new Error('数据不足，无法计算技术指标（需要至少20个交易日数据）');
             }
-            
-            const prices = marketData.slice(-60).map(item => parseFloat(item.close || item.收盘价 || 0));
-            const volumes = marketData.slice(-60).map(item => parseInt(item.volume || item.成交量 || 0));
-            const currentPrice = prices[prices.length - 1];
-            
-            // 移动平均线
-            const ma5 = prices.slice(-5).reduce((a, b) => a + b, 0) / 5;
-            const ma10 = prices.slice(-10).reduce((a, b) => a + b, 0) / 10;
-            const ma20 = prices.slice(-20).reduce((a, b) => a + b, 0) / 20;
-            const ma60 = prices.reduce((a, b) => a + b, 0) / prices.length;
-            
-            // RSI计算
-            let gains = 0, losses = 0;
-            for (let i = 1; i < Math.min(prices.length, 14); i++) {
-                const change = prices[prices.length - i] - prices[prices.length - i - 1];
+
+            const recent = marketData.slice(-60);
+            const closes = recent.map(item => Number(item.close || 0));
+            const volumes = recent.map(item => Number(item.volume || 0));
+
+            const currentPrice = closes[closes.length - 1];
+
+            const avg = (arr, count) => {
+                if (arr.length < count) {
+                    throw new Error(`数据不足，无法计算技术指标（需要至少${count}个交易日数据）`);
+                }
+                return arr.slice(-count).reduce((sum, value) => sum + value, 0) / count;
+            };
+
+            const ma5 = avg(closes, 5);
+            const ma10 = avg(closes, 10);
+            const ma20 = avg(closes, 20);
+            const ma60 = closes.reduce((sum, value) => sum + value, 0) / closes.length;
+
+            let gains = 0;
+            let losses = 0;
+            for (let i = 1; i < Math.min(closes.length, 14); i++) {
+                const change = closes[closes.length - i] - closes[closes.length - i - 1];
                 if (change > 0) gains += change;
                 else losses += Math.abs(change);
             }
-            const avgGain = gains / 13;
-            const avgLoss = losses / 13;
-            const rs = avgGain / avgLoss;
-            const rsi = 100 - (100 / (1 + rs));
-            
-            // 波动率
+            const avgGain = gains / 14;
+            const avgLoss = losses / 14;
+            const rs = avgLoss === 0 ? 0 : avgGain / avgLoss;
+            const rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
+
             const returns = [];
-            for (let i = 1; i < prices.length; i++) {
-                returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+            for (let i = 1; i < closes.length; i++) {
+                const prev = closes[i - 1];
+                if (prev > 0) {
+                    returns.push((closes[i] - prev) / prev);
+                }
             }
-            const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-            const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / returns.length;
-            const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100; // 年化波动率
-            
-            // 成交量比率
-            const avgVolume = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10;
-            const currentVolume = volumes[volumes.length - 1];
-            const volumeRatio = currentVolume / avgVolume;
-            
+            const avgReturn = returns.reduce((sum, ret) => sum + ret, 0) / (returns.length || 1);
+            const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / (returns.length || 1);
+            const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100;
+
+            const recentVolumes = volumes.slice(-10);
+            const avgVolume = recentVolumes.reduce((sum, value) => sum + value, 0) / (recentVolumes.length || 1);
+            const currentVolume = volumes[volumes.length - 1] || 0;
+            const volumeRatio = avgVolume > 0 ? currentVolume / avgVolume : 0;
+
             return {
                 ma5, ma10, ma20, ma60, rsi, volatility,
                 current_price: currentPrice,
@@ -558,33 +605,41 @@
         
         // 分析资金流向
         function analyzeMoneyFlow(moneyFlowData) {
-            if (!moneyFlowData || !moneyFlowData.data || moneyFlowData.data.length === 0) {
+            if (!Array.isArray(moneyFlowData) || moneyFlowData.length === 0) {
                 throw new Error('缺少资金流向数据，无法进行分析');
             }
-            
-            const recent = moneyFlowData.data.slice(-10);
+
+            const recent = moneyFlowData.slice(-10);
             let mainNetFlow = 0;
             let superLargeNetFlow = 0;
             let positiveDays = 0;
-            
+
             recent.forEach(item => {
-                const mainFlow = parseFloat(item['主力净流入-净额'] || 0);
-                const superLargeFlow = parseFloat(item['超大单净流入-净额'] || 0);
-                
-                mainNetFlow += mainFlow;
-                superLargeNetFlow += superLargeFlow;
-                
-                if (mainFlow > 0) positiveDays++;
+                const net = Number(item.net_amount ?? item.net_mf_amount ?? 0);
+                const superBuy = Number(item.buy_elg_amount ?? 0) + Number(item.buy_lg_amount ?? 0);
+                const superSell = Number(item.sell_elg_amount ?? 0) + Number(item.sell_lg_amount ?? 0);
+
+                mainNetFlow += net;
+                superLargeNetFlow += (superBuy - superSell);
+
+                if (net > 0) positiveDays++;
             });
-            
-            const mainTrend = mainNetFlow > 50000000 ? '强势流入' : 
-                             mainNetFlow > 0 ? '净流入' : 
-                             mainNetFlow < -50000000 ? '强势流出' : '净流出';
-            
-            const mainStrength = Math.abs(mainNetFlow) / 100000000; // 转换为亿元
+
+            let mainTrend = '均衡';
+            if (mainNetFlow > 100000000) {
+                mainTrend = '强势吸筹';
+            } else if (mainNetFlow > 0) {
+                mainTrend = '温和流入';
+            } else if (mainNetFlow < -100000000) {
+                mainTrend = '强势出货';
+            } else if (mainNetFlow < 0) {
+                mainTrend = '温和流出';
+            }
+
+            const mainStrength = Math.abs(mainNetFlow) / 100000000;
             const superLargeActivity = Math.abs(superLargeNetFlow) / 100000000;
-            const continuity = positiveDays / recent.length;
-            
+            const continuity = recent.length ? positiveDays / recent.length : 0;
+
             return {
                 main_trend: mainTrend,
                 main_strength: mainStrength,
@@ -595,35 +650,33 @@
         
         // 分析大单异动
         function analyzeLargeOrders(largeOrdersData) {
-            if (!largeOrdersData || largeOrdersData.length === 0) {
-                throw new Error('缺少大单数据，无法进行异动分析');
+            if (!Array.isArray(largeOrdersData) || largeOrdersData.length === 0) {
+                throw new Error('缺少大单数据，无法分析');
             }
-            
-            // 分析大单数据
+
             let totalBuyAmount = 0;
             let totalSellAmount = 0;
             let anomalyCount = 0;
-            
+
             largeOrdersData.forEach(order => {
-                const buyAmount = parseFloat(order.buyAmount || 0);
-                const sellAmount = parseFloat(order.sellAmount || 0);
-                
+                const buyAmount = Number(order.buyAmount || 0);
+                const sellAmount = Number(order.sellAmount || 0);
+
                 totalBuyAmount += buyAmount;
                 totalSellAmount += sellAmount;
-                
-                // 判断是否为异动（买卖金额超过一定阈值）
-                if (buyAmount > 10000 || sellAmount > 10000) {
+
+                if (buyAmount > 1000 || sellAmount > 1000) { // 单日特大+大单超过亿元
                     anomalyCount++;
                 }
             });
-            
-            const buySelRatio = totalSellAmount > 0 ? totalBuyAmount / totalSellAmount : 1;
+
+            const buySellRatio = totalSellAmount > 0 ? totalBuyAmount / totalSellAmount : 1;
             const anomalyStrength = anomalyCount / largeOrdersData.length;
-            const frequency = largeOrdersData.length / 10; // 假设10天内的频率
-            
+            const frequency = largeOrdersData.length;
+
             return {
                 anomaly_strength: anomalyStrength,
-                buy_sell_ratio: buySelRatio,
+                buy_sell_ratio: buySellRatio,
                 frequency: frequency
             };
         }
@@ -648,7 +701,7 @@
             else if (indicators.rsi > 70) buffettScore -= 20; // 超买区域
             
             // 资金流向 - 主力资金持续流入是好信号
-            if (moneyFlowAnalysis.main_trend === '强势流入') buffettScore += 15;
+            if (moneyFlowAnalysis.main_trend === '强势吸筹') buffettScore += 15;
             if (moneyFlowAnalysis.continuity > 0.6) buffettScore += 10; // 持续性好
             
             strategies.buffett = Math.max(0, Math.min(100, buffettScore));
@@ -686,7 +739,7 @@
             else if (indicators.rsi > 75) grahamScore -= 25;
             
             // 资金流向稳定
-            if (moneyFlowAnalysis.main_strength < 2 && moneyFlowAnalysis.main_trend !== '强势流出') {
+            if (moneyFlowAnalysis.main_strength < 2 && moneyFlowAnalysis.main_trend !== '强势出货') {
                 grahamScore += 10;
             }
             
@@ -704,7 +757,7 @@
             if (indicators.volume_ratio > 2) sorosScore += 20; // 大幅放量
             
             // 资金流向强势
-            if (moneyFlowAnalysis.main_trend === '强势流入') sorosScore += 20;
+            if (moneyFlowAnalysis.main_trend === '强势吸筹') sorosScore += 20;
             if (moneyFlowAnalysis.super_large_activity > 2) sorosScore += 10;
             
             strategies.soros = Math.max(0, Math.min(100, sorosScore));
@@ -775,12 +828,12 @@
             }
             
             // 基于资金流向调整建议
-            if (moneyFlowAnalysis.main_trend === '强势流出' && recommendation.includes('买入')) {
+            if (moneyFlowAnalysis.main_trend === '强势出货' && recommendation.includes('买入')) {
                 recommendation = '观望';
                 reasoning.push('主力资金流出，暂缓买入');
             }
             
-            if (moneyFlowAnalysis.main_trend === '强势流入' && recommendation === '观望') {
+            if (moneyFlowAnalysis.main_trend === '强势吸筹' && recommendation === '观望') {
                 recommendation = '谨慎买入';
                 reasoning.push('主力资金流入，可考虑建仓');
             }
@@ -819,9 +872,9 @@
             }
             
             // 资金流向洞察
-            if (moneyFlowAnalysis.main_trend === '强势流入') {
+            if (moneyFlowAnalysis.main_trend === '强势吸筹') {
                 insights.push('💰 主力看好：主力资金持续流入，机构投资者看好后市');
-            } else if (moneyFlowAnalysis.main_trend === '强势流出') {
+            } else if (moneyFlowAnalysis.main_trend === '强势出货') {
                 insights.push('🚨 主力撤离：主力资金大幅流出，需警惕下跌风险');
             }
             
@@ -861,7 +914,8 @@
             }
             
             if (code && /^\d{6}$/.test(code)) {
-                const url = `${window.location.origin}/智能个股分析.html##${code}##${encodeURIComponent(name)}##`;
+                // 使用相对路径，兼容file://协议
+                const url = `智能个股分析.html##${code}##${encodeURIComponent(name)}##`;
                 window.location.href = url;
             } else {
                 alert('请先输入或分析股票代码');
@@ -950,36 +1004,37 @@
             const stockCode = document.getElementById('stockCode').value.trim();
             
             if (!stockCode) {
-                showError('请输入股票代码');
+                showError('请输入6位股票代码');
                 return;
             }
             
             // 广播到通达信
             broadcastToTdx(stockCode);
             
-            // 清空缓存数据，重新获取股票信息
+            // 清空上一次的结果
             clearCacheAndReset();
             
-            window.currentAnalyzedCode = stockCode; // 保存到全局变量供个股分析按钮使用
-            globalCurrentStockCode = stockCode; // 保存到新的全局变量
+            window.currentAnalyzedCode = stockCode; // 当前分析的股票代码
+            globalCurrentStockCode = stockCode; // 保存到全局变量，便于其他模块使用
             
             if (!validateStockCode(stockCode)) {
-                showError('股票代码格式不正确，请输入6位数字代码');
+                showError('股票代码必须为6位数字');
                 return;
             }
             
             showLoading();
             
             try {
-                // 并行获取多种数据
-                const [basicInfo, marketData, moneyFlowData, largeOrdersData] = await Promise.all([
+                // 并行拉取基础信息、行情数据和资金流向数据
+                const [basicInfo, marketData, moneyFlowData] = await Promise.all([
                     fetchStockBasic(stockCode),
                     fetchStockMarket(stockCode),
-                    fetchMoneyFlow(stockCode),
-                    fetchLargeOrders(stockCode)
+                    fetchMoneyFlow(stockCode)
                 ]);
+
+                const largeOrdersData = await fetchLargeOrders(stockCode, moneyFlowData);
                 
-                // 保存股票名称到全局变量
+                // 更新股票名称缓存
                 if (basicInfo && basicInfo.name) {
                     globalCurrentStockName = basicInfo.name;
                 }
@@ -990,36 +1045,36 @@
                 // 分析资金流向
                 const moneyFlowAnalysis = analyzeMoneyFlow(moneyFlowData);
                 
-                // 分析大单异动
+                // 分析大单动向
                 const largeOrdersAnalysis = analyzeLargeOrders(largeOrdersData);
                 
-                // 增强版投资大师分析
+                // 综合大师策略分析
                 const masterAnalysis = enhancedMasterAnalysis(indicators, moneyFlowAnalysis, largeOrdersAnalysis, basicInfo);
                 
-                // 生成投资建议
+                // 给出投资建议
                 const investmentAdvice = generateInvestmentAdvice(masterAnalysis, indicators, moneyFlowAnalysis);
                 
-                // 生成投资洞察
+                // 洞察总结
                 const masterInsights = generateMasterInsights(indicators, moneyFlowAnalysis, largeOrdersAnalysis, masterAnalysis);
                 
-                // 显示结果
+                // 展示结果
                 displayResults(basicInfo, masterAnalysis, investmentAdvice, masterInsights, {
                     market: marketData ? marketData.length : 0,
-                    moneyFlow: moneyFlowData ? moneyFlowData.data?.length || 0 : 0,
-                    largeOrders: largeOrdersData ? 1 : 0
+                    moneyFlow: Array.isArray(moneyFlowData) ? moneyFlowData.length : 0,
+                    largeOrders: Array.isArray(largeOrdersData) ? largeOrdersData.length : 0
                 });
                 
                 showResults();
                 
             } catch (error) {
-                // 显示真实的错误原因
-                let errorMessage = '分析失败';
+                // 捕获错误并提示
+                let errorMessage = '';
                 if (error.message) {
-                    errorMessage = `分析失败: ${error.message}`;
+                    errorMessage = `发生错误: ${error.message}`;
                 } else if (typeof error === 'string') {
-                    errorMessage = `分析失败: ${error}`;
+                    errorMessage = `发生错误: ${error}`;
                 } else {
-                    errorMessage = '错误，检查网络连接和大师服务器状态';
+                    errorMessage = '分析失败，请稍后重试';
                 }
                 showError(errorMessage);
             }
@@ -1097,17 +1152,16 @@
                     <p><strong>置信度:</strong> ${advice.confidence.toFixed(1)}%</p>
                     <p><strong>风险等级:</strong> ${advice.risk_level}</p>
                 </div>
-                <p><strong>分析理由:</strong> ${advice.reasoning}</p>
+                <p><strong>主要依据:</strong> ${advice.reasoning}</p>
             `;
             
-            // 显示数据来源
             const basisElement = document.getElementById('analysisBasis');
             basisElement.innerHTML = `
-                <li>技术指标分析 (K线数据: ${dataSources.market}天)</li>
-                <li>资金流向分析 (资金数据: ${dataSources.moneyFlow}天)</li>
-                <li>主力大单分析 (异动数据: ${dataSources.largeOrders ? '已获取' : '暂无'})</li>
-                <li>多维度投资大师策略模型</li>
-                <li>市场情绪与趋势分析</li>
+                <li>技术面分析（K线样本: ${dataSources.market} 条）</li>
+                <li>资金面分析（资金流向样本: ${dataSources.moneyFlow} 条）</li>
+                <li>大单动向（特大+大单样本: ${dataSources.largeOrders} 条）</li>
+                <li>多维大师策略模型综合评分</li>
+                <li>市场情绪与主力资金行为评估</li>
             `;
         }
         

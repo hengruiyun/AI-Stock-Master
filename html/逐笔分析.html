@@ -1107,7 +1107,8 @@
             }
             
             if (code && /^\d{6}$/.test(code)) {
-                const url = `${window.location.origin}/多空博弈大师版.html##${code}##${encodeURIComponent(name)}##`;
+                // 使用相对路径，兼容file://协议
+                const url = `多空博弈大师版.html##${code}##${encodeURIComponent(name)}##`;
                 window.location.href = url;
             } else {
                 alert('请先输入或分析股票代码');

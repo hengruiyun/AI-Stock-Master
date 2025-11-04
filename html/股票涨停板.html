@@ -510,6 +510,106 @@
             return date.toISOString().slice(0, 10).replace(/-/g, '');
         }
 
+        function normalizeToCompactDate(dateStr) {
+            if (!dateStr) return null;
+            const value = String(dateStr).replace(/-/g, '').trim();
+            return /^\d{8}$/.test(value) ? value : null;
+        }
+
+        function getPreviousDateCompact(dateStr) {
+            const compact = normalizeToCompactDate(dateStr);
+            if (!compact) return null;
+            const year = parseInt(compact.slice(0, 4), 10);
+            const month = parseInt(compact.slice(4, 6), 10) - 1;
+            const day = parseInt(compact.slice(6, 8), 10);
+            const date = new Date(year, month, day);
+            date.setDate(date.getDate() - 1);
+            return date.toISOString().slice(0, 10).replace(/-/g, '');
+        }
+
+        async function fetchZtbDataWithFallback(targetDate, limitType = 'U') {
+            let attemptDate = normalizeToCompactDate(targetDate);
+            if (!attemptDate) {
+                attemptDate = getDateBefore(1);
+            }
+
+            const visited = new Set();
+            let lastError = null;
+
+            while (attemptDate && !visited.has(attemptDate) && visited.size < 10) {
+                visited.add(attemptDate);
+                const url = `${SERVER_URL}/api/lj/ztb?date=${attemptDate}&limit_type=${limitType}`;
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const json = await response.json();
+                        if (json && json.success) {
+                            return {
+                                success: true,
+                                data: json,
+                                requestedDate: targetDate,
+                                actualDate: json.date || attemptDate
+                            };
+                        }
+
+                        return {
+                            success: false,
+                            data: json,
+                            requestedDate: targetDate,
+                            actualDate: (json && json.date) || attemptDate,
+                            error: (json && (json.error || json.message)) || '未返回有效的涨停数据'
+                        };
+                    }
+
+                    let errorPayload = null;
+                    try {
+                        errorPayload = await response.json();
+                    } catch (parseError) {
+                        errorPayload = null;
+                    }
+
+                    if (response.status === 404) {
+                        let nextDate = null;
+                        if (errorPayload && errorPayload.latest_date) {
+                            nextDate = normalizeToCompactDate(errorPayload.latest_date);
+                        }
+                        if (!nextDate) {
+                            nextDate = getPreviousDateCompact(attemptDate);
+                        }
+                        if (!nextDate || visited.has(nextDate)) {
+                            return {
+                                success: false,
+                                error: (errorPayload && errorPayload.error) || `未找到${attemptDate}的数据`,
+                                requestedDate: targetDate
+                            };
+                        }
+                        attemptDate = nextDate;
+                        lastError = (errorPayload && errorPayload.error) || lastError;
+                        continue;
+                    }
+
+                    return {
+                        success: false,
+                        error: (errorPayload && errorPayload.error) || `HTTP ${response.status}`,
+                        requestedDate: targetDate
+                    };
+                } catch (networkError) {
+                    lastError = networkError.message || String(networkError);
+                    return {
+                        success: false,
+                        error: lastError,
+                        requestedDate: targetDate
+                    };
+                }
+            }
+
+            return {
+                success: false,
+                error: lastError || '未找到可用的交易日',
+                requestedDate: targetDate
+            };
+        }
+
         // 格式化日期显示
         function formatDateDisplay(dateStr) {
             const year = dateStr.slice(0, 4);
@@ -538,13 +638,6 @@
             const cleanCode = cleanStockCode(code);
             // 使用相对路径，避免在代理环境中双重代理
             return `./多空博弈大师版.html##${cleanCode}####${name}##`;
-        }
-
-        // 生成逐笔分析按钮URL
-        function generateTickAnalysisUrl(code, name) {
-            const cleanCode = cleanStockCode(code);
-            // 使用相对路径，避免在代理环境中双重代理
-            return `./逐笔分析.html##${cleanCode}##${name}##`;
         }
 
         // 生成投资大师分析按钮URL
@@ -649,7 +742,6 @@
                     const cleanCode = cleanStockCode(stock.代码);
                     const stockAnalysisUrl = generateStockAnalysisUrl(stock.代码, stock.名称);
                     const analysisUrl = generateAnalysisUrl(stock.代码, stock.名称);
-                    const tickAnalysisUrl = generateTickAnalysisUrl(stock.代码, stock.名称);
                     const masterAnalysisUrl = generateMasterAnalysisUrl(stock.代码, stock.名称);
                     
                     stockRow.innerHTML = `
@@ -658,7 +750,6 @@
                         <td>
                             <a href="${stockAnalysisUrl}" class="analysis-btn">个股分析</a>
                             <a href="${analysisUrl}" class="analysis-btn">多空分析</a>
-                            <a href="${tickAnalysisUrl}" class="analysis-btn">逐笔分析</a>
                             <a href="${masterAnalysisUrl}" class="analysis-btn">投资大师分析</a>
                         </td>
                     `;
@@ -695,73 +786,60 @@
             
             }
 
-        // 获取涨停池数据
         async function fetchZtPoolData(days = 1) {
             const loadingDiv = document.getElementById('loadingDiv');
             
             try {
                 loadingDiv.style.display = 'block';
                 
-                // 获取指定天数的数据
-                const promises = [];
+                const fetchPromises = [];
                 for (let i = 0; i < days; i++) {
                     const date = getDateBefore(i + 1);
-                    promises.push(fetch(`${SERVER_URL}/api/stock/zt_pool?date=${date}`));
+                    fetchPromises.push(fetchZtbDataWithFallback(date, 'U'));
                 }
-                
-                const responses = await Promise.all(promises);
-                
-                // 检查响应状态并处理错误
-                const dataPromises = responses.map(async (response, index) => {
-                    if (!response.ok) {
-                        return { success: false, error: `HTTP ${response.status}` };
-                    }
-                    
-                    try {
-                        return await response.json();
-                    } catch (jsonError) {
-                        return { success: false, error: 'JSON解析失败' };
-                    }
-                });
-                
-                const results = await Promise.all(dataPromises);
-                
-                // 合并数据
+
+                const results = await Promise.all(fetchPromises);
+
                 let allData = [];
-                let validDates = [];
-                let errorMessages = [];
-                
-                results.forEach((result, index) => {
-                    if (result.success && result.data) {
-                        allData = allData.concat(result.data);
-                        validDates.push(result.date);
-                    } else if (result.error_type === 'api_unavailable') {
-                        errorMessages.push(`数据服务暂时不可用`);
+                const validDateSet = new Set();
+                const errorMessages = [];
+
+                results.forEach(result => {
+                    if (result.success && result.data && result.data.success && Array.isArray(result.data.data)) {
+                        allData = allData.concat(result.data.data);
+                        const actualDate = result.data.date || result.actualDate;
+                        if (actualDate) {
+                            const compact = normalizeToCompactDate(actualDate);
+                            if (compact) {
+                                validDateSet.add(compact);
+                            }
+                        }
+                    } else if (result.success && result.data && result.data.error) {
+                        errorMessages.push(result.data.error);
                     } else if (result.error) {
                         errorMessages.push(result.error);
                     }
                 });
-                
-                // 如果有错误但也有部分数据，显示警告
+
+                const validDates = Array.from(validDateSet);
+
                 if (errorMessages.length > 0 && allData.length > 0) {
-                    showWarning(`部分数据获取失败，但已显示可用数据。错误: ${errorMessages[0]}`);
+                    showWarning(`部分数据获取失败，已展示可用的其他数据。原因: ${errorMessages[0]}`);
                 } else if (errorMessages.length > 0 && allData.length === 0) {
-                    // 如果所有请求都失败，显示具体错误
                     const uniqueErrors = [...new Set(errorMessages)];
                     if (uniqueErrors.includes('数据服务暂时不可用')) {
-                        showError('涨停数据服务暂时不可用，请稍后重试');
+                        showError('涨停数据服务暂时不可用，请稍后再试');
                     } else {
                         showError(`获取涨停数据失败: ${uniqueErrors.join(', ')}`);
                     }
                     return;
                 }
-                
+
                 if (allData.length === 0) {
-                    showError(`未获取到最近${days}日的涨停数据`);
+                    showError(`未获取到最近${days}天的涨停数据`);
                     return;
                 }
-                
-                // 去重（同一只股票可能多日涨停，保留连板数最高的）
+
                 const stockMap = new Map();
                 allData.forEach(stock => {
                     const key = stock.代码;
@@ -769,21 +847,20 @@
                         stockMap.set(key, stock);
                     }
                 });
-                
+
                 ztPoolData = Array.from(stockMap.values());
                 industryData = processZtPoolData(ztPoolData);
-                
+
                 updateStats();
                 updateIndustryTable();
-                
-                // 更新日期显示
+
                 if (validDates.length > 0) {
                     const dateDisplay = validDates.map(formatDateDisplay).join(', ');
-                    document.getElementById('currentDate').textContent = `数据日期: ${dateDisplay}`;
+                    document.getElementById('currentDate').textContent = `覆盖日期: ${dateDisplay}`;
                 }
-                
-                showSuccess(`成功获取${days}日涨停数据，共${ztPoolData.length}只股票，涉及${industryData.length}个行业`);
-                
+
+                showSuccess(`成功获取${days}天涨停数据，共${ztPoolData.length}只股票，涉及${industryData.length}个行业`);
+
             } catch (error) {
                 showError('获取涨停数据失败，请检查网络连接和服务器状态');
             } finally {

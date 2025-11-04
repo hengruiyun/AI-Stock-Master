@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>龙虎榜统计 （大师版）</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #E63946 0%, #4ECDC4 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .author {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-label {
+            font-weight: 500;
+            color: #333;
+            min-width: 80px;
+        }
+
+        .period-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .period-btn {
+            padding: 10px 20px;
+            border: 2px solid #E63946;
+            background: white;
+            color: #E63946;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .period-btn:hover {
+            background: #E63946;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .period-btn.active {
+            background: #E63946;
+            color: white;
+            box-shadow: 0 4px 12px rgba(230, 57, 70, 0.3);
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #E63946;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        /* 统计表格区域 */
+        .stats-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .stats-section h2 {
+            color: #E63946;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stats-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stats-tab {
+            padding: 10px 20px;
+            border: 2px solid #4ECDC4;
+            background: white;
+            color: #4ECDC4;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .stats-tab:hover {
+            background: #4ECDC4;
+            color: white;
+        }
+
+        .stats-tab.active {
+            background: #4ECDC4;
+            color: white;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 8px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: linear-gradient(135deg, #E63946, #F77F00);
+            color: white;
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            text-align: center;
+            vertical-align: middle;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        th i {
+            margin-right: 6px;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .stat-row {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .stat-row:hover {
+            background-color: rgba(230, 57, 70, 0.05);
+        }
+
+        .stat-row.expanded {
+            background-color: rgba(230, 57, 70, 0.1);
+        }
+
+        .detail-row {
+            background-color: rgba(240, 240, 240, 0.5);
+            display: none;
+        }
+
+        .detail-row.show {
+            display: table-row;
+        }
+
+        .detail-row td {
+            padding: 8px;
+            font-size: 0.85rem;
+        }
+
+        .detail-content {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .stock-link {
+            color: #E63946;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .stock-link:hover {
+            color: #F77F00;
+            text-decoration: underline;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #E63946;
+            font-size: 1.2rem;
+        }
+
+        .loading i {
+            animation: spin 1s linear infinite;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .risk-warning {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .risk-warning h3 {
+            color: #E63946;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .risk-warning p {
+            color: #666;
+            line-height: 1.8;
+            margin-bottom: 10px;
+        }
+
+        /* 排行榜样式 */
+        .rank-badge {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            font-weight: bold;
+            color: white;
+        }
+
+        .rank-1 { background: linear-gradient(135deg, #FFD700, #FFA500); }
+        .rank-2 { background: linear-gradient(135deg, #C0C0C0, #808080); }
+        .rank-3 { background: linear-gradient(135deg, #CD7F32, #8B4513); }
+        .rank-other { background: linear-gradient(135deg, #4ECDC4, #44A08D); }
+
+        /* 净买入/净卖出样式 */
+        .net-buy {
+            color: #FF0000;  /* 标准红色 */
+            font-weight: bold;
+        }
+
+        .net-sell {
+            color: #00AA00;  /* 标准绿色 */
+            font-weight: bold;
+        }
+
+        /* 上榜原因标签 - 移除淡蓝色背景特效 */
+        .reason-tag {
+            display: inline-block;
+            padding: 4px 8px;
+            /* background: rgba(78, 205, 196, 0.2); */ /* 已移除淡蓝色背景 */
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: #333; /* 改为深色文字 */
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .stat-card {
+                padding: 15px;
+            }
+            
+            .stat-value {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-trophy"></i> 龙虎榜统计分析  （大师版）</h1>
+            <div class="subtitle"></div>
+            <div class="author">作者：267278466@qq.com</div>
+        </div>
+
+        <!-- 时间周期选择 -->
+        <div class="controls">
+            <div class="control-group">
+                <span class="control-label"><i class="fas fa-calendar-alt"></i> 统计周期:</span>
+                <div class="period-selector">
+                    <button class="period-btn active" onclick="changePeriod(1)">1日</button>
+                    <button class="period-btn" onclick="changePeriod(5)">5日</button>
+                    <button class="period-btn" onclick="changePeriod(10)">10日</button>
+                    <button class="period-btn" onclick="changePeriod(30)">30日</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计概览卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalRecords">-</div>
+                <div class="stat-label">总上榜记录</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="uniqueStocks">-</div>
+                <div class="stat-label">上榜股票数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="dateRange">-</div>
+                <div class="stat-label">数据日期范围</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="mostFrequent">-</div>
+                <div class="stat-label">上榜最多次数</div>
+            </div>
+        </div>
+
+        <!-- 统计数据展示 -->
+        <div class="stats-section">
+            <h2><i class="fas fa-chart-bar"></i> 龙虎榜详细统计</h2>
+            
+            <div class="stats-tabs">
+                <button class="stats-tab active" onclick="switchTab('frequency')">上榜次数排行</button>
+                <button class="stats-tab" onclick="switchTab('reason')">上榜原因分布</button>
+                <button class="stats-tab" onclick="switchTab('netbuy')">净买入排行</button>
+                <button class="stats-tab" onclick="switchTab('netsell')">净卖出排行</button>
+            </div>
+
+            <div id="loadingDiv" class="loading">
+                <i class="fas fa-spinner"></i>
+                <p>正在加载龙虎榜数据...</p>
+            </div>
+            <div id="errorDiv" style="display: none;"></div>
+            <div id="successDiv" style="display: none;"></div>
+
+            <!-- 上榜次数排行表格 -->
+            <div class="table-container" id="frequencyTable" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-trophy"></i> 排名</th>
+                            <th><i class="fas fa-code"></i> 股票代码</th>
+                            <th><i class="fas fa-building"></i> 股票名称 (净买入)</th>
+                            <th><i class="fas fa-sort-amount-down"></i> 上榜次数</th>
+                            <th><i class="fas fa-info-circle"></i> 详情</th>
+                        </tr>
+                    </thead>
+                    <tbody id="frequencyTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 上榜原因分布表格 -->
+            <div class="table-container" id="reasonTable" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-trophy"></i> 排名</th>
+                            <th><i class="fas fa-tags"></i> 上榜原因</th>
+                            <th><i class="fas fa-sort-amount-down"></i> 出现次数</th>
+                            <th><i class="fas fa-expand"></i> 操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reasonTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 净买入排行表格 -->
+            <div class="table-container" id="netbuyTable" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-trophy"></i> 排名</th>
+                            <th><i class="fas fa-code"></i> 股票代码</th>
+                            <th><i class="fas fa-building"></i> 股票名称</th>
+                            <th><i class="fas fa-calendar"></i> 交易日期</th>
+                            <th><i class="fas fa-arrow-up"></i> 净买入金额(万)</th>
+                            <th><i class="fas fa-percentage"></i> 涨跌幅(%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="netbuyTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 净卖出排行表格 -->
+            <div class="table-container" id="netsellTable" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-trophy"></i> 排名</th>
+                            <th><i class="fas fa-code"></i> 股票代码</th>
+                            <th><i class="fas fa-building"></i> 股票名称</th>
+                            <th><i class="fas fa-calendar"></i> 交易日期</th>
+                            <th><i class="fas fa-arrow-down"></i> 净卖出金额(万)</th>
+                            <th><i class="fas fa-percentage"></i> 涨跌幅(%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="netsellTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="risk-warning">
+            <h3><i class="fas fa-exclamation-triangle"></i> 风险提示</h3>
+            <p>本龙虎榜统计基于历史数据分析，仅供参考，不构成投资建议。</p>
+            <p>股市有风险，投资需谨慎。上榜龙虎榜不代表后续必然上涨，请理性分析市场风险。</p>
+            <p>数据来源于本地lj-read数据库，可能存在延迟，请以实际交易数据为准。</p>
+        </div>
+    </div>
+
+    <!-- GitHub链接 -->
+    <div style="text-align: center; margin-top: 30px; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 15px;">
+        <p style="color: #b0c4de; margin-bottom: 10px;">开源项目</p>
+        <a href="https://github.com/hengruiyun" target="_blank" style="color: #4CAF50; text-decoration: none; font-weight: bold; font-size: 16px;">
+            <i class="fab fa-github"></i> 访问GitHub @hengruiyun
+        </a>
+    </div>
+
+    <script>
+        // 统一的服务器地址获取函数
+        function getServerUrl() {
+            const protocol = window.location.protocol;
+            if (protocol === 'http:' || protocol === 'https:') {
+                return window.location.origin;
+            }
+            return 'http://localhost:16888';
+        }
+        
+        const SERVER_URL = getServerUrl();
+        let currentPeriod = 1;
+        let lhbData = [];
+        let currentTab = 'frequency';
+
+        // 切换周期
+        function changePeriod(days) {
+            currentPeriod = days;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 加载数据
+            loadLhbData();
+        }
+
+        // 切换统计标签
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // 更新标签状态
+            document.querySelectorAll('.stats-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 显示对应表格
+            document.getElementById('frequencyTable').style.display = 'none';
+            document.getElementById('reasonTable').style.display = 'none';
+            document.getElementById('netbuyTable').style.display = 'none';
+            document.getElementById('netsellTable').style.display = 'none';
+            
+            document.getElementById(tab + 'Table').style.display = 'block';
+        }
+
+        // 获取最新的历史交易日（排除当天和周末）
+        function getLatestTradingDate() {
+            const today = new Date();
+            const dayOfWeek = today.getDay(); // 0=周日, 6=周六
+            
+            let latestDate = new Date(today);
+            
+            if (dayOfWeek === 0) {
+                // 周日，回退到周五
+                latestDate.setDate(today.getDate() - 2);
+            } else if (dayOfWeek === 6) {
+                // 周六，回退到周五
+                latestDate.setDate(today.getDate() - 1);
+            } else {
+                // 工作日，使用前一天作为最新交易日
+                latestDate.setDate(today.getDate() - 1);
+            }
+            
+            return latestDate;
+        }
+
+        // 获取日期范围
+        function getDateRange() {
+            const endDate = getLatestTradingDate();
+            const startDate = new Date(endDate);
+            startDate.setDate(startDate.getDate() - currentPeriod + 1);
+            
+            return {
+                start: formatDate(startDate),
+                end: formatDate(endDate)
+            };
+        }
+
+        // 格式化日期
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 加载龙虎榜数据
+        async function loadLhbData() {
+            document.getElementById('loadingDiv').style.display = 'block';
+            document.getElementById('errorDiv').style.display = 'none';
+            document.getElementById('frequencyTable').style.display = 'none';
+            document.getElementById('reasonTable').style.display = 'none';
+            document.getElementById('netbuyTable').style.display = 'none';
+            document.getElementById('netsellTable').style.display = 'none';
+            
+            try {
+                let url;
+                if (currentPeriod === 1) {
+                    // ⭐ 1日时，直接调用无参数API，获取最新一日数据
+                    url = `${SERVER_URL}/api/lj/lhb?top_n=1000`;
+                } else {
+                    // 多日时，使用日期范围查询
+                const dateRange = getDateRange();
+                    url = `${SERVER_URL}/api/lj/lhb?start_date=${dateRange.start}&end_date=${dateRange.end}&top_n=1000`;
+                }
+                
+                console.log('请求URL:', url);
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('龙虎榜数据响应:', data);
+                
+                if (!data.success) {
+                    throw new Error(data.error || '获取数据失败');
+                }
+                
+                lhbData = data.data || [];
+                
+                if (lhbData.length === 0) {
+                    showError(`${currentPeriod}日内暂无龙虎榜数据`);
+                    return;
+                }
+                
+                // 处理并显示数据
+                processLhbData();
+                
+                document.getElementById('loadingDiv').style.display = 'none';
+                document.getElementById(currentTab + 'Table').style.display = 'block';
+                
+                showSuccess(`成功加载${lhbData.length}条龙虎榜记录`);
+                
+            } catch (error) {
+                console.error('加载龙虎榜数据失败:', error);
+                showError('加载龙虎榜数据失败: ' + error.message);
+                document.getElementById('loadingDiv').style.display = 'none';
+            }
+        }
+
+        // 处理龙虎榜数据
+        function processLhbData() {
+            // 1. 统计概览
+            updateOverview();
+            
+            // 2. 上榜次数统计
+            generateFrequencyTable();
+            
+            // 3. 上榜原因分布
+            generateReasonTable();
+            
+            // 4. 净买入排行
+            generateNetBuyTable();
+            
+            // 5. 净卖出排行
+            generateNetSellTable();
+        }
+
+        // 更新统计概览
+        function updateOverview() {
+            // 总记录数
+            document.getElementById('totalRecords').textContent = lhbData.length.toLocaleString();
+            
+            // 上榜股票数（去重）
+            const uniqueStocksSet = new Set(lhbData.map(item => item.symbol));
+            document.getElementById('uniqueStocks').textContent = uniqueStocksSet.size;
+            
+            // 日期范围
+            if (lhbData.length > 0) {
+                const dates = lhbData.map(item => item.trade_date).sort();
+                const startDate = dates[0];
+                const endDate = dates[dates.length - 1];
+                document.getElementById('dateRange').textContent = `${startDate} 至 ${endDate}`;
+            }
+            
+            // 上榜最多次数
+            const frequencyMap = new Map();
+            lhbData.forEach(item => {
+                const key = item.symbol;
+                frequencyMap.set(key, (frequencyMap.get(key) || 0) + 1);
+            });
+            const maxFrequency = Math.max(...frequencyMap.values());
+            document.getElementById('mostFrequent').textContent = maxFrequency + '次';
+        }
+
+        // 生成上榜次数表格
+        function generateFrequencyTable() {
+            const frequencyMap = new Map();
+            
+            lhbData.forEach(item => {
+                const key = `${item.symbol}|${item.name}`;
+                if (!frequencyMap.has(key)) {
+                    frequencyMap.set(key, {
+                        symbol: item.symbol,
+                        name: item.name,
+                        count: 0,
+                        records: [],
+                        totalNetAmount: 0  // 累计净买入
+                    });
+                }
+                const data = frequencyMap.get(key);
+                data.count++;
+                data.records.push(item);
+                data.totalNetAmount += (item.net_amount || 0);  // 累加净买入
+            });
+            
+            // 转换为数组并排序
+            const frequencyArray = Array.from(frequencyMap.values());
+            frequencyArray.sort((a, b) => b.count - a.count);
+            
+            // 生成表格（前50名）
+            const tbody = document.getElementById('frequencyTableBody');
+            tbody.innerHTML = '';
+            
+            frequencyArray.slice(0, 50).forEach((stock, index) => {
+                const rank = index + 1;
+                const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-other';
+                
+                // 根据净买入总和判断涨跌
+                const netTotal = stock.totalNetAmount;
+                const nameClass = netTotal > 0 ? 'net-buy' : 'net-sell';
+                const trendText = netTotal > 0 ? '↑' : '↓';
+                const netAmountMW = (netTotal / 10000).toFixed(2);  // 转换为万元
+                
+                const tr = document.createElement('tr');
+                tr.className = 'stat-row';
+                tr.style.cursor = 'pointer';
+                tr.onclick = function() { toggleDetailsRow(this); };
+                tr.innerHTML = `
+                    <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+                    <td>${stock.symbol}</td>
+                    <td>
+                        <span class="${nameClass}">${trendText} ${stock.name}</span>
+                        <small style="color: #999; margin-left: 5px;">(${netAmountMW}万)</small>
+                    </td>
+                    <td><strong>${stock.count}次</strong></td>
+                    <td><span style="color: #999; font-size: 0.85rem;">点击展开 ▼</span></td>
+                `;
+                tbody.appendChild(tr);
+                
+                // 详细行
+                const detailTr = document.createElement('tr');
+                detailTr.className = 'detail-row';
+                detailTr.innerHTML = `
+                    <td colspan="5">
+                        <div class="detail-content" id="detail-${stock.symbol}">
+                            ${generateStockDetails(stock.records)}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(detailTr);
+            });
+        }
+
+        // 生成个股详细信息
+        function generateStockDetails(records) {
+            let html = '<table style="width: 100%; font-size: 0.85rem;"><thead><tr><th>日期</th><th>收盘价</th><th>涨跌幅(%)</th><th>净买入(万)</th><th>上榜原因</th></tr></thead><tbody>';
+            
+            records.sort((a, b) => b.trade_date.localeCompare(a.trade_date));
+            
+            records.forEach(record => {
+                const netAmount = (record.net_amount || 0) / 10000;
+                const netClass = netAmount > 0 ? 'net-buy' : 'net-sell';
+                const pctChg = record.pct_chg || 0;
+                const pctChgClass = pctChg >= 0 ? 'net-buy' : 'net-sell';
+                
+                html += `<tr>
+                    <td>${record.trade_date}</td>
+                    <td>${(record.close || 0).toFixed(2)}</td>
+                    <td class="${pctChgClass}">${pctChg.toFixed(2)}%</td>
+                    <td class="${netClass}">${netAmount.toFixed(2)}</td>
+                    <td><span class="reason-tag">${record.reason || '-'}</span></td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            return html;
+        }
+
+        // 生成上榜原因分布表格
+        function generateReasonTable() {
+            const reasonMap = new Map();
+            
+            lhbData.forEach(item => {
+                const reason = item.reason || '未知';
+                if (!reasonMap.has(reason)) {
+                    reasonMap.set(reason, {
+                        reason: reason,
+                        count: 0,
+                        stocks: []
+                    });
+                }
+                const data = reasonMap.get(reason);
+                data.count++;
+                data.stocks.push(item);
+            });
+            
+            // 转换为数组并排序
+            const reasonArray = Array.from(reasonMap.values());
+            reasonArray.sort((a, b) => b.count - a.count);
+            
+            // 生成表格（前20种）
+            const tbody = document.getElementById('reasonTableBody');
+            tbody.innerHTML = '';
+            
+            reasonArray.slice(0, 20).forEach((reason, index) => {
+                const rank = index + 1;
+                const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-other';
+                
+                const tr = document.createElement('tr');
+                tr.className = 'stat-row';
+                tr.innerHTML = `
+                    <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+                    <td style="text-align: left;"><span class="reason-tag">${reason.reason}</span></td>
+                    <td><strong>${reason.count}次</strong></td>
+                    <td><button onclick="toggleReasonDetails(this, ${index})" style="padding: 4px 12px; border: none; background: #4ECDC4; color: white; border-radius: 4px; cursor: pointer;">展开</button></td>
+                `;
+                tbody.appendChild(tr);
+                
+                // 详细行
+                const detailTr = document.createElement('tr');
+                detailTr.className = 'detail-row';
+                detailTr.innerHTML = `
+                    <td colspan="4">
+                        <div class="detail-content" id="reason-detail-${index}">
+                            ${generateReasonDetails(reason.stocks)}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(detailTr);
+            });
+        }
+
+        // 生成上榜原因详细信息
+        function generateReasonDetails(stocks) {
+            let html = '<table style="width: 100%; font-size: 0.85rem;"><thead><tr><th>日期</th><th>代码</th><th>名称</th><th>涨跌幅(%)</th><th>净买入(万)</th></tr></thead><tbody>';
+            
+            stocks.sort((a, b) => b.trade_date.localeCompare(a.trade_date));
+            stocks.slice(0, 20).forEach(stock => {
+                const netAmount = (stock.net_amount || 0) / 10000;
+                const netClass = netAmount > 0 ? 'net-buy' : 'net-sell';
+                const pctChg = stock.pct_chg || 0;
+                const pctChgClass = pctChg >= 0 ? 'net-buy' : 'net-sell';
+                
+                html += `<tr>
+                    <td>${stock.trade_date}</td>
+                    <td>${stock.symbol}</td>
+                    <td><a href="./综合分析大师.html##${stock.symbol}####${stock.name}##" class="stock-link">${stock.name}</a></td>
+                    <td class="${pctChgClass}">${pctChg.toFixed(2)}%</td>
+                    <td class="${netClass}">${netAmount.toFixed(2)}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            html += stocks.length > 20 ? `<p style="text-align: center; color: #666; margin-top: 10px;">仅显示前20条，共${stocks.length}条记录</p>` : '';
+            return html;
+        }
+
+        // 生成净买入排行表格
+        function generateNetBuyTable() {
+            // 按净买入金额排序（降序）
+            const sortedData = [...lhbData].sort((a, b) => (b.net_amount || 0) - (a.net_amount || 0));
+            
+            const tbody = document.getElementById('netbuyTableBody');
+            tbody.innerHTML = '';
+            
+            sortedData.slice(0, 50).forEach((item, index) => {
+                const rank = index + 1;
+                const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-other';
+                const netAmount = (item.net_amount || 0) / 10000;
+                const pctChg = item.pct_chg || 0;
+                const pctChgClass = pctChg >= 0 ? 'net-buy' : 'net-sell';
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+                    <td>${item.symbol}</td>
+                    <td><a href="./综合分析大师.html##${item.symbol}####${item.name}##" class="stock-link">${item.name}</a></td>
+                    <td>${item.trade_date}</td>
+                    <td class="net-buy">${netAmount.toFixed(2)}</td>
+                    <td class="${pctChgClass}">${pctChg.toFixed(2)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 生成净卖出排行表格
+        function generateNetSellTable() {
+            // 按净买入金额排序（升序，即净卖出最多）
+            const sortedData = [...lhbData].sort((a, b) => (a.net_amount || 0) - (b.net_amount || 0));
+            
+            const tbody = document.getElementById('netsellTableBody');
+            tbody.innerHTML = '';
+            
+            sortedData.slice(0, 50).forEach((item, index) => {
+                const rank = index + 1;
+                const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-other';
+                const netAmount = Math.abs((item.net_amount || 0) / 10000);
+                const pctChg = item.pct_chg || 0;
+                const pctChgClass = pctChg >= 0 ? 'net-buy' : 'net-sell';
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+                    <td>${item.symbol}</td>
+                    <td><a href="./综合分析大师.html##${item.symbol}####${item.name}##" class="stock-link">${item.name}</a></td>
+                    <td>${item.trade_date}</td>
+                    <td class="net-sell">${netAmount.toFixed(2)}</td>
+                    <td class="${pctChgClass}">${pctChg.toFixed(2)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 切换详细信息显示（点击整行）
+        function toggleDetailsRow(row) {
+            const detailRow = row.nextElementSibling;
+            const operationCell = row.querySelector('td:last-child span');
+            
+            if (detailRow.classList.contains('show')) {
+                detailRow.classList.remove('show');
+                row.classList.remove('expanded');
+                if (operationCell) operationCell.innerHTML = '点击展开 ▼';
+            } else {
+                detailRow.classList.add('show');
+                row.classList.add('expanded');
+                if (operationCell) operationCell.innerHTML = '点击收起 ▲';
+            }
+        }
+        
+        // 切换详细信息显示（按钮方式，保留用于上榜原因）
+        function toggleDetails(button, symbol) {
+            const row = button.closest('tr');
+            const detailRow = row.nextElementSibling;
+            
+            if (detailRow.classList.contains('show')) {
+                detailRow.classList.remove('show');
+                row.classList.remove('expanded');
+                button.textContent = '展开';
+            } else {
+                detailRow.classList.add('show');
+                row.classList.add('expanded');
+                button.textContent = '收起';
+            }
+        }
+
+        // 切换上榜原因详细信息显示
+        function toggleReasonDetails(button, index) {
+            const row = button.closest('tr');
+            const detailRow = row.nextElementSibling;
+            
+            if (detailRow.classList.contains('show')) {
+                detailRow.classList.remove('show');
+                row.classList.remove('expanded');
+                button.textContent = '展开';
+            } else {
+                detailRow.classList.add('show');
+                row.classList.add('expanded');
+                button.textContent = '收起';
+            }
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorDiv');
+            errorDiv.innerHTML = `<div class="error"><i class="fas fa-exclamation-circle"></i> ${message}</div>`;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 显示成功信息
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successDiv');
+            successDiv.innerHTML = `<div class="success"><i class="fas fa-check-circle"></i> ${message}</div>`;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', function() {
+            loadLhbData();
+        });
+    </script>
+</body>
+</html>
+

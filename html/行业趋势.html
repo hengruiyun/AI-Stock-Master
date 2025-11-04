@@ -125,7 +125,12 @@
             margin-bottom: 20px;
             color: #495057;
             text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
+        
 
         .chart-wrapper {
             position: relative;
@@ -227,6 +232,15 @@
 
             <div class="chart-container">
                 <div class="chart-title">
+                    <i class="fas fa-fire"></i> 资金流入率排行榜
+                </div>
+                <div class="chart-wrapper" id="inflowRateWrapper">
+                    <div id="inflowRateChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">
                     <i class="fas fa-chart-bar"></i> 行业涨跌幅排行榜
                 </div>
                 <div class="chart-wrapper" id="changeWrapper">
@@ -236,19 +250,10 @@
 
             <div class="chart-container">
                 <div class="chart-title">
-                    <i class="fas fa-percentage"></i> 涨跌额与总市值比例排行榜
+                    <i class="fas fa-chart-area"></i> 资金流向趋势对比
                 </div>
-                <div class="chart-wrapper" id="marketCapWrapper">
-                    <div id="marketCapChart" style="width: 100%; height: 400px;"></div>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <div class="chart-title">
-                    <i class="fas fa-balance-scale"></i> 上涨家数占比
-                </div>
-                <div class="chart-wrapper" id="ratioWrapper">
-                    <div id="ratioChart" style="width: 100%; height: 400px;"></div>
+                <div class="chart-wrapper" id="trendWrapper">
+                    <div id="trendChart" style="width: 100%; height: 400px;"></div>
                 </div>
             </div>
         </div>
@@ -464,6 +469,269 @@
                     chartGroup.appendChild(labelElement);
                 });
             }
+
+            drawLineChart(data) {
+                if (!this.svg || !data || !data.labels || !data.datasets) return;
+                
+                const containerRect = this.container.getBoundingClientRect();
+                const chartWidth = containerRect.width - 100;
+                const chartHeight = containerRect.height - 100;
+                const margin = { top: 20, right: 20, bottom: 60, left: 60 };
+                
+                // 清空SVG
+                this.svg.innerHTML = '';
+                
+                // 创建图表组
+                const chartGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                chartGroup.setAttribute('transform', `translate(${margin.left}, ${margin.top})`);
+                chartGroup.style.opacity = '0';
+                this.svg.appendChild(chartGroup);
+                
+                // 添加进场动画
+                setTimeout(() => {
+                    chartGroup.style.transition = 'opacity 0.6s ease-in-out';
+                    chartGroup.style.opacity = '1';
+                }, 100);
+                
+                const { labels, datasets } = data;
+                
+                if (!datasets || datasets.length === 0) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', chartWidth / 2);
+                    text.setAttribute('y', chartHeight / 2);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '16');
+                    text.setAttribute('fill', '#999');
+                    text.textContent = '暂无数据';
+                    chartGroup.appendChild(text);
+                    return;
+                }
+                
+                // 计算数据范围
+                const allValues = datasets.flatMap(d => d.data || []);
+                const validValues = allValues.filter(v => !isNaN(v) && isFinite(v));
+                
+                if (validValues.length === 0) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', chartWidth / 2);
+                    text.setAttribute('y', chartHeight / 2);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '16');
+                    text.setAttribute('fill', '#999');
+                    text.textContent = '暂无数据';
+                    chartGroup.appendChild(text);
+                    return;
+                }
+                
+                const maxValue = Math.max(...validValues);
+                const minValue = Math.min(...validValues);
+                const range = maxValue - minValue || 1;
+                const adjustedMax = maxValue + range * 0.1;
+                const adjustedMin = minValue - range * 0.1;
+                
+                // 绘制Y轴网格线和标签
+                const gridLines = 5;
+                for (let i = 0; i <= gridLines; i++) {
+                    const y = (chartHeight / gridLines) * i;
+                    const value = adjustedMax - ((adjustedMax - adjustedMin) / gridLines) * i;
+                    
+                    // 网格线
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', 0);
+                    line.setAttribute('y1', y);
+                    line.setAttribute('x2', chartWidth);
+                    line.setAttribute('y2', y);
+                    line.setAttribute('stroke', '#e0e0e0');
+                    line.setAttribute('stroke-width', 1);
+                    chartGroup.appendChild(line);
+                    
+                    // Y轴标签
+                    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    label.setAttribute('x', -10);
+                    label.setAttribute('y', y + 5);
+                    label.setAttribute('text-anchor', 'end');
+                    label.setAttribute('font-size', '12');
+                    label.setAttribute('fill', '#666');
+                    label.textContent = value.toFixed(2);
+                    chartGroup.appendChild(label);
+                }
+                
+                // 绘制0轴背景色（如果数据跨越0轴）
+                if (minValue < 0 && maxValue > 0) {
+                    const zeroY = chartHeight - ((0 - adjustedMin) / (adjustedMax - adjustedMin)) * chartHeight;
+                    
+                    // 正值区域（0以上）- 淡红色
+                    const positiveRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    positiveRect.setAttribute('x', 0);
+                    positiveRect.setAttribute('y', 0);
+                    positiveRect.setAttribute('width', chartWidth);
+                    positiveRect.setAttribute('height', zeroY);
+                    positiveRect.setAttribute('fill', '#ffcccb');
+                    positiveRect.setAttribute('opacity', 0.3);
+                    chartGroup.appendChild(positiveRect);
+                    
+                    // 负值区域（0以下）- 淡绿色
+                    const negativeRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    negativeRect.setAttribute('x', 0);
+                    negativeRect.setAttribute('y', zeroY);
+                    negativeRect.setAttribute('width', chartWidth);
+                    negativeRect.setAttribute('height', chartHeight - zeroY);
+                    negativeRect.setAttribute('fill', '#90EE90');
+                    negativeRect.setAttribute('opacity', 0.3);
+                    chartGroup.appendChild(negativeRect);
+                    
+                    // 绘制0轴线
+                    const zeroLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    zeroLine.setAttribute('x1', 0);
+                    zeroLine.setAttribute('y1', zeroY);
+                    zeroLine.setAttribute('x2', chartWidth);
+                    zeroLine.setAttribute('y2', zeroY);
+                    zeroLine.setAttribute('stroke', '#666');
+                    zeroLine.setAttribute('stroke-width', 1);
+                    zeroLine.setAttribute('stroke-dasharray', '5,5');
+                    chartGroup.appendChild(zeroLine);
+                }
+                
+                // 绘制X轴和Y轴
+                const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                xAxis.setAttribute('x1', 0);
+                xAxis.setAttribute('y1', chartHeight);
+                xAxis.setAttribute('x2', chartWidth);
+                xAxis.setAttribute('y2', chartHeight);
+                xAxis.setAttribute('stroke', '#333');
+                xAxis.setAttribute('stroke-width', 2);
+                chartGroup.appendChild(xAxis);
+                
+                const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                yAxis.setAttribute('x1', 0);
+                yAxis.setAttribute('y1', 0);
+                yAxis.setAttribute('x2', 0);
+                yAxis.setAttribute('y2', chartHeight);
+                yAxis.setAttribute('stroke', '#333');
+                yAxis.setAttribute('stroke-width', 2);
+                chartGroup.appendChild(yAxis);
+                
+                // 绘制线条和点
+                datasets.forEach((dataset, datasetIndex) => {
+                    const points = [];
+                    
+                    // 计算所有点的坐标（安全处理）
+                    dataset.data.forEach((value, i) => {
+                        if (isNaN(value) || !isFinite(value)) return;
+                        
+                        // ⭐ 避免除以0
+                        const x = labels.length > 1 
+                            ? (chartWidth / (labels.length - 1)) * i 
+                            : chartWidth / 2;
+                        const y = chartHeight - ((value - adjustedMin) / (adjustedMax - adjustedMin)) * chartHeight;
+                        
+                        if (!isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y)) {
+                            points.push({ x, y, value });
+                        }
+                    });
+                    
+                    if (points.length === 0) return;
+                    
+                    // 绘制线条
+                    const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', pathData);
+                    path.setAttribute('stroke', dataset.borderColor || '#4ecdc4');
+                    path.setAttribute('stroke-width', 2);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke-linejoin', 'round');
+                    path.setAttribute('stroke-linecap', 'round');
+                    
+                    // 线条动画
+                    const length = path.getTotalLength();
+                    path.style.strokeDasharray = length;
+                    path.style.strokeDashoffset = length;
+                    chartGroup.appendChild(path);
+                    
+                    setTimeout(() => {
+                        path.style.transition = 'stroke-dashoffset 1.5s ease-in-out';
+                        path.style.strokeDashoffset = 0;
+                    }, datasetIndex * 200);
+                    
+                    // 绘制数据点
+                    points.forEach((p, i) => {
+                        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        circle.setAttribute('cx', p.x);
+                        circle.setAttribute('cy', p.y);
+                        circle.setAttribute('r', 4);
+                        circle.setAttribute('fill', dataset.borderColor || '#4ecdc4');
+                        circle.setAttribute('stroke', 'white');
+                        circle.setAttribute('stroke-width', 2);
+                        circle.style.opacity = '0';
+                        
+                        // 点的动画
+                        setTimeout(() => {
+                            circle.style.transition = 'opacity 0.3s ease-in-out';
+                            circle.style.opacity = '1';
+                        }, datasetIndex * 200 + i * 50);
+                        
+                        // 鼠标悬停效果
+                        circle.addEventListener('mouseover', function() {
+                            this.setAttribute('r', 6);
+                        });
+                        circle.addEventListener('mouseout', function() {
+                            this.setAttribute('r', 4);
+                        });
+                        
+                        chartGroup.appendChild(circle);
+                    });
+                });
+                
+                // 绘制X轴标签（安全处理）
+                labels.forEach((label, i) => {
+                    // ⭐ 避免除以0：当只有1个标签时，放在中间
+                    const x = labels.length > 1 
+                        ? (chartWidth / (labels.length - 1)) * i 
+                        : chartWidth / 2;
+                    
+                    // ⭐ 确保x是有效数字
+                    if (isNaN(x) || !isFinite(x)) return;
+                    
+                    const labelElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    labelElement.setAttribute('x', x);
+                    labelElement.setAttribute('y', chartHeight + 20);
+                    labelElement.setAttribute('text-anchor', 'middle');
+                    labelElement.setAttribute('font-size', '12');
+                    labelElement.setAttribute('fill', '#666');
+                    labelElement.textContent = label || '';
+                    chartGroup.appendChild(labelElement);
+                });
+                
+                // 添加图例
+                if (datasets.length > 1) {
+                    const legendGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    legendGroup.setAttribute('transform', `translate(${chartWidth - 200}, 0)`);
+                    
+                    datasets.forEach((dataset, i) => {
+                        const legendY = i * 25;
+                        
+                        // 图例颜色块
+                        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        rect.setAttribute('x', 0);
+                        rect.setAttribute('y', legendY);
+                        rect.setAttribute('width', 20);
+                        rect.setAttribute('height', 4);
+                        rect.setAttribute('fill', dataset.borderColor || '#4ecdc4');
+                        legendGroup.appendChild(rect);
+                        
+                        // 图例文字
+                        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        text.setAttribute('x', 25);
+                        text.setAttribute('y', legendY + 7);
+                        text.setAttribute('font-size', '12');
+                        text.setAttribute('fill', '#666');
+                        text.textContent = dataset.label || `数据${i + 1}`;
+                        legendGroup.appendChild(text);
+                    });
+                    
+                    chartGroup.appendChild(legendGroup);
+                }
+            }
         }
 
         // 调试日志函数
@@ -558,13 +826,13 @@
                 charts.change = new CustomChart('changeChart').init();
                 debugLog('涨跌幅图表初始化完成');
 
-                // 市值比例图表
-                charts.marketCap = new CustomChart('marketCapChart').init();
-                debugLog('市值比例图表初始化完成');
+                // 资金流入率排行榜
+                charts.inflowRate = new CustomChart('inflowRateChart').init();
+                debugLog('资金流入率图表初始化完成');
 
-                // 上涨下跌比例图表
-                charts.ratio = new CustomChart('ratioChart').init();
-                debugLog('上涨下跌比例图表初始化完成');
+                // 资金流向趋势对比
+                charts.trend = new CustomChart('trendChart').init();
+                debugLog('资金流向趋势图表初始化完成');
                 
             } catch (error) {
                 debugLog('图表初始化失败: ' + error.message);
@@ -586,35 +854,59 @@
                 debugLog('开始并行获取所有API数据...');
                 
                 // 测试服务器连接
-                const testResponse = await fetch(`${LOCAL_SERVER}/api/status`);
-                if (!testResponse.ok) {
-                    throw new Error('服务器连接失败');
+                try {
+                    const testResponse = await fetch(`${LOCAL_SERVER}/api/status`);
+                    if (!testResponse.ok) {
+                        throw new Error('服务器连接失败');
+                    }
+                    debugLog('服务器连接正常');
+                } catch (error) {
+                    debugLog('服务器连接测试失败: ' + error.message);
+                    showError('错误，检查网络连接和大师服务器状态');
+                    return;
                 }
-                debugLog('服务器连接正常');
                 
-                // 并行获取所有数据
-                const [rankingData, changeData, marketCapData, ratioData] = await Promise.all([
-                    fetchIndustryRanking(),
-                    fetchIndustryChangeRanking(),
-                    fetchIndustryMarketCapRatio(),
-                    fetchIndustryUpDownRatio()
-                ]);
+                // 独立获取每个图表的数据，失败不影响其他图表
+                debugLog('开始获取排行榜数据...');
+                const rankingData = await fetchIndustryRanking().catch(err => {
+                    debugLog('排行榜数据获取失败: ' + err.message);
+                    return null;
+                });
+                
+                debugLog('开始获取涨跌幅数据...');
+                const changeData = await fetchIndustryChangeRanking().catch(err => {
+                    debugLog('涨跌幅数据获取失败: ' + err.message);
+                    return null;
+                });
+                
+                debugLog('开始获取资金流入率数据...');
+                const inflowRateData = await fetchInflowRateData().catch(err => {
+                    debugLog('资金流入率数据获取失败: ' + err.message);
+                    return null;
+                });
+                
+                debugLog('开始获取趋势数据...');
+                const trendData = await fetchTrendData().catch(err => {
+                    debugLog('趋势数据获取失败: ' + err.message);
+                    return null;
+                });
 
-                debugLog(`API数据获取完成: ranking=${rankingData?.success}, change=${changeData?.success}, marketCap=${marketCapData?.success}, ratio=${ratioData?.success}`);
+                debugLog(`API数据获取完成: ranking=${rankingData?.success}, change=${changeData?.success}, inflowRate=${inflowRateData?.success}, trend=${trendData?.success}`);
 
-                // 更新图表
-                updateRankingChart(rankingData);
-                updateChangeChart(changeData);
-                updateMarketCapChart(marketCapData);
-                updateRatioChart(ratioData);
+                // 更新图表（只更新成功获取数据的图表）
+                if (rankingData) updateRankingChart(rankingData);
+                if (changeData) updateChangeChart(changeData);
+                if (inflowRateData) updateInflowRateChart(inflowRateData);
+                if (trendData) updateTrendChart(trendData);
 
                 // 更新状态信息
-                updateStatusInfo(rankingData);
+                if (rankingData) updateStatusInfo(rankingData);
                 
                 debugLog('所有图表更新完成');
 
             } catch (error) {
                 debugLog('刷新数据失败: ' + error.message);
+                console.error('refreshAllData error:', error);
                 showError('错误，检查网络连接和大师服务器状态');
             } finally {
                 isLoading = false;
@@ -622,61 +914,105 @@
             }
         }
 
-        // API获取函数
+        // API获取函数（使用LJ本地数据库，更快更稳定）
         async function fetchIndustryRanking() {
-            debugLog(`获取排行榜数据: period=${currentPeriod}`);
-            const response = await fetch(`${LOCAL_SERVER}/api/industry/ranking?period=${currentPeriod}&limit=10`);
+            debugLog(`获取行业净流入排行榜数据 (LJ)`);
+            // 使用LJ API，只有最新一日数据（不支持period参数）
+            const response = await fetch(`${LOCAL_SERVER}/api/lj/sector/money/flow?content_type=行业&flow_type=inflow&top_n=10`);
             if (!response.ok) {
-                throw new Error(`排行榜API失败: HTTP ${response.status}`);
+                throw new Error(`LJ板块API失败: HTTP ${response.status}`);
             }
             const data = await response.json();
             if (!data.success) {
-                throw new Error(data.error || '获取排行榜数据失败');
+                throw new Error(data.error || '获取行业数据失败');
             }
-            debugLog(`排行榜数据获取成功: ${data.data.length}条记录`);
+            debugLog(`LJ行业数据获取成功: ${data.data.length}条记录, 日期: ${data.date}`);
             return data;
         }
 
         async function fetchIndustryChangeRanking() {
-            debugLog(`获取涨跌幅数据: period=${currentPeriod}`);
-            const response = await fetch(`${LOCAL_SERVER}/api/industry/change_ranking?period=${currentPeriod}&limit=10&order=desc`);
+            debugLog(`获取行业涨跌幅数据 (LJ)`);
+            // ⭐ 获取所有行业数据，然后在前端按涨跌幅排序
+            const response = await fetch(`${LOCAL_SERVER}/api/lj/sector/money/flow?content_type=行业&flow_type=all&top_n=100`);
             if (!response.ok) {
-                throw new Error(`涨跌幅API失败: HTTP ${response.status}`);
+                throw new Error(`LJ板块API失败: HTTP ${response.status}`);
             }
             const data = await response.json();
             if (!data.success) {
-                throw new Error(data.error || '获取涨跌幅数据失败');
+                throw new Error(data.error || '获取行业数据失败');
             }
-            debugLog(`涨跌幅数据获取成功: ${data.data.length}条记录`);
+            
+            // ⭐ 在前端按涨跌幅排序（降序）并取前10
+            if (data.data && Array.isArray(data.data)) {
+                data.data.sort((a, b) => {
+                    const changeA = parseFloat(a.change_pct || 0);
+                    const changeB = parseFloat(b.change_pct || 0);
+                    return changeB - changeA;  // 降序：涨幅最大的在前
+                });
+                data.data = data.data.slice(0, 10);
+            }
+            
+            debugLog(`LJ行业涨跌幅数据获取成功: ${data.data.length}条记录, 日期: ${data.date}`);
             return data;
         }
 
-        async function fetchIndustryMarketCapRatio() {
-            debugLog(`获取市值比例数据: period=${currentPeriod}`);
-            const response = await fetch(`${LOCAL_SERVER}/api/industry/market_cap_ratio?period=${currentPeriod}&limit=10`);
-            if (!response.ok) {
-                throw new Error(`市值比例API失败: HTTP ${response.status}`);
+        async function fetchInflowRateData() {
+            debugLog(`获取资金流入率数据: period=${currentPeriod}`);
+            try {
+                // 根据周期获取对应时间范围的数据
+                const today = new Date();
+                const endDate = today.toISOString().split('T')[0];
+                const startDate = new Date(today.getTime() - currentPeriod * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                
+                debugLog(`资金流入率日期范围: ${startDate} 至 ${endDate}`);
+                const response = await fetch(`${LOCAL_SERVER}/api/lj/sector/money/flow?content_type=行业&start_date=${startDate}&end_date=${endDate}&top_n=50`);
+                if (!response.ok) {
+                    throw new Error(`资金流入率API失败: HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '获取资金流入率数据失败');
+                }
+                debugLog(`资金流入率数据获取成功: ${data.data.length}条记录`);
+                // 模拟industry API的格式，添加source字段
+                return { ...data, source: 'local_lj' };
+            } catch (error) {
+                console.error('fetchInflowRateData error:', error);
+                debugLog(`资金流入率数据获取失败: ${error.message}`);
+                // 返回空数据而不是抛出异常，避免整个页面失败
+                return { success: true, data: [], source: 'local_lj' };
             }
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || '获取市值比例数据失败');
-            }
-            debugLog(`市值比例数据获取成功: ${data.data.length}条记录`);
-            return data;
         }
 
-        async function fetchIndustryUpDownRatio() {
-            debugLog(`获取上涨下跌比例数据: period=${currentPeriod}`);
-            const response = await fetch(`${LOCAL_SERVER}/api/industry/up_down_ratio?period=${currentPeriod}&limit=10`);
-            if (!response.ok) {
-                throw new Error(`上涨下跌比例API失败: HTTP ${response.status}`);
+        async function fetchTrendData() {
+            debugLog(`获取资金流向趋势数据: period=${currentPeriod}天`);
+            try {
+                // 根据周期获取对应时间范围的历史数据
+                const today = new Date();
+                const endDate = today.toISOString().split('T')[0];
+                // ⭐ 转换为数字进行计算
+                const periodDays = parseInt(currentPeriod) || 5;
+                const startDate = new Date(today.getTime() - periodDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                
+                debugLog(`趋势日期范围: ${startDate} 至 ${endDate} (${periodDays}日)`);
+                // ⭐ 趋势图不聚合数据，需要每天的数据点
+                const response = await fetch(`${LOCAL_SERVER}/api/lj/sector/money/flow?content_type=行业&start_date=${startDate}&end_date=${endDate}&top_n=500&aggregate=false`);
+                if (!response.ok) {
+                    throw new Error(`资金流向趋势API失败: HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '获取资金流向趋势数据失败');
+                }
+                debugLog(`资金流向趋势数据获取成功: ${data.data.length}条记录`);
+                // 模拟industry API的格式，添加source字段
+                return { ...data, source: 'local_lj' };
+            } catch (error) {
+                console.error('fetchTrendData error:', error);
+                debugLog(`资金流向趋势数据获取失败: ${error.message}`);
+                // 返回空数据而不是抛出异常，避免整个页面失败
+                return { success: true, data: [], source: 'local_lj' };
             }
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || '获取上涨下跌比例数据失败');
-            }
-            debugLog(`上涨下跌比例数据获取成功: ${data.data.length}条记录`);
-            return data;
         }
 
         // 图表更新函数
@@ -688,10 +1024,15 @@
             }
             
             const chart = charts.ranking;
-            const industries = data.data.map(item => item.行业 || '未知行业');
-            const netAmounts = data.data.map(item => parseFloat(item.净额 || 0));
+            // LJ API字段：sector_name, net_amount（单位：元）
+            const industries = data.data.map(item => item.sector_name || item.行业 || '未知行业');
+            const netAmounts = data.data.map(item => {
+                // net_amount单位是元，转换为亿元
+                const netAmount = parseFloat(item.net_amount || item.净额 || 0);
+                return netAmount / 100000000;  // 转换为亿元
+            });
 
-            debugLog(`排行榜数据详情: 行业=${industries.join(', ')}, 净额=${netAmounts.join(', ')}`);
+            debugLog(`排行榜数据详情: 行业=${industries.join(', ')}, 净额(亿)=${netAmounts.map(v => v.toFixed(2)).join(', ')}`);
             
             const chartData = {
                 labels: industries,
@@ -714,10 +1055,14 @@
             }
             
             const chart = charts.change;
-            const industries = data.data.map(item => item.行业 || '未知行业');
+            // LJ API字段：sector_name, change_pct（已经是百分比数字）
+            const industries = data.data.map(item => item.sector_name || item.行业 || '未知行业');
             const changes = data.data.map(item => {
                 let changeValue = 0;
-                if (item['涨跌幅']) {
+                // LJ API: change_pct 直接是数字（如 1.82 代表 1.82%）
+                if (item.change_pct !== undefined && item.change_pct !== null) {
+                    changeValue = parseFloat(item.change_pct) || 0;
+                } else if (item['涨跌幅']) {
                     changeValue = parseFloat(item['涨跌幅'].toString().replace('%', '')) || 0;
                 } else if (item['行业-涨跌幅'] !== undefined) {
                     changeValue = parseFloat(item['行业-涨跌幅']) || 0;
@@ -727,7 +1072,7 @@
                 return changeValue;
             });
 
-            debugLog(`涨跌幅数据详情: 行业=${industries.join(', ')}, 涨跌幅=${changes.join(', ')}%`);
+            debugLog(`涨跌幅数据详情: 行业=${industries.join(', ')}, 涨跌幅=${changes.map(v => v.toFixed(2)).join(', ')}%`);
 
             const chartData = {
                 labels: industries,
@@ -742,56 +1087,119 @@
             debugLog(`涨跌幅图表更新完成: ${industries.length}个行业`);
         }
 
-        function updateMarketCapChart(data) {
-            debugLog('更新市值比例图表...');
+        function updateInflowRateChart(data) {
+            debugLog('更新资金流入率图表...');
             if (!data || !data.data || !Array.isArray(data.data)) {
-                debugLog('市值比例数据格式错误');
+                debugLog('资金流入率数据格式错误');
                 return;
             }
             
-            const chart = charts.marketCap;
-            const industries = data.data.map(item => item.行业 || '未知行业');
-            const ratios = data.data.map(item => parseFloat(item.市值比例 || 0));
+            if (data.data.length === 0) {
+                debugLog('资金流入率数据为空，跳过更新');
+                return;
+            }
+            
+            const chart = charts.inflowRate;
+            if (!chart) {
+                debugLog('资金流入率图表未初始化');
+                return;
+            }
+            
+            // 按流入率排序并取TOP10
+            const sortedData = [...data.data].sort((a, b) => (b.inflow_rate || 0) - (a.inflow_rate || 0)).slice(0, 10);
+            const industries = sortedData.map(item => item.sector_name || '未知行业');
+            const inflowRates = sortedData.map(item => parseFloat(item.inflow_rate || 0));
 
-            debugLog(`市值比例数据详情: 行业=${industries.join(', ')}, 市值比例=${ratios.join(', ')}%`);
+            debugLog(`资金流入率数据详情: 行业=${industries.join(', ')}, 流入率=${inflowRates.join(', ')}%`);
+
+            // 根据流入率大小设置不同颜色
+            const colors = inflowRates.map(rate => {
+                if (rate > 5) return 'rgba(255, 99, 132, 0.8)';  // 高流入率-红色
+                if (rate > 0) return 'rgba(255, 206, 86, 0.8)'; // 中流入率-黄色
+                return 'rgba(75, 192, 192, 0.8)';  // 低流入率-青色
+            });
 
             const chartData = {
                 labels: industries,
                 datasets: [{
-                    label: '市值比例 (%)',
-                    data: ratios,
-                    backgroundColor: 'rgba(156, 39, 176, 0.8)'
+                    label: '资金流入率 (%)',
+                    data: inflowRates,
+                    backgroundColor: colors
                 }]
             };
             
             chart.drawBarChart(chartData);
-            debugLog(`市值比例图表更新完成: ${industries.length}个行业`);
+            debugLog(`资金流入率图表更新完成: ${industries.length}个行业`);
         }
 
-        function updateRatioChart(data) {
-            debugLog('更新上涨下跌比例图表...');
+        function updateTrendChart(data) {
+            debugLog('更新资金流向趋势图表...');
             if (!data || !data.data || !Array.isArray(data.data)) {
-                debugLog('上涨下跌比例数据格式错误');
+                debugLog('资金流向趋势数据格式错误');
                 return;
             }
             
-            const chart = charts.ratio;
-            const industries = data.data.map(item => item.行业 || '未知行业');
-            const ratios = data.data.map(item => parseFloat(item.上涨比例 || 0));
-
-            debugLog(`上涨下跌比例数据详情: 行业=${industries.join(', ')}, 上涨比例=${ratios.join(', ')}%`);
-
+            if (data.data.length === 0) {
+                debugLog('资金流向趋势数据为空，跳过更新');
+                return;
+            }
+            
+            const chart = charts.trend;
+            if (!chart) {
+                debugLog('资金流向趋势图表未初始化');
+                return;
+            }
+            
+            // 1. 找出最新一天净流入TOP5的行业
+            const allDates = [...new Set(data.data.map(d => d.trade_date))].sort();
+            
+            // ⭐ 安全检查：确保有日期数据
+            if (!allDates || allDates.length === 0) {
+                debugLog('⚠️ 没有有效的交易日期数据');
+                return;
+            }
+            
+            const latestDate = allDates[allDates.length - 1];
+            const latestData = data.data.filter(d => d.trade_date === latestDate);
+            latestData.sort((a, b) => (b.net_amount || 0) - (a.net_amount || 0));
+            const top5Sectors = latestData.slice(0, 5).map(d => d.sector_name);
+            
+            debugLog(`TOP5行业: ${top5Sectors.join(', ')}`);
+            
+            // 2. 为每个TOP5行业构建时间序列数据
+            const colors = [
+                'rgba(255, 99, 132, 1)',   // 红
+                'rgba(54, 162, 235, 1)',   // 蓝
+                'rgba(255, 206, 86, 1)',   // 黄
+                'rgba(75, 192, 192, 1)',   // 青
+                'rgba(153, 102, 255, 1)'   // 紫
+            ];
+            
+            const datasets = top5Sectors.map((sector, index) => {
+                const sectorData = data.data
+                    .filter(d => d.sector_name === sector)
+                    .sort((a, b) => a.trade_date.localeCompare(b.trade_date));
+                
+                return {
+                    label: sector,
+                    data: sectorData.map(d => (d.net_amount || 0) / 100000000), // 转为亿元
+                    borderColor: colors[index],
+                    backgroundColor: colors[index].replace('1)', '0.1)'),
+                    fill: false,
+                    tension: 0.1
+                };
+            });
+            
+            // 3. 准备日期标签（安全处理）
+            const dates = allDates.map(d => (d && d.slice) ? d.slice(5) : d); // 只显示MM-DD
+            
             const chartData = {
-                labels: industries,
-                datasets: [{
-                    label: '上涨占比(%)',
-                    data: ratios,
-                    backgroundColor: 'rgba(255, 193, 7, 0.8)'
-                }]
+                labels: dates,
+                datasets: datasets
             };
             
-            chart.drawBarChart(chartData);
-            debugLog(`上涨下跌比例图表更新完成: ${industries.length}个行业`);
+            chart.drawLineChart(chartData);
+            debugLog(`资金流向趋势图表更新完成: ${top5Sectors.length}个行业, ${dates.length}个交易日`);
         }
 
         // 更新状态信息

@@ -158,7 +158,8 @@
         .chart {
             width: 100%;
             height: 400px;
-            min-width: 300px;
+            min-width: 0;
+            position: relative;
         }
 
         .full-width .chart {
@@ -361,22 +362,6 @@
                 </div>
             </div>
 
-            <!-- 分析图表区域 -->
-            <div class="analysis-grid">
-                <div class="analysis-card">
-                    <div class="card-title">
-                        <i class="fas fa-chart-line"></i> 资金流向趋势分析
-                    </div>
-                    <div class="chart" id="money-flow-trend-chart"></div>
-                </div>
-                <div class="analysis-card">
-                    <div class="card-title">
-                        <i class="fas fa-balance-scale"></i> 主力资金博弈分析 <span id="main-force-period" style="font-size: 12px; color: #888; font-weight: normal;"></span>
-                    </div>
-                    <div class="chart" id="main-force-chart"></div>
-                </div>
-            </div>
-
             <!-- 投资策略建议 -->
             <div class="strategy-panel">
                 <div class="insight-title">
@@ -384,6 +369,16 @@
                 </div>
                 <div id="strategy-content">
                     <!-- 动态生成策略内容 -->
+                </div>
+            </div>
+
+            <!-- 分析图表区域 -->
+            <div class="analysis-grid">
+                <div class="analysis-card">
+                    <div class="card-title">
+                        <i class="fas fa-chart-line"></i> 资金流向趋势分析
+                    </div>
+                    <div class="chart" id="money-flow-trend-chart"></div>
                 </div>
             </div>
         </div>
@@ -428,7 +423,8 @@
             }
             
             if (code && /^\d{6}$/.test(code)) {
-                const url = `${window.location.origin}/迷你投资大师.html##${code}##${encodeURIComponent(name)}##`;
+                // 使用相对路径，兼容file://协议
+                const url = `迷你投资大师.html##${code}##${encodeURIComponent(name)}##`;
                 window.location.href = url;
             } else {
                 alert('请先输入或分析股票代码');
@@ -439,16 +435,28 @@
         function clearCacheAndReset() {
             // 清除全局变量
             currentStock = '';
-            charts = {};
             stockData = {};
             
             // 销毁现有图表
-            Object.values(charts).forEach(chart => {
-                if (chart && typeof chart.dispose === 'function') {
-                    chart.dispose();
+            Object.keys(charts).forEach(key => {
+                if (charts[key] && typeof charts[key].dispose === 'function') {
+                    charts[key].dispose();
                 }
+                delete charts[key];
             });
             charts = {};
+            
+            // 清除图表容器
+            const chartContainers = [
+                'money-flow-trend-chart'
+            ];
+            
+            chartContainers.forEach(containerId => {
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = '';
+                }
+            });
             
             // 清除显示内容
             const insightsGrid = document.getElementById('insights-grid');
@@ -602,8 +610,20 @@
                 
                 const data = await response.json();
                 if (!data.success) return null;
-                
-                return data.data || null;
+
+                const result = data.data || null;
+                if (!result) return null;
+
+                const list = Array.isArray(result.data)
+                    ? result.data
+                    : Array.isArray(result?.data?.data)
+                        ? result.data.data
+                        : [];
+
+                return {
+                    ...result,
+                    data: list
+                };
             } catch (error) {
                 return null;
             }
@@ -792,7 +812,6 @@
             setTimeout(() => {
                 if (stockData.moneyFlow && stockData.moneyFlow.data) {
                     drawMoneyFlowTrendChart(stockData.moneyFlow.data);
-                    drawMainForceChart(stockData.moneyFlow.data);
                 }
 
             }, 100);
@@ -844,10 +863,40 @@
                 this.svg.appendChild(chartGroup);
 
                 // 计算数据范围
-                const yValues = data.map(d => d.value);
-                const minY = Math.min(...yValues);
-                const maxY = Math.max(...yValues);
+                const values = data.map(d => d.value);
+                const includeZero = options.zeroLine || values.some(v => v < 0);
+                const maxY = Math.max(includeZero ? 0 : -Infinity, ...values);
+                const minY = Math.min(includeZero ? 0 : Infinity, ...values);
                 const yRange = maxY - minY || 1;
+
+                // 绘制背景色（0上粉红，0下淡绿）
+                if (includeZero && (options.positiveAreaColor || options.negativeAreaColor)) {
+                    const zeroY = chartHeight - ((0 - minY) / yRange) * chartHeight;
+                    
+                    // 正值区域（0以上）
+                    if (maxY > 0) {
+                        const positiveRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        positiveRect.setAttribute('x', 0);
+                        positiveRect.setAttribute('y', 0);
+                        positiveRect.setAttribute('width', chartWidth);
+                        positiveRect.setAttribute('height', zeroY);
+                        positiveRect.setAttribute('fill', options.positiveAreaColor || '#FFB6C1');
+                        positiveRect.setAttribute('opacity', 0.2);
+                        chartGroup.appendChild(positiveRect);
+                    }
+                    
+                    // 负值区域（0以下）
+                    if (minY < 0) {
+                        const negativeRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        negativeRect.setAttribute('x', 0);
+                        negativeRect.setAttribute('y', zeroY);
+                        negativeRect.setAttribute('width', chartWidth);
+                        negativeRect.setAttribute('height', chartHeight - zeroY);
+                        negativeRect.setAttribute('fill', options.negativeAreaColor || '#90EE90');
+                        negativeRect.setAttribute('opacity', 0.2);
+                        chartGroup.appendChild(negativeRect);
+                    }
+                }
 
                 // 绘制网格线和Y轴标签
                 const gridLines = 5;
@@ -874,7 +923,7 @@
                     chartGroup.appendChild(label);
                 }
 
-                // 绘制折线
+                // 绘制统一颜色的折线
                 let pathData = '';
                 data.forEach((d, i) => {
                     const x = (chartWidth / (data.length - 1)) * i;
@@ -889,7 +938,8 @@
                 path.setAttribute('fill', 'none');
                 chartGroup.appendChild(path);
 
-                // 绘制数据点
+
+                // 绘制数据点（统一使用主颜色）
                 data.forEach((d, i) => {
                     const x = (chartWidth / (data.length - 1)) * i;
                     const y = chartHeight - ((d.value - minY) / yRange) * chartHeight;
@@ -918,6 +968,18 @@
                         chartGroup.appendChild(label);
                     }
                 });
+
+                if (includeZero) {
+                    const zeroY = chartHeight - ((0 - minY) / yRange) * chartHeight;
+                    const zeroLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    zeroLine.setAttribute('x1', 0);
+                    zeroLine.setAttribute('y1', zeroY);
+                    zeroLine.setAttribute('x2', chartWidth);
+                    zeroLine.setAttribute('y2', zeroY);
+                    zeroLine.setAttribute('stroke', '#bbb');
+                    zeroLine.setAttribute('stroke-dasharray', '4 4');
+                    chartGroup.appendChild(zeroLine);
+                }
             }
 
             drawBarChart(data, options = {}) {
@@ -947,20 +1009,33 @@
                 chartGroup.setAttribute('transform', `translate(${margin.left}, ${margin.top})`);
                 this.svg.appendChild(chartGroup);
 
-                // 计算数据范围
+                // 计算数据范围（支持正负值）
                 const allValues = datasets.flatMap(d => d.data || []);
-                const maxValue = Math.max(...allValues.map(v => Math.abs(v)));
-                const barWidth = chartWidth / labels.length * 0.8;
-                const barSpacing = chartWidth / labels.length * 0.2;
+                const maxValue = Math.max(0, ...allValues);
+                const minValue = Math.min(0, ...allValues);
+                const valueRange = maxValue - minValue || 1;
+                const barWidth = chartWidth / labels.length * 0.6;
+                const barSpacing = chartWidth / labels.length * 0.4;
+                
+                // 计算0线位置
+                const zeroY = chartHeight - ((-minValue / valueRange) * chartHeight * 0.8);
 
                 // 绘制柱子
                 labels.forEach((label, i) => {
-                    const x = i * (barWidth + barSpacing);
+                    const x = i * (barWidth + barSpacing) + barSpacing / 2;
                     
                     datasets.forEach((dataset, datasetIndex) => {
                         const value = dataset.data[i] || 0;
-                        const barHeight = (Math.abs(value) / maxValue) * chartHeight * 0.8;
-                        const y = chartHeight - barHeight;
+                        const barHeight = (Math.abs(value) / valueRange) * chartHeight * 0.8;
+                        
+                        let y;
+                        if (value >= 0) {
+                            // 正值：从0线向上
+                            y = zeroY - barHeight;
+                        } else {
+                            // 负值：从0线向下
+                            y = zeroY;
+                        }
                         
                         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                         rect.setAttribute('x', x + (datasetIndex * barWidth / datasets.length));
@@ -982,12 +1057,25 @@
                     labelElement.textContent = label;
                     chartGroup.appendChild(labelElement);
                 });
+                
+                // 绘制0线
+                if (minValue < 0) {
+                    const zeroLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    zeroLine.setAttribute('x1', 0);
+                    zeroLine.setAttribute('y1', zeroY);
+                    zeroLine.setAttribute('x2', chartWidth);
+                    zeroLine.setAttribute('y2', zeroY);
+                    zeroLine.setAttribute('stroke', '#999');
+                    zeroLine.setAttribute('stroke-width', 2);
+                    zeroLine.setAttribute('stroke-dasharray', '5,5');
+                    chartGroup.appendChild(zeroLine);
+                }
 
-                // 绘制Y轴标尺
+                // 绘制Y轴标尺（支持正负值）
                 const yAxisTicks = 5;
                 for (let i = 0; i <= yAxisTicks; i++) {
-                    const value = (maxValue / yAxisTicks) * i;
-                    const y = chartHeight - (i / yAxisTicks) * chartHeight * 0.8;
+                    const value = minValue + (valueRange / yAxisTicks) * i;
+                    const y = chartHeight - ((value - minValue) / valueRange) * chartHeight * 0.8;
                     
                     // Y轴刻度线
                     const tickLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -1010,16 +1098,14 @@
                     chartGroup.appendChild(yLabel);
                     
                     // 网格线
-                    if (i > 0) {
-                        const gridLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        gridLine.setAttribute('x1', 0);
-                        gridLine.setAttribute('y1', y);
-                        gridLine.setAttribute('x2', chartWidth);
-                        gridLine.setAttribute('y2', y);
-                        gridLine.setAttribute('stroke', '#f0f0f0');
-                        gridLine.setAttribute('stroke-width', 1);
-                        chartGroup.appendChild(gridLine);
-                    }
+                    const gridLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    gridLine.setAttribute('x1', 0);
+                    gridLine.setAttribute('y1', y);
+                    gridLine.setAttribute('x2', chartWidth);
+                    gridLine.setAttribute('y2', y);
+                    gridLine.setAttribute('stroke', '#f0f0f0');
+                    gridLine.setAttribute('stroke-width', 1);
+                    chartGroup.appendChild(gridLine);
                 }
 
                 // 绘制X轴和Y轴线
@@ -1054,11 +1140,18 @@
             chartDom.style.height = '400px';
             charts.moneyFlowTrend = new CustomChart('money-flow-trend-chart').init();
 
+            if (!Array.isArray(data) || data.length === 0) {
+                charts.moneyFlowTrend.svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#666" font-size="14">暂无资金流向数据</text>';
+                return;
+            }
+
             const dates = [];
             const mainFlow = [];
             const superLargeFlow = [];
 
-            data.slice(-15).forEach(item => {
+            const recentData = data.slice(0, 15).reverse();
+
+            recentData.forEach(item => {
                 // 转换日期格式为中文
                 const dateStr = item.日期 || '';
                 let formattedDate = dateStr;
@@ -1092,56 +1185,11 @@
                 }
                 
                 dates.push(formattedDate);
-                mainFlow.push(parseFloat((parseFloat(item['主力净流入-净额'] || 0) / 10000).toFixed(2)));
-                superLargeFlow.push(parseFloat((parseFloat(item['超大单净流入-净额'] || 0) / 10000).toFixed(2)));
+                const mainValue = parseFloat((parseFloat(item['主力净流入-净额'] || 0) / 10000).toFixed(2));
+                const superLargeValue = parseFloat((parseFloat(item['超大单净流入-净额'] || 0) / 10000).toFixed(2));
+                mainFlow.push(mainValue);
+                superLargeFlow.push(superLargeValue);
             });
-
-            const option = {
-                backgroundColor: 'transparent',
-                tooltip: {
-                    trigger: 'axis',
-                    backgroundColor: 'rgba(50, 50, 50, 0.9)',
-                    borderColor: '#333',
-                    textStyle: { color: '#e0e0e0' }
-                },
-                legend: {
-                    data: ['主力净流入', '超大单净流入'],
-                    textStyle: { color: '#e0e0e0' }
-                },
-                xAxis: {
-                    type: 'category',
-                    data: dates,
-                    axisLabel: { color: '#e0e0e0', rotate: 45 },
-                    axisLine: { lineStyle: { color: '#555' } }
-                },
-                yAxis: {
-                    type: 'value',
-                    axisLabel: { color: '#e0e0e0' },
-                    axisLine: { lineStyle: { color: '#555' } },
-                    splitLine: { lineStyle: { color: '#333' } }
-                },
-                series: [
-                    {
-                        name: '主力净流入',
-                        type: 'line',
-                        data: mainFlow,
-                        smooth: true,
-                        lineStyle: { color: '#ff6b6b', width: 3 },
-                        itemStyle: { color: '#ff6b6b' },
-                        areaStyle: {
-                            color: 'rgba(255, 107, 107, 0.3)'
-                        }
-                    },
-                    {
-                        name: '超大单净流入',
-                        type: 'line',
-                        data: superLargeFlow,
-                        smooth: true,
-                        lineStyle: { color: '#4ecdc4', width: 3 },
-                        itemStyle: { color: '#4ecdc4' }
-                    }
-                ]
-            };
 
             // 准备自定义图表数据
             const chartData = dates.map((date, i) => ({
@@ -1149,164 +1197,15 @@
                 value: mainFlow[i]
             }));
             
-            // 绘制折线图
-            charts.moneyFlowTrend.drawLineChart(chartData, { color: '#ff6b6b' });
-        }
-
-        // 主力资金博弈分析图
-        function drawMainForceChart(data) {
-            const chartDom = document.getElementById('main-force-chart');
-            if (charts.mainForce) {
-                charts.mainForce.dispose();
-            }
-            // 确保容器有正确的尺寸
-            chartDom.style.width = '100%';
-            chartDom.style.height = '400px';
-            charts.mainForce = new CustomChart('main-force-chart').init();
-
-            // 计算主力资金强度
-            const recent = data.slice(-10);
-            const categories = ['超大单', '大单', '中单', '小单'];
-            const buyData = [];
-            const sellData = [];
-            
-            // 获取日期范围用于标注，转换为中文格式
-            const startDate = recent.length > 0 ? recent[0].日期 : '';
-            const endDate = recent.length > 0 ? recent[recent.length - 1].日期 : '';
-            
-            // 转换日期格式为中文
-            function formatDateToChinese(dateStr) {
-                if (!dateStr) return '';
-                
-                let date;
-                
-                // 处理GMT格式日期 (如: Mon, 08 Sep 2025 00:00:00 GMT)
-                if (dateStr.includes('GMT')) {
-                    date = new Date(dateStr);
-                }
-                // 处理ISO格式日期 (如: 2025-09-08)
-                else if (dateStr.includes('-')) {
-                    date = new Date(dateStr);
-                }
-                // 处理YYYYMMDD格式
-                else if (dateStr.length === 8) {
-                    const year = dateStr.substring(0, 4);
-                    const month = dateStr.substring(4, 6);
-                    const day = dateStr.substring(6, 8);
-                    date = new Date(year, month - 1, day);
-                }
-                // 其他格式尝试直接解析
-                else {
-                    date = new Date(dateStr);
-                    if (isNaN(date.getTime())) return dateStr;
-                }
-                
-                if (isNaN(date.getTime())) return dateStr;
-                
-                return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-            }
-            
-            const startDateChinese = formatDateToChinese(startDate);
-            const endDateChinese = formatDateToChinese(endDate);
-            const dateRange = startDate === endDate ? startDateChinese : `${startDateChinese} 至 ${endDateChinese}`;
-            
-            // 更新标题中的统计期间
-            const periodElement = document.getElementById('main-force-period');
-            if (periodElement) {
-                periodElement.textContent = `(${dateRange})`;
-            }
-
-            categories.forEach(category => {
-                let totalBuy = 0, totalSell = 0;
-                recent.forEach(item => {
-                    const netFlow = parseFloat(item[`${category}净流入-净额`] || 0);
-                    if (netFlow > 0) totalBuy += netFlow;
-                    else totalSell += Math.abs(netFlow);
-                });
-                buyData.push(parseFloat((totalBuy / 10000).toFixed(2)));
-                sellData.push(-parseFloat((totalSell / 10000).toFixed(2)));
+            // 绘制折线图（黄线，0以上粉红，0以下淡绿）
+            charts.moneyFlowTrend.drawLineChart(chartData, {
+                color: '#FFD700',  // 黄线
+                zeroLine: true,
+                positiveAreaColor: '#FFB6C1',  // 粉红区域
+                negativeAreaColor: '#90EE90'   // 淡绿区域
             });
-
-            const option = {
-                backgroundColor: 'transparent',
-                tooltip: {
-                    trigger: 'axis',
-                    backgroundColor: 'rgba(50, 50, 50, 0.9)',
-                    borderColor: '#333',
-                    textStyle: { color: '#e0e0e0' }
-                },
-                legend: {
-                    data: ['买入力量', '卖出力量'],
-                    textStyle: { color: '#e0e0e0' }
-                },
-                xAxis: {
-                    type: 'category',
-                    data: categories,
-                    axisLabel: { color: '#e0e0e0' },
-                    axisLine: { lineStyle: { color: '#555' } }
-                },
-                yAxis: {
-                    type: 'value',
-                    axisLabel: { color: '#e0e0e0' },
-                    axisLine: { lineStyle: { color: '#555' } },
-                    splitLine: { lineStyle: { color: '#333' } }
-                },
-                series: (() => {
-                    // 为每个类别创建独立的系列，以实现不同的柱子宽度
-                    const series = [];
-                    const barWidths = [50, 40, 30, 20]; // 超大单、大单、中单、小单的宽度
-                    
-                    categories.forEach((category, index) => {
-                        // 买入力量系列
-                        series.push({
-                            name: index === 0 ? '买入力量' : '', // 只在第一个系列显示图例
-                            type: 'bar',
-                            barWidth: barWidths[index],
-                            data: categories.map((_, i) => i === index ? buyData[i] : null),
-                            itemStyle: {
-                            color: '#ff6b6b',
-                                barBorderRadius: [3, 3, 0, 0]
-                            },
-                            stack: 'buy',
-                            legendHoverLink: false
-                        });
-                        
-                        // 卖出力量系列
-                        series.push({
-                            name: index === 0 ? '卖出力量' : '', // 只在第一个系列显示图例
-                            type: 'bar',
-                            barWidth: barWidths[index],
-                            data: categories.map((_, i) => i === index ? sellData[i] : null),
-                            itemStyle: {
-                            color: '#4ecdc4',
-                                barBorderRadius: [0, 0, 3, 3]
-                            },
-                            stack: 'sell',
-                            legendHoverLink: false
-                        });
-                    });
-                    
-                    return series;
-                })()
-            };
-
-            // 准备自定义柱状图数据
-            const chartData = {
-                labels: categories,
-                datasets: [{
-                    label: '买入力量',
-                    data: buyData,
-                    backgroundColor: '#ff6b6b'
-                }, {
-                    label: '卖出力量',
-                    data: sellData,
-                    backgroundColor: '#4ecdc4'
-                }]
-            };
-            
-            // 绘制柱状图
-            charts.mainForce.drawBarChart(chartData);
         }
+
 
         // 生成投资策略
         function generateStrategy() {

@@ -1291,9 +1291,6 @@
                         <option value="20">20日线</option>
                         <option value="30">30日线</option>
                         <option value="40">40日线</option>
-                        <option value="60">60日线</option>
-                        <option value="90">90日线</option>
-                        <option value="120">120日线</option>
                     </select>
                 </div>
                 <span class="date-nav" id="prev-day">◀</span>
@@ -1430,11 +1427,14 @@
             
             // 最后尝试从URL参数获取
             const urlParams = getUrlParams();
-            const stockCode = urlParams.code;
-            const stockName = urlParams.name || '';
+            const urlStockCode = urlParams.code;  // 使用局部变量名避免覆盖全局变量
+            const urlStockName = urlParams.name || '';
             
-            if (stockCode && /^\d{6}$/.test(stockCode)) {
-                return { code: stockCode, name: stockName || '' };
+            if (urlStockCode && /^\d{6}$/.test(urlStockCode)) {
+                // 设置全局变量
+                stockCode = urlStockCode;
+                stockName = urlStockName;
+                return { code: urlStockCode, name: urlStockName || '' };
             }
             
             return null;
@@ -1469,6 +1469,39 @@
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
+        }
+
+        // 规范化各种日期值为 YYYY-MM-DD 格式字符串
+        function normalizeDateString(rawDate) {
+            if (!rawDate) return null;
+
+            if (rawDate instanceof Date) {
+                return formatInputDate(rawDate);
+            }
+
+            if (typeof rawDate === 'string') {
+                const value = rawDate.trim();
+                if (!value) return null;
+
+                if (value.includes('-')) {
+                    return value.slice(0, 10);
+                }
+
+                if (/^\d{8}$/.test(value)) {
+                    return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+                }
+            }
+
+            try {
+                const parsed = parseDate(String(rawDate));
+                if (parsed && !isNaN(parsed.getTime())) {
+                    return formatInputDate(parsed);
+                }
+            } catch (error) {
+                console.warn('无法规范化日期:', rawDate, error);
+            }
+
+            return null;
         }
 
         // 格式化时间戳为 HH:mm:ss
@@ -1614,91 +1647,114 @@
         
         // 本地服务器配置（支持域名访问）
         const LOCAL_SERVER = getServerUrl();
-        
-        // 获取股票名称（使用AkShare API）
-        async function getStockName(code) {
+
+        function normalizeDateDigits(dateStr) {
+            if (!dateStr) return '';
+            const digits = String(dateStr).replace(/[^0-9]/g, '');
+            return digits.length >= 8 ? digits.slice(0, 8) : '';
+        }
+
+        function normalizeDateIso(dateStr) {
+            const digits = normalizeDateDigits(dateStr);
+            if (digits.length === 8) {
+                return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+            }
+            return '';
+        }
+
+        function getFallbackStartDigits(topN) {
+            const count = Math.max(parseInt(topN, 10) || 0, 0);
+            const offset = Math.max(count + 20, 60);
+            const dt = new Date();
+            dt.setDate(dt.getDate() - offset);
+            return dt.toISOString().slice(0, 10).replace(/-/g, '');
+        }
+
+        function getTodayDigits() {
+            return new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        }
+
+        async function fetchHistoryData(options = {}) {
+            const { symbol = stockCode, topN = 200, startDate, endDate } = options;
+            if (!symbol) {
+                return { data: [], source: '', origin: 'none' };
+            }
+
+            const localParams = new URLSearchParams({ symbol, market: 'CN' });
+            if (topN) {
+                localParams.set('top_n', topN);
+            }
+            if (startDate) {
+                localParams.set('start_date', startDate);
+            }
+            if (endDate) {
+                localParams.set('end_date', endDate);
+            }
+
             try {
-                // 方法1: 使用AkShare个股信息API获取名称
-                const akShareName = await getStockNameFromAkShare(code);
-                if (akShareName) {
-                    return akShareName;
-                }
-                
-                // 方法2: 使用本地股票分析API获取名称
-                const analysisUrl = `${LOCAL_SERVER}/api/stock/analysis?code=${code}&source=akshare`;
-                const analysisResponse = await fetch(analysisUrl);
-                
-                if (analysisResponse.ok) {
-                    const analysisData = await analysisResponse.json();
-                    if (analysisData.success && analysisData.realtime && analysisData.realtime.name) {
-                        // 检查name是否不是纯股票代码（说明确实获取到了股票名称）
-                        if (analysisData.realtime.name !== code && 
-                            !(/^\d{6}$/.test(analysisData.realtime.name))) {
-                            return analysisData.realtime.name;
-                        } else {
-                            // 先立即设置一个临时显示，避免用户等待
-                            setTimeout(() => {
-                                const nameElement = document.getElementById('stock-name');
-                                if (nameElement && nameElement.textContent === '正在加载...') {
-                                    nameElement.textContent = `股票${code} (加载中...)`;
-                                }
-                            }, 1000);
-                        }
+                const localResponse = await fetch(`${LOCAL_SERVER}/api/lj/stock/history?${localParams.toString()}`);
+                if (localResponse.ok) {
+                    const localData = await localResponse.json();
+                    if (localData.success && Array.isArray(localData.data) && localData.data.length > 0) {
+                        const normalized = localData.data.map(item => ({
+                            ...item,
+                            trade_date: item.trade_date || item.date || item.日期
+                        }));
+                        return { data: normalized, source: localData.source || 'local', origin: 'local' };
                     }
                 }
-                
-                // 方法2: 使用基本信息API作为备用方案
-                const basicUrl = `${LOCAL_SERVER}/api/stock/basic?source=akshare`;
-                
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
-                    
-                    const basicResponse = await fetch(basicUrl, { 
-                        signal: controller.signal,
-                        timeout: 5000 
-                    });
-                    
-                    clearTimeout(timeoutId);
-                    
-                    if (basicResponse.ok) {
-                        const basicData = await basicResponse.json();
-                        if (basicData.success && basicData.data && Array.isArray(basicData.data)) {
-                            const stock = basicData.data.find(item => {
-                                const itemCode = item.code || '';
-                                return itemCode === code || 
-                                       itemCode === code.replace(/^0+/, '') ||
-                                       itemCode.endsWith(code) ||
-                                       code.includes(itemCode);
-                            });
-                            
-                            if (stock && stock.name && stock.name !== code) {
-                                return stock.name;
-                            } else {
-                                }
-                        } else {
-                            }
-                    } else {
-                        }
-                } catch (fetchError) {
-                    if (fetchError.name === 'AbortError') {
-                        } else {
-                        }
+            } catch (error) {
+                console.warn('本地历史数据获取失败:', error);
+            }
+
+            try {
+                const remoteParams = new URLSearchParams();
+                remoteParams.set('code', symbol);
+
+                const normalizedStartDigits = normalizeDateDigits(startDate) || (topN ? getFallbackStartDigits(topN) : '');
+                const normalizedEndDigits = normalizeDateDigits(endDate) || (topN ? getTodayDigits() : '');
+
+                if (normalizedStartDigits) {
+                    remoteParams.set('start_date', normalizedStartDigits);
                 }
-                
-                // 方法3: 尝试使用新的股票信息API
-                const stockInfoUrl = `${LOCAL_SERVER}/api/stock/info?code=${code}`;
+                if (normalizedEndDigits) {
+                    remoteParams.set('end_date', normalizedEndDigits);
+                }
+                remoteParams.set('period', 'daily');
+                remoteParams.set('adjust', 'qfq');
+
+                const remoteResponse = await fetch(`${LOCAL_SERVER}/api/stock/history?${remoteParams.toString()}`);
+                if (remoteResponse.ok) {
+                    const remoteData = await remoteResponse.json();
+                    if (remoteData.success && Array.isArray(remoteData.data) && remoteData.data.length > 0) {
+                        const normalized = remoteData.data.map(item => ({
+                            ...item,
+                            trade_date: item.trade_date || item.date || normalizeDateIso(item.date)
+                        }));
+                        return { data: normalized, source: remoteData.source || 'remote', origin: 'remote' };
+                    }
+                }
+            } catch (error) {
+                console.warn('远程历史数据获取失败:', error);
+            }
+
+            return { data: [], source: '', origin: 'none' };
+        }
+
+        // 获取股票名称（使用本地lj-read数据库）
+        async function getStockName(code) {
+            try {
+                const historyResult = await fetchHistoryData({ symbol: code, topN: 1 });
+                if (historyResult.data.length > 0) {
+                    const stockInfo = historyResult.data[0];
+                    if (stockInfo.name && stockInfo.name !== code) {
+                        return stockInfo.name;
+                    }
+                }
+
+                // 兜底：调用 /api/stock/info 获取名称（本地优先）
                 try {
-                    const infoController = new AbortController();
-                    const infoTimeoutId = setTimeout(() => infoController.abort(), 3000); // 3秒超时
-                    
-                    const infoResponse = await fetch(stockInfoUrl, { 
-                        signal: infoController.signal,
-                        timeout: 3000 
-                    });
-                    
-                    clearTimeout(infoTimeoutId);
-                    
+                    const infoResponse = await fetch(`${LOCAL_SERVER}/api/stock/info?code=${code}`);
                     if (infoResponse.ok) {
                         const infoData = await infoResponse.json();
                         if (infoData.success && infoData.data && infoData.data.name) {
@@ -1706,18 +1762,14 @@
                         }
                     }
                 } catch (infoError) {
-                    if (infoError.name === 'AbortError') {
-                        } else {
-                        }
+                    console.error('获取股票基本信息失败:', infoError);
                 }
-                
-                // 如果所有方法都失败，返回友好的默认名称
-                return `股票${code}`;
-                
             } catch (error) {
-                // 返回更友好的错误信息
-                return `${code} (错误，检查网络连接和大师服务器状态)`;
+                console.error('获取股票名称失败:', error);
             }
+            
+            // 如果获取失败，返回友好的默认名称
+            return `股票${code}`;
         }
 
         // 检查日期是否在交易日列表中
@@ -1864,35 +1916,33 @@
         }
 
 
-        // 获取个股异动数据（单日）- 使用本地服务器
+        // 获取个股资金流向数据（使用本地lj-read数据库）
         async function fetchStockData() {
             // 检查并重新初始化交易日数据（如果需要）
             if (stockCode && tradingDays.length === 0) {
                 try {
                     const newTradingDays = await initTradingDays();
                     tradingDays = newTradingDays;
-                    } catch (error) {
-                    }
+                } catch (error) {
+                }
             }
 
             const buyBody = document.getElementById('buy-body');
             const sellBody = document.getElementById('sell-body');
-            buyBody.innerHTML = '<tr><td colspan="4" class="loading">正在加载数据...</td></tr>';
-            sellBody.innerHTML = '<tr><td colspan="4" class="loading">正在加载数据...</td></tr>';
+            buyBody.innerHTML = '<tr><td colspan="4" class="loading">正在加载资金流向数据...</td></tr>';
+            sellBody.innerHTML = '<tr><td colspan="4" class="loading">正在加载资金流向数据...</td></tr>';
 
             try {
                 const stockCountElement = document.getElementById('stock-count');
                 const volumeElement = document.getElementById('stock-total-volume');
-                // const priceElement = document.getElementById('stock-avg-price'); // 已隐藏均价元素
                 const amountElement = document.getElementById('stock-total-amount');
                 stockCountElement.textContent = '0';
                 volumeElement.textContent = '';
-                // priceElement.textContent = ''; // 跳过已隐藏的均价元素
                 amountElement.textContent = '';
 
-                const dateStr = formatDate(currentDate);
-                // 使用本地服务器API
-                const url = `${LOCAL_SERVER}/api/stock/large_orders?code=${stockCode}&date=${dateStr.replace(/-/g, '')}`;
+                const dateStr = formatInputDate(currentDate);
+                // 使用本地资金流向API
+                const url = `${LOCAL_SERVER}/api/lj/money/flow?symbol=${stockCode}&top_n=10`;
                 const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error(`HTTP错误: ${response.status}`);
@@ -1903,16 +1953,18 @@
                 buyBody.innerHTML = '';
                 sellBody.innerHTML = '';
 
-                if (data.rc !== 0) {
-                    const errorMsg = data.msg || '获取数据失败';
+                if (!data.success) {
+                    const errorMsg = data.error || '获取数据失败';
                     buyBody.innerHTML = `<tr><td colspan="4" class="no-data">服务器错误: ${errorMsg}</td></tr>`;
                     sellBody.innerHTML = `<tr><td colspan="4" class="no-data">服务器错误: ${errorMsg}</td></tr>`;
                     return;
                 }
                 
-                if (!data.data || !data.data.data || data.data.data.length === 0) {
-                    buyBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无大笔买入数据</td></tr>`;
-                    sellBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无大笔卖出数据</td></tr>`;
+                const moneyFlowList = Array.isArray(data.data) ? data.data : Array.isArray(data?.data?.data) ? data.data.data : [];
+
+                if (moneyFlowList.length === 0) {
+                    buyBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无资金流向数据</td></tr>`;
+                    sellBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无资金流向数据</td></tr>`;
                     
                     // 更新汇总信息为无数据状态
                     updateTableSummary('buy-summary', 0, 0, 0);
@@ -1924,19 +1976,141 @@
                     return;
                 }
 
-                // 添加多空力量分析
-                analyzeMarketForces(data.data.data);
+                // 找到指定日期的数据
+                const targetData = moneyFlowList.find(item => {
+                    const itemDate = normalizeDateString(item.trade_date || item.date);
+                    return itemDate === dateStr;
+                });
+                
+                if (!targetData) {
+                    buyBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无资金流向数据</td></tr>`;
+                    sellBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无资金流向数据</td></tr>`;
+                    
+                    updateTableSummary('buy-summary', 0, 0, 0);
+                    updateTableSummary('sell-summary', 0, 0, 0);
+                    
+                    const container = document.getElementById('market-force-container');
+                    container.classList.remove('has-data');
+                    return;
+                }
+                
+                // 获取收盘价用于计算成交量
+                let closePrice = parseFloat(targetData.close || targetData['收盘价'] || 0);
+                
+                // 如果收盘价为0，尝试从历史数据获取
+                if (closePrice === 0) {
+                    try {
+                        const historyResult = await fetchHistoryData({ topN: 1 });
+                        if (historyResult && historyResult.data && historyResult.data.length > 0) {
+                            const latestData = historyResult.data[0];
+                            closePrice = parseFloat(latestData.close || 0);
+                            console.log('从历史数据获取收盘价:', closePrice);
+                        }
+                    } catch (error) {
+                        console.warn('获取历史收盘价失败:', error);
+                    }
+                }
+                
+                // ⭐ 计算买入和卖出金额（从资金流向数据，单位已经是**万元**）
+                const buySuperAmount = (targetData.buy_elg_amount || 0);  // 单位：万元
+                const buyLgAmount = (targetData.buy_lg_amount || 0);      // 单位：万元
+                const buyMdAmount = (targetData.buy_md_amount || 0);      // 单位：万元
+                const buySmAmount = (targetData.buy_sm_amount || 0);      // 单位：万元
+                const sellSuperAmount = (targetData.sell_elg_amount || 0); // 单位：万元
+                const sellLgAmount = (targetData.sell_lg_amount || 0);    // 单位：万元
+                const sellMdAmount = (targetData.sell_md_amount || 0);    // 单位：万元
+                const sellSmAmount = (targetData.sell_sm_amount || 0);    // 单位：万元
+                
+                const buyMajorAmount = buySuperAmount + buyLgAmount;
+                const sellMajorAmount = sellSuperAmount + sellLgAmount;
+                
+                // 根据金额和价格计算成交量（股数）
+                let buyVolume = 0;
+                let sellVolume = 0;
+                if (closePrice > 0) {
+                    // ⭐ buyMajorAmount单位是万元，需要x10000转为元，再除以价格得到股数
+                    buyVolume = (buyMajorAmount * 10000) / closePrice;
+                    sellVolume = (sellMajorAmount * 10000) / closePrice;
+                    console.log('计算成交量 - 价格:', closePrice, '买入金额(万):', buyMajorAmount, '买入量:', buyVolume);
+                } else {
+                    console.warn('收盘价为0，无法计算成交量');
+                }
 
-                // 分别过滤买入和卖出数据（新格式）
-                const buyData = data.data.data.filter(item => item.direction === 'buy' || item.buyAmount > 0);
-                const sellData = data.data.data.filter(item => item.direction === 'sell' || item.sellAmount > 0);
+                // 显示资金流向统计信息（不再显示明细表）
+                // ⭐ 转换为亿元显示（万元 / 10000 = 亿元）
+                const buyMajorAmountYi = (buyMajorAmount / 10000).toFixed(2);
+                const buySuperAmountYi = (buySuperAmount / 10000).toFixed(2);
+                const buyLgAmountYi = (buyLgAmount / 10000).toFixed(2);
+                const buyMdAmountYi = (buyMdAmount / 10000).toFixed(2);
+                const buySmAmountYi = (buySmAmount / 10000).toFixed(2);
+                
+                const sellMajorAmountYi = (sellMajorAmount / 10000).toFixed(2);
+                const sellSuperAmountYi = (sellSuperAmount / 10000).toFixed(2);
+                const sellLgAmountYi = (sellLgAmount / 10000).toFixed(2);
+                const sellMdAmountYi = (sellMdAmount / 10000).toFixed(2);
+                const sellSmAmountYi = (sellSmAmount / 10000).toFixed(2);
+                
+                buyBody.innerHTML = `
+                    <tr><td colspan="4" style="text-align: center; padding: 20px;">
+                        <div style="font-size: 16px; color: #ff4444; margin-bottom: 10px;">
+                            <strong>买入资金（特大+大）：${buyMajorAmountYi}亿元</strong>
+                        </div>
+                        <div style="font-size: 14px; color: #999;">
+                            特大单：${buySuperAmountYi}亿 | 大单：${buyLgAmountYi}亿 | 中单：${buyMdAmountYi}亿 | 小单：${buySmAmountYi}亿
+                        </div>
+                    </td></tr>
+                `;
+                
+                sellBody.innerHTML = `
+                    <tr><td colspan="4" style="text-align: center; padding: 20px;">
+                        <div style="font-size: 16px; color: #44ff44; margin-bottom: 10px;">
+                            <strong>卖出资金（特大+大）：${sellMajorAmountYi}亿元</strong>
+                        </div>
+                        <div style="font-size: 14px; color: #999;">
+                            特大单：${sellSuperAmountYi}亿 | 大单：${sellLgAmountYi}亿 | 中单：${sellMdAmountYi}亿 | 小单：${sellSmAmountYi}亿
+                        </div>
+                    </td></tr>
+                `;
 
-                // 渲染买入数据
-                let buyTotalVolume = 0;
-                let buyTotalAmount = 0;
-                let buyTotalCount = 0;
+                // 更新汇总信息
+                // 使用金额绝对值进行汇总（按万元）
+                const buySummaryAmount = buyMajorAmount;
+                const sellSummaryAmount = sellMajorAmount;
 
-                buyData.forEach(item => {
+                updateTableSummary('buy-summary', buyVolume, buySummaryAmount, 1);
+                updateTableSummary('sell-summary', sellVolume, sellSummaryAmount, 1);
+
+                // 计算并显示多空力量
+                analyzeMarketForces([{buyAmount: buyMajorAmount, sellAmount: sellMajorAmount}]);
+
+                // 计算差距
+                const differenceInfo = calculateDifference(buyMajorAmount, sellMajorAmount);
+
+                // 更新页面上的汇总信息（转换为亿元）
+                const totalAmountYi = ((buyMajorAmount + sellMajorAmount) / 10000).toFixed(2);
+                amountElement.textContent = `总资金（特大+大）：${totalAmountYi}亿`;
+                volumeElement.textContent = '';
+                
+                // 更新差距信息
+                const differenceElement = document.getElementById('stock-difference');
+                if (differenceElement && differenceInfo) {
+                    differenceElement.textContent = `差距：${differenceInfo.text}`;
+                    differenceElement.className = `stock-difference ${differenceInfo.cssClass}`;
+                }
+                
+                if (stockCountElement) {
+                    stockCountElement.textContent = '1';
+                }
+            } catch (error) {
+                buyBody.innerHTML = `<tr><td colspan="4" class="error">错误，检查网络连接和大师服务器状态</td></tr>`;
+                sellBody.innerHTML = `<tr><td colspan="4" class="error">错误，检查网络连接和大师服务器状态</td></tr>`;
+            }
+        }
+
+        // 临时注释掉，后续需要完全删除
+        /*
+        // 旧代码：渲染买入数据（已废弃）
+        function OLD_buyData_forEach(item) {
                     const row = document.createElement('tr');
                     // 新格式：直接从item对象获取数据
                     const rawVolume = parseFloat(item.volume) || 0;
@@ -2014,84 +2188,7 @@
                         <td class="amount-col sell-order">${amount}</td>
                     `;
 
-                    sellBody.appendChild(row);
-                });
-
-                // 对齐两个表格的行数 - 为行数较少的表格添加空行
-                const maxRows = Math.max(buyData.length, sellData.length);
-                
-                // 如果两个表格都没有数据，显示提示信息
-                if (maxRows === 0) {
-                    buyBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无大笔买入数据</td></tr>`;
-                    sellBody.innerHTML = `<tr><td colspan="4" class="no-data">${formatInputDate(currentDate)}无大笔卖出数据</td></tr>`;
-                    
-                    // 更新汇总信息为无数据状态
-                    updateTableSummary('buy-summary', 0, 0, 0);
-                    updateTableSummary('sell-summary', 0, 0, 0);
-                } else {
-                    // 为买入表格添加空行（如果买入数据较少）
-                    while (buyBody.children.length < maxRows) {
-                        const emptyRow = document.createElement('tr');
-                        emptyRow.innerHTML = `
-                            <td class="time-col">&nbsp;</td>
-                            <td class="volume-col">&nbsp;</td>
-                            <td class="avg-price-col">&nbsp;</td>
-                            <td class="amount-col">&nbsp;</td>
-                        `;
-                        buyBody.appendChild(emptyRow);
-                    }
-                    
-                    // 为卖出表格添加空行（如果卖出数据较少）
-                    while (sellBody.children.length < maxRows) {
-                        const emptyRow = document.createElement('tr');
-                        emptyRow.innerHTML = `
-                            <td class="time-col sell-order">&nbsp;</td>
-                            <td class="volume-col sell-order">&nbsp;</td>
-                            <td class="avg-price-col sell-order">&nbsp;</td>
-                            <td class="amount-col sell-order">&nbsp;</td>
-                        `;
-                        sellBody.appendChild(emptyRow);
-                    }
-                }
-
-                // 更新买入和卖出标题中的汇总信息
-                updateTableSummary('buy-summary', buyTotalVolume, buyTotalAmount, buyTotalCount);
-                updateTableSummary('sell-summary', sellTotalVolume, sellTotalAmount, sellTotalCount);
-
-                // 计算并显示汇总信息（显示所有数据的总和）
-                const totalVolume = buyTotalVolume + sellTotalVolume;
-                const totalAmount = buyTotalAmount + sellTotalAmount;
-                const totalCount = buyTotalCount + sellTotalCount;
-
-                const avgPrice = totalVolume > 0 ? (totalAmount * 10000 / totalVolume) : 0;
-                const totalVolumeInWan = (totalVolume / 1000000).toFixed(2) + '万手';
-                const avgPriceDisplay = avgPrice.toFixed(2);
-                const totalAmountInWan = totalAmount.toFixed(0) + '万';
-
-                // 计算买卖差距
-                const differenceInfo = calculateDifference(buyTotalAmount, sellTotalAmount);
-
-                // 更新页面上的汇总信息
-                volumeElement.textContent = `总成交量：${totalVolumeInWan}`;
-                // priceElement.textContent = `均价：${avgPriceDisplay}`; // 隐藏均价显示
-                amountElement.textContent = `总成交额：${totalAmountInWan}`;
-                
-                // 更新差距信息
-                const differenceElement = document.getElementById('stock-difference');
-                if (differenceElement && differenceInfo) {
-                    differenceElement.textContent = `差距：${differenceInfo.text}`;
-                    differenceElement.className = `stock-difference ${differenceInfo.cssClass}`;
-                }
-                
-                if (stockCountElement) {
-                    stockCountElement.textContent = totalCount;
-                }
-
-            } catch (error) {
-                buyBody.innerHTML = `<tr><td colspan="4" class="error">错误，检查网络连接和大师服务器状态</td></tr>`;
-                sellBody.innerHTML = `<tr><td colspan="4" class="error">错误，检查网络连接和大师服务器状态</td></tr>`;
-            }
-        }
+        } // 旧代码结束注释 */
 
         // 修改 analyzeMarketForces 函数
         function analyzeMarketForces(data) {
@@ -2336,17 +2433,17 @@
 
         // 获取下一个日线级别
         function getNextDayLevel(currentLevel) {
-            const levels = [1, 5, 10, 20, 30, 40, 60, 90, 120];
+            const levels = [1, 5, 10, 20, 30, 40];
             const currentIndex = levels.indexOf(currentLevel);
             if (currentIndex >= 0 && currentIndex < levels.length - 1) {
                 return levels[currentIndex + 1];
             }
-            return 120; // 最大级别
+            return 40; // 最大级别
         }
 
         // 根据日线级别计算动画速度（10日线为基准速度）
         function getAnimationSpeed(dayLevel) {
-            const levels = [1, 5, 10, 20, 30, 40, 60, 90, 120];
+            const levels = [1, 5, 10, 20, 30, 40];
             const baseLevel = 10; // 基准级别
             const baseLevelIndex = levels.indexOf(baseLevel);
             const currentLevelIndex = levels.indexOf(dayLevel);
@@ -2363,7 +2460,7 @@
 
         // 根据日线级别计算柱子宽度（10日线为基准宽度24px）
         function getBarWidth(dayLevel) {
-            const levels = [1, 5, 10, 20, 30, 40, 60, 90, 120];
+            const levels = [1, 5, 10, 20, 30, 40];
             const baseLevel = 20; // 基准级别
             const baseWidth = 24; // 基准宽度（像素）
             const baseLevelIndex = levels.indexOf(baseLevel);
@@ -2391,7 +2488,7 @@
 
         // 根据日线级别计算圆点大小（20日线为基准大小8px）
         function getPointRadius(dayLevel) {
-            const levels = [1, 5, 10, 20, 30, 40, 60, 90, 120];
+            const levels = [1, 5, 10, 20, 30, 40];
             const baseLevel = 20; // 基准级别
             const baseRadius = 8; // 20日线基准半径8px
             const baseLevelIndex = levels.indexOf(baseLevel);
@@ -2502,13 +2599,13 @@
                     const validTradingDays = tradingDays.slice(0, selectedDays);
                     const isInChartRange = validTradingDays.includes(dateStr);
                     
-                    if (!isInChartRange && selectedDays < 120) {
+                    if (!isInChartRange && selectedDays < 40) {
                         // 如果不在范围内且未达到最大级别，自动扩大到下一级
                         const nextLevel = getNextDayLevel(selectedDays);
                         selectedDays = nextLevel;
                         document.getElementById('days-selector').value = selectedDays;
                         updateChartDisplay();
-                    } else if (!isInChartRange && selectedDays >= 120) {
+                    } else if (!isInChartRange && selectedDays >= 40) {
                         }
                     
                     fetchStockData();
@@ -2528,13 +2625,13 @@
                     const validTradingDays = tradingDays.slice(0, selectedDays);
                     const isInChartRange = validTradingDays.includes(dateStr);
                     
-                    if (!isInChartRange && selectedDays < 120) {
+                    if (!isInChartRange && selectedDays < 40) {
                         // 如果不在范围内且未达到最大级别，自动扩大到下一级
                         const nextLevel = getNextDayLevel(selectedDays);
                         selectedDays = nextLevel;
                         document.getElementById('days-selector').value = selectedDays;
                         updateChartDisplay();
-                    } else if (!isInChartRange && selectedDays >= 120) {
+                    } else if (!isInChartRange && selectedDays >= 40) {
                         }
                     
                     fetchStockData();
@@ -2588,24 +2685,46 @@
                     .slice(0, selectedDays)
                     .sort((a, b) => new Date(a) - new Date(b));
                 
-                // 获取股价数据
-                const url = `${LOCAL_SERVER}/api/stock/market?code=${stockCode}&source=akshare&start_date=${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`;
-                const response = await fetch(url);
-                const marketData = await response.json();
-                
-                if (!marketData.success || !marketData.data || marketData.data.length === 0) {
+                const historyResult = await fetchHistoryData({ topN: 200 });
+                const marketRows = historyResult.data || [];
+
+                if (!marketRows.length) {
                     return [];
                 }
-                
+
                 // 构建股价映射
                 const priceData = {};
-                marketData.data.forEach(item => {
-                    const date = item.date || item.日期;
-                    const closePrice = parseFloat(item.close || item.收盘价 || 0);
+                marketRows.forEach(item => {
+                    const date = normalizeDateString(item.trade_date || item.date);
+                    const closePrice = parseFloat(item.close || 0);
                     if (date && closePrice > 0) {
                         priceData[date] = closePrice;
                     }
                 });
+
+                // 预先获取资金流向数据并构建映射
+                const moneyFlowMap = {};
+                try {
+                    const moneyFlowUrl = `${LOCAL_SERVER}/api/lj/money/flow?symbol=${stockCode}&top_n=200`;
+                    const moneyFlowResponse = await fetch(moneyFlowUrl);
+                const moneyFlowData = await moneyFlowResponse.json();
+                const moneyFlowList = Array.isArray(moneyFlowData.data)
+                    ? moneyFlowData.data
+                    : Array.isArray(moneyFlowData?.data?.data)
+                        ? moneyFlowData.data.data
+                        : [];
+
+                if (moneyFlowData.success && Array.isArray(moneyFlowList)) {
+                    moneyFlowList.forEach(item => {
+                            const day = normalizeDateString(item.trade_date || item.date);
+                            if (day) {
+                                moneyFlowMap[day] = item;
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('获取资金流向数据失败:', error);
+                }
                 
                 // 构建图表数据
                 const chartData = [];
@@ -2623,41 +2742,17 @@
                             }
                         }
                         
-                        // 获取当天的大单数据
+                        // 获取当天的资金流向数据（特大+大）
                         let buyAmount = 0, sellAmount = 0;
-                        try {
-                            const dateStr = day.replace(/-/g, '');
-                            const largeOrderUrl = `${LOCAL_SERVER}/api/stock/large_orders?code=${stockCode}&date=${dateStr}`;
-                            const largeOrderResponse = await fetch(largeOrderUrl);
-                            const largeOrderData = await largeOrderResponse.json();
-                            
-                            if (largeOrderData.rc === 0 && largeOrderData.data && largeOrderData.data.data) {
-                                const dayData = largeOrderData.data.data;
-                                if (dayData.length > 0) {
-                                    // 计算当天的买入和卖出总金额
-                                    dayData.forEach(order => {
-                                        // 检查是否有订单级别区分（特大、大、中、小）
-                                        const orderLevel = order.level || order.size || order.category || '';
-                                        const isLargeOrder = orderLevel.includes('特大') || orderLevel.includes('大') || 
-                                                           orderLevel === 'large' || orderLevel === 'super' ||
-                                                           order.type?.includes('大') || order.type?.includes('特大');
-                                        
-                                        // 使用API返回的buyAmount和sellAmount字段，数据已经是万元单位
-                                        const orderBuyAmount = parseFloat(order.buyAmount || 0); // 已经是万元
-                                        const orderSellAmount = parseFloat(order.sellAmount || 0); // 已经是万元
-                                        
-                                        // 只统计大单和特大单（如果有级别区分的话）
-                                        if (orderLevel === '' || isLargeOrder) {
-                                            buyAmount += orderBuyAmount;
-                                            sellAmount += orderSellAmount;
-                                        } else {
-                                        }
-                                    });
-                                }
-                            } else {
-                                }
-                        } catch (error) {
-                            }
+                        const dayData = moneyFlowMap[day];
+                        if (dayData) {
+                            const buySuper = (dayData.buy_elg_amount || 0) / 10000;
+                            const buyLarge = (dayData.buy_lg_amount || 0) / 10000;
+                            const sellSuper = (dayData.sell_elg_amount || 0) / 10000;
+                            const sellLarge = (dayData.sell_lg_amount || 0) / 10000;
+                            buyAmount = buySuper + buyLarge;
+                            sellAmount = sellSuper + sellLarge;
+                        }
                         
                         chartData.push({
                             date: day,
@@ -2780,74 +2875,45 @@
             if (!stockCode) return null;
 
             try {
-                // 先尝试获取实时行情数据
+                // 使用本地优先的历史数据API获取最新价格
                 let stockPrice = 0;
                 try {
-                    // 获取最近的一些数据以包含当前日期
-                    const startDate = new Date();
-                    startDate.setDate(startDate.getDate() - 30); // 最近30天足够获取当天数据
-                    const startDateStr = startDate.toISOString().split('T')[0];
-                    
-                    const marketUrl = `${LOCAL_SERVER}/api/stock/market?code=${stockCode}&source=akshare&start_date=${startDateStr}`;
-                    const marketResponse = await fetch(marketUrl);
-                    
-                    if (marketResponse.ok) {
-                        const marketData = await marketResponse.json();
-                        if (marketData.success && marketData.data && marketData.data.length > 0) {
-                            // 获取最新的收盘价
-                            const latestData = marketData.data[marketData.data.length - 1];
-                            stockPrice = parseFloat(latestData.close || latestData.收盘价 || 0);
-                            }
+                    const historyResult = await fetchHistoryData({ topN: 1 });
+                    if (historyResult.data.length > 0) {
+                        stockPrice = parseFloat(historyResult.data[0].close || 0);
                     }
                 } catch (error) {
-                    }
-                
-                // 如果还没有获取到价格，尝试从综合分析接口获取
-                if (stockPrice === 0) {
-                    try {
-                        const analysisUrl = `${LOCAL_SERVER}/api/stock/analysis?code=${stockCode}`;
-                        const analysisResponse = await fetch(analysisUrl);
-                        
-                        if (analysisResponse.ok) {
-                            const analysisData = await analysisResponse.json();
-                            if (analysisData.success && analysisData.realtime) {
-                                stockPrice = parseFloat(analysisData.realtime.current || 0);
-                                } else if (analysisData.success && analysisData.data && analysisData.data.realtime_data) {
-                                stockPrice = parseFloat(analysisData.data.realtime_data.最新价 || 0);
-                                }
-                        }
-                    } catch (error) {
-                        }
+                    console.error('获取股价失败:', error);
                 }
                 
-                // 获取当天异动数据
-                const dateStr = formatDate(currentDate);
-                const largeOrdersUrl = `${LOCAL_SERVER}/api/stock/large_orders?code=${stockCode}&date=${dateStr.replace(/-/g, '')}`;
+                // 获取当天资金流向数据
+                const dateStr = formatInputDate(currentDate);
+                const moneyFlowUrl = `${LOCAL_SERVER}/api/lj/money/flow?symbol=${stockCode}&top_n=10`;
                 
-                const largeOrdersResponse = await fetch(largeOrdersUrl);
-                if (largeOrdersResponse.ok) {
-                    const largeOrdersData = await largeOrdersResponse.json();
-                    if (largeOrdersData.rc === 0 && largeOrdersData.data && largeOrdersData.data.data) {
-                        // 计算当天的异动数据汇总
-                        let totalBuyAmount = 0, totalSellAmount = 0;
-                        
-                        largeOrdersData.data.data.forEach(item => {
-                            // 新格式：直接使用buyAmount和sellAmount字段
-                            const buyAmount = parseFloat(item.buyAmount) || 0;
-                            const sellAmount = parseFloat(item.sellAmount) || 0;
+                const moneyFlowResponse = await fetch(moneyFlowUrl);
+                if (moneyFlowResponse.ok) {
+                    const moneyFlowData = await moneyFlowResponse.json();
+                    if (moneyFlowData.success && moneyFlowData.data) {
+                        const dayData = moneyFlowData.data.find(item => normalizeDateString(item.trade_date || item.date) === dateStr);
+                        if (dayData) {
+                            // API返回的数据单位已经是元，需要除以10000转为万元
+                            const buySuper = (dayData.buy_elg_amount || 0) / 10000;
+                            const buyLarge = (dayData.buy_lg_amount || 0) / 10000;
+                            const sellSuper = (dayData.sell_elg_amount || 0) / 10000;
+                            const sellLarge = (dayData.sell_lg_amount || 0) / 10000;
+
+                            const totalBuyAmount = buySuper + buyLarge;
+                            const totalSellAmount = sellSuper + sellLarge;
                             
-                            totalBuyAmount += buyAmount;
-                            totalSellAmount += sellAmount;
-                        });
-                        
-                        return {
-                            date: dateStr,
-                            price: stockPrice,
-                            stockPrice: stockPrice, // 添加stockPrice属性以保持兼容
-                            buyAmount: totalBuyAmount,
-                            sellAmount: totalSellAmount,
-                            totalAmount: totalBuyAmount + totalSellAmount
-                        };
+                            return {
+                                date: dateStr,
+                                price: stockPrice,
+                                stockPrice: stockPrice,
+                                buyAmount: totalBuyAmount,
+                                sellAmount: totalSellAmount,
+                                totalAmount: totalBuyAmount + totalSellAmount
+                            };
+                        }
                     }
                 }
                 
@@ -2912,6 +2978,15 @@
 
         async function initTradingDays() {
             try {
+                // 在初始化交易日之前，确保获取并设置股票代码
+                const stockInfo = getCurrentStockCode();
+                if (stockInfo && stockInfo.code) {
+                    stockCode = stockInfo.code;
+                    stockName = stockInfo.name || '';
+                    globalCurrentStockCode = stockCode;
+                    globalCurrentStockName = stockName;
+                }
+
                 // 使用本地服务器获取股票行情数据来生成交易日
                 if (!stockCode) {
                     const today = new Date().toISOString().split('T')[0];
@@ -2919,34 +2994,26 @@
                     return [];
                 }
                 
-                // 计算开始日期，获取足够的历史数据（比120个交易日多一些，约180个日历天）
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 180); // 往前推180天
-                const startDateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD格式
-                
-                const url = `${LOCAL_SERVER}/api/stock/market?code=${stockCode}&source=akshare&start_date=${startDateStr}`;
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP错误: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                if ((data.success || data.message === '获取股票行情数据成功') && data.data && data.data.length > 0) {
-                    // 从行情数据中提取交易日期
-                    tradingDays = data.data.map(item => item.date || item.日期).filter(date => date).reverse();
-                    
-                    // 检查交易日数据是否足够支持最大天数选择（90日线）
-                    // 增加一些冗余以确保有足够的历史数据
-                    const maxDaysNeeded = 120; // 增加到120天以确保90日线有足够数据
-                    if (tradingDays.length < maxDaysNeeded) {
-                        // 如果数据不足，尝试生成更多历史交易日（工作日逻辑）
-                        const additionalDays = generateAdditionalTradingDays(tradingDays, maxDaysNeeded);
-                        tradingDays = [...additionalDays, ...tradingDays];
-                        }
-                    
+                const historyResult = await fetchHistoryData({ topN: 200 });
+                if (historyResult.data.length > 0) {
+                    let marketDates = historyResult.data
+                        .map(item => normalizeDateString(item.trade_date || item.date))
+                        .filter(Boolean);
+
+                    marketDates = Array.from(new Set(marketDates))
+                        .sort((a, b) => new Date(b) - new Date(a));
+
+                    const maxDaysNeeded = 60; // 保留一定缓冲，至少覆盖40日线
+                    if (marketDates.length < maxDaysNeeded) {
+                        const additionalDays = generateAdditionalTradingDays(marketDates, maxDaysNeeded);
+                        marketDates = Array.from(new Set([...marketDates, ...additionalDays]))
+                            .sort((a, b) => new Date(b) - new Date(a));
+                    }
+
+                    tradingDays = marketDates;
                     if (tradingDays.length > 0) {
                         currentDate = parseDate(tradingDays[0]);
-                        document.getElementById('date-picker').value = formatInputDate(currentDate);
+                        document.getElementById('date-picker').value = tradingDays[0];
                         return tradingDays;
                     }
                 }
@@ -2963,43 +3030,29 @@
             }
         }
 
-        // 获取个股价格数据并绘制30天异动图表 - 使用本地服务器
+        // 获取个股价格数据并绘制30天异动图表 - 使用本地数据库
         async function fetchAndDrawPriceChart() {
             try {
-                // 计算开始日期，获取足够的历史数据
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 180); // 往前推180天
-                const startDateStr = startDate.toISOString().split('T')[0];
-                
-                const url = `${LOCAL_SERVER}/api/stock/market?code=${stockCode}&source=akshare&start_date=${startDateStr}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP错误: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                if ((data.success || data.message === '获取股票行情数据成功') && data.data && data.data.length > 0) {
-                    // 提取交易日并更新 tradingDays 数组
-                    const marketData = data.data;
-                    tradingDays = marketData.map(item => item.date || item.日期).filter(date => date).reverse();
+                const historyResult = await fetchHistoryData({ topN: 200 });
+                const rows = historyResult.data || [];
+
+                if (rows.length > 0) {
+                    const marketDates = rows
+                        .map(item => normalizeDateString(item.trade_date || item.date))
+                        .filter(Boolean);
+
+                    tradingDays = Array.from(new Set(marketDates))
+                        .sort((a, b) => new Date(b) - new Date(a));
 
                     if (tradingDays.length > 0) {
-                        // 设置当前日期为最新的交易日
                         currentDate = parseDate(tradingDays[0]);
-
-                        // 更新日期选择器
-                        document.getElementById('date-picker').value = formatInputDate(currentDate);
-                        
+                        document.getElementById('date-picker').value = tradingDays[0];
                         // 注意：不在这里绘制图表，避免重复绘制
-                        // 图表绘制由 updateChartDisplay() 统一处理
-                    } else {
-                        }
-                } else {
                     }
+                }
 
             } catch (error) {
-                }
+            }
         }
 
         // 绘制多天异动数据图表
@@ -3596,9 +3649,8 @@
             // 使用统一的股票代码获取函数
             const currentStock = getCurrentStockCode();
             if (currentStock && currentStock.code) {
-                // 构建正确的链接：域名+逐笔分析.html##代码##名称##
-                const currentOrigin = window.location.origin;
-                const url = `${currentOrigin}/逐笔分析.html##${currentStock.code}##${encodeURIComponent(currentStock.name)}##`;
+                // 使用相对路径，兼容file://协议
+                const url = `逐笔分析.html##${currentStock.code}##${encodeURIComponent(currentStock.name)}##`;
                 window.location.href = url;
             } else {
                 const stockInput = document.getElementById('stock-code-input');
@@ -3638,9 +3690,8 @@
                     // 使用统一的股票代码获取函数
                     const currentStock = getCurrentStockCode();
                     if (currentStock && currentStock.code) {
-                        // 构建正确的链接：域名+逐笔分析.html##代码##名称##
-                        const currentOrigin = window.location.origin;
-                        const url = `${currentOrigin}/逐笔分析.html##${currentStock.code}##${encodeURIComponent(currentStock.name)}##`;
+                        // 使用相对路径，兼容file://协议
+                        const url = `逐笔分析.html##${currentStock.code}##${encodeURIComponent(currentStock.name)}##`;
                         window.location.href = url;
                     } else {
                         alert('请先输入或查询股票代码');
@@ -3727,12 +3778,25 @@
                         broadcastToTdx(stockCode);
                     }
                     
-                    // 更新图表显示（Tab切换时需要）
-                    if (typeof updateChartDisplay === 'function') {
-                        setTimeout(function() {
-                            updateChartDisplay();
-                        }, 100);
-                    }
+                    // ===== 修复：不在这里调用 updateChartDisplay =====
+                    // 改为在数据加载完成后再调用，避免过早显示"无数据"
+                    // 数据加载流程：fetchAndDrawPriceChart -> fetchStockData -> updateChartDisplay
+                    
+                    // 延迟加载数据，确保正确的加载顺序
+                    setTimeout(function() {
+                        fetchAndDrawPriceChart().then(function() {
+                            updateNavButtons();
+                            return fetchStockData(); // 先加载单日数据
+                        }).then(function() {
+                            updateChartDisplay(); // 最后更新图表显示
+                        }).catch(function(error) {
+                            console.error('数据加载失败:', error);
+                            // 即使失败也尝试加载和显示
+                            fetchStockData().finally(function() {
+                                updateChartDisplay();
+                            });
+                        });
+                    }, 200);
                 }
                 return false;
             }
@@ -3754,6 +3818,34 @@
             
             // 标记为已初始化
             pageInitializedFlag = true;
+            
+            // ===== 修复：首次加载时如果有URL参数，立即触发数据加载 =====
+            if (hasUrlParams && stockCode && /^\d{6}$/.test(stockCode)) {
+                console.log('🔥 首次加载检测到URL参数，延迟加载数据:', stockCode);
+                setTimeout(function() {
+                    // 先广播股票代码到通达信
+                    if (typeof broadcastToTdx === 'function') {
+                        try {
+                            broadcastToTdx(stockCode);
+                        } catch (error) {
+                            console.error('广播失败:', error);
+                        }
+                    }
+                    
+                    // 加载数据
+                    fetchAndDrawPriceChart().then(function() {
+                        updateNavButtons();
+                        return fetchStockData();
+                    }).then(function() {
+                        updateChartDisplay();
+                    }).catch(function(error) {
+                        console.error('数据加载失败:', error);
+                        fetchStockData().finally(function() {
+                            updateChartDisplay();
+                        });
+                    });
+                }, 300);
+            }
             
             console.log('✅ initPage 完成，hasUrlParams:', hasUrlParams);
             return hasUrlParams;
