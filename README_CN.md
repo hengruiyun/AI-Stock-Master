@@ -207,11 +207,11 @@ AI-Stock-Master.bat
 ## 联系方式与技术支持
 
 **项目团队**
-- **项目创建者**：267278466@qq.com
+- **项目创建者**：ttfox@ttfox.com
 - **技术架构**：人工智能与人类协作开发
 
 **技术支持**
-- 邮箱咨询：267278466@qq.com
+- 邮箱咨询：ttfox@ttfox.com
 
 
 ---
@@ -253,7 +253,7 @@ AI-Stock-Master.bat
 
 <div align="center">
 
-© 2025 AI股票趋势分析系统 | 由人工智能与267278466@qq.com协作开发
+© 2025 AI股票趋势分析系统 | 由人工智能与TTFox.com协作开发
 
 让AI助力您的投资决策
 

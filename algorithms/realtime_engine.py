@@ -5,7 +5,7 @@ from config.gui_i18n import t_gui as _
 提供高性能的股票分析计算引擎，整合RTSI、IRSI、MSCI三大核心算法。
 支持多线程并行计算、结果缓存、性能监控等功能。
 
-作者: 267278466@qq.com
+作者: ttfox@ttfox.com
 版本: 1.0.0
 """
 

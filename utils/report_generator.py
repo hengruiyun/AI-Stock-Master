@@ -12,7 +12,7 @@ t_common = t_gui
 - 集成图表和数据表
 - 自动样式美化
 
-作者: 267278466@qq.com
+作者: ttfox@ttfox.com
 版本: 1.0.0
 """
 

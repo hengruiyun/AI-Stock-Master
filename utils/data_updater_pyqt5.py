@@ -9,7 +9,7 @@ AI股票大师 - PyQt5数据自动更新模块
 3. 覆盖本地文件
 4. 兼容打包环境和开发环境
 
-作者: 267278466@qq.com
+作者: ttfox@ttfox.com
 版本: 2.0.0 (PyQt5版本)
 """
 
@@ -20,7 +20,7 @@ import urllib.error
 from pathlib import Path
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                               QPushButton, QProgressBar, QApplication)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont
 
 try:
@@ -51,70 +51,91 @@ class DownloadThread(QThread):
                 break
                 
             filename = file_info['filename']
-            url = file_info['url']
-            description = file_info['description']
+            # 优先使用 urls 列表，兼容旧的 url 字段
+            urls = file_info.get('urls', [])
+            if not urls and 'url' in file_info:
+                urls = [file_info['url']]
+                
+            description = file_info.get('description', filename)
             
             # 更新进度
             progress = int((index / total_files) * 100)
             self.progress_updated.emit(progress, filename, f"正在检查 {description}...")
             
-            # 检查是否需要下载
-            try:
-                target_path = self.target_dir / filename
+            file_success = False
+            target_path = self.target_dir / filename
+            
+            for url_idx, url in enumerate(urls):
+                if self.cancel_download:
+                    break
                 
-                # 获取远程文件信息
-                need_download = True
-                if target_path.exists():
-                    print(f"📝 检查文件: {filename}")
-                    try:
-                        # 获取远程文件的头信息
-                        req = urllib.request.Request(url, method='HEAD')
-                        with urllib.request.urlopen(req, timeout=10) as response:
-                            # 获取远程文件大小
-                            remote_size = int(response.headers.get('Content-Length', 0))
-                            # 获取远程文件修改时间
-                            remote_time = response.headers.get('Last-Modified', '')
-                            
-                            # 获取本地文件大小
-                            local_size = target_path.stat().st_size
-                            
-                            # 比对大小
-                            if remote_size > 0 and remote_size == local_size:
-                                print(f"✅ 文件大小相同 ({remote_size:,} 字节)，跳过下载: {filename}")
-                                need_download = False
-                                success_count += 1
-                            else:
-                                print(f"📊 文件大小不同 - 本地: {local_size:,} 字节, 远程: {remote_size:,} 字节")
-                                need_download = True
+                try:
+                    if len(urls) > 1:
+                        print(f"[{filename}] 尝试源 {url_idx + 1}: {url}")
                     
-                    except Exception as e:
-                        print(f"⚠️ 无法获取远程文件信息: {e}，将继续下载")
-                        need_download = True
+                    need_download = True
+                    
+                    # 1. 检查是否需要下载 (HEAD请求)
+                    if target_path.exists():
+                        try:
+                            # 获取远程文件的头信息
+                            req = urllib.request.Request(url, method='HEAD')
+                            # 如果有备选源，设置较短超时(5秒)，否则15秒
+                            timeout = 5 if (len(urls) > 1 and url_idx < len(urls) - 1) else 15
+                            
+                            with urllib.request.urlopen(req, timeout=timeout) as response:
+                                remote_size = int(response.headers.get('Content-Length', 0))
+                                local_size = target_path.stat().st_size
+                                
+                                if remote_size > 0 and remote_size == local_size:
+                                    print(f"[{filename}] 文件大小相同 ({remote_size:,} 字节)，跳过")
+                                    need_download = False
+                                    file_success = True
+                                else:
+                                    print(f"[{filename}] 大小不同 - 本地: {local_size:,}, 远程: {remote_size:,}")
+                                    need_download = True
+                        
+                        except Exception as e:
+                            print(f"[{filename}] 获取信息失败 (源 {url_idx + 1}): {e}")
+                            # 如果获取信息失败且有下一个源，则跳过当前源
+                            if url_idx < len(urls) - 1:
+                                continue
+                            # 否则尝试直接下载
+                            need_download = True
+                    
+                    # 2. 如果需要下载
+                    if need_download and not file_success:
+                        # 更新进度提示
+                        msg = f"正在下载 {description}"
+                        if len(urls) > 1:
+                            msg += f" (源 {url_idx + 1})"
+                        self.progress_updated.emit(progress, filename, msg + "...")
+                        
+                        # 下载到临时文件
+                        temp_path = target_path.with_suffix(target_path.suffix + '.tmp')
+                        
+                        # 使用 urlretrieve 下载
+                        urllib.request.urlretrieve(url, temp_path)
+                        
+                        # 下载成功，替换原文件
+                        if temp_path.exists():
+                            if target_path.exists():
+                                target_path.unlink()
+                            temp_path.rename(target_path)
+                            file_success = True
+                            print(f"[{filename}] 下载成功")
+                    
+                    if file_success:
+                        break # 当前文件处理成功，跳出源循环
                 
-                # 如果需要下载
-                if need_download:
-                    # 更新进度提示
-                    self.progress_updated.emit(progress, filename, f"正在下载 {description}...")
-                    
-                    # 下载到临时文件
+                except Exception as e:
+                    print(f"[{filename}] 下载失败 (源 {url_idx + 1}): {e}")
+                    # 清理临时文件
                     temp_path = target_path.with_suffix(target_path.suffix + '.tmp')
-                    
-                    urllib.request.urlretrieve(url, temp_path)
-                    
-                    # 下载成功，替换原文件
                     if temp_path.exists():
-                        if target_path.exists():
-                            target_path.unlink()
-                        temp_path.rename(target_path)
-                        success_count += 1
-                        print(f"✅ 下载成功: {filename}")
-                
-            except Exception as e:
-                print(f"❌ 下载失败 {filename}: {e}")
-                # 清理临时文件
-                temp_path = target_path.with_suffix(target_path.suffix + '.tmp')
-                if temp_path.exists():
-                    temp_path.unlink()
+                        try: temp_path.unlink()
+                        except: pass
+                    # 继续尝试下一个源
         
         # 下载完成
         final_progress = 100 if success_count == total_files else int((success_count / total_files) * 100)
@@ -147,7 +168,7 @@ class DataUpdaterDialog(QDialog):
         layout.setSpacing(15)
         
         # 标题
-        title_label = QLabel("📥 正在下载最新数据文件")
+        title_label = QLabel("正在下载最新数据文件")
         title_label.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #0078d4; padding: 10px;")
@@ -250,40 +271,58 @@ class DataUpdaterDialog(QDialog):
         self.setLayout(layout)
         
         # 居中显示
-        if parent:
-            self.move(parent.geometry().center() - self.rect().center())
+        if self.parent():
+            self.move(self.parent().geometry().center() - self.rect().center())
     
     def start_download(self):
         """开始下载"""
         # 数据文件列表
         files_to_download = [
             {
-                'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/CN_Data5000.json.gz',
+                'urls': [
+                    'https://update.ttfox.com/update/CN_Data5000.json.gz',
+                    'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/CN_Data5000.json.gz'
+                ],
                 'filename': 'CN_Data5000.json.gz',
                 'description': 'A股市场数据'
             },
             {
-                'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/HK_Data1000.json.gz',
+                'urls': [
+                    'https://update.ttfox.com/update/HK_Data1000.json.gz',
+                    'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/HK_Data1000.json.gz'
+                ],
                 'filename': 'HK_Data1000.json.gz',
                 'description': '港股市场数据'
             },
             {
-                'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/US_Data1000.json.gz',
+                'urls': [
+                    'https://update.ttfox.com/update/US_Data1000.json.gz',
+                    'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/US_Data1000.json.gz'
+                ],
                 'filename': 'US_Data1000.json.gz',
                 'description': '美股市场数据'
             },
             {
-                'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/cn-lj.dat.gz',
+                'urls': [
+                    'https://update.ttfox.com/update/cn-lj.dat.gz',
+                    'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/cn-lj.dat.gz'
+                ],
                 'filename': 'cn-lj.dat.gz',
                 'description': '中国市场量价数据'
             },
             {
-                'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/hk-lj.dat.gz',
+                'urls': [
+                    'https://update.ttfox.com/update/hk-lj.dat.gz',
+                    'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/hk-lj.dat.gz'
+                ],
                 'filename': 'hk-lj.dat.gz',
                 'description': '香港市场量价数据'
             },
             {
-                'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/us-lj.dat.gz',
+                'urls': [
+                    'https://update.ttfox.com/update/us-lj.dat.gz',
+                    'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/us-lj.dat.gz'
+                ],
                 'filename': 'us-lj.dat.gz',
                 'description': '美国市场量价数据'
             }
@@ -308,28 +347,27 @@ class DataUpdaterDialog(QDialog):
         self.skip_button.setEnabled(False)
         
         if success_count == total_files:
-            self.current_file_label.setText("✅ 所有文件下载成功！")
+            self.current_file_label.setText("所有文件下载成功！")
             self.status_label.setText(f"成功下载 {success_count}/{total_files} 个文件")
         else:
-            self.current_file_label.setText(f"⚠️ 部分文件下载失败")
+            self.current_file_label.setText("⚠️ 部分文件下载失败")
             self.status_label.setText(f"成功: {success_count}/{total_files}")
         
         # 3秒后自动关闭
-        from PyQt5.QtCore import QTimer
         QTimer.singleShot(3000, self.accept)
     
     def cancel_download(self):
         """取消下载"""
         if self.download_thread and self.download_thread.isRunning():
             self.download_thread.cancel()
-            self.status_label.setText("❌ 下载已取消")
+            self.status_label.setText("下载已取消")
         self.reject()
     
     def skip_update(self):
         """跳过更新"""
         if self.download_thread and self.download_thread.isRunning():
             self.download_thread.cancel()
-        self.status_label.setText("⏭️ 跳过更新")
+        self.status_label.setText("跳过更新")
         self.reject()
 
 
@@ -351,27 +389,45 @@ def silent_update(target_dir=None):
     
     files_to_download = [
         {
-            'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/CN_Data5000.json.gz',
+            'urls': [
+                'https://update.ttfox.com/update/CN_Data5000.json.gz',
+                'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/CN_Data5000.json.gz'
+            ],
             'filename': 'CN_Data5000.json.gz',
         },
         {
-            'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/HK_Data1000.json.gz',
+            'urls': [
+                'https://update.ttfox.com/update/HK_Data1000.json.gz',
+                'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/HK_Data1000.json.gz'
+            ],
             'filename': 'HK_Data1000.json.gz',
         },
         {
-            'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/US_Data1000.json.gz',
+            'urls': [
+                'https://update.ttfox.com/update/US_Data1000.json.gz',
+                'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/US_Data1000.json.gz'
+            ],
             'filename': 'US_Data1000.json.gz',
         },
         {
-            'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/cn-lj.dat.gz',
+            'urls': [
+                'https://update.ttfox.com/update/cn-lj.dat.gz',
+                'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/cn-lj.dat.gz'
+            ],
             'filename': 'cn-lj.dat.gz',
         },
         {
-            'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/hk-lj.dat.gz',
+            'urls': [
+                'https://update.ttfox.com/update/hk-lj.dat.gz',
+                'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/hk-lj.dat.gz'
+            ],
             'filename': 'hk-lj.dat.gz',
         },
         {
-            'url': 'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/us-lj.dat.gz',
+            'urls': [
+                'https://update.ttfox.com/update/us-lj.dat.gz',
+                'https://gh-proxy.com/https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/us-lj.dat.gz'
+            ],
             'filename': 'us-lj.dat.gz',
         }
     ]
@@ -379,56 +435,69 @@ def silent_update(target_dir=None):
     success_count = 0
     for file_info in files_to_download:
         filename = file_info['filename']
-        url = file_info['url']
+        urls = file_info.get('urls', [])
         
-        try:
-            target_path = target_dir / filename
-            
-            # 检查是否需要下载
-            need_download = True
-            if target_path.exists():
-                print(f"📝 检查文件: {filename}")
-                try:
-                    # 获取远程文件的头信息
-                    req = urllib.request.Request(url, method='HEAD')
-                    with urllib.request.urlopen(req, timeout=10) as response:
-                        # 获取远程文件大小
-                        remote_size = int(response.headers.get('Content-Length', 0))
-                        # 获取本地文件大小
-                        local_size = target_path.stat().st_size
+        file_success = False
+        target_path = target_dir / filename
+        
+        for url_idx, url in enumerate(urls):
+            try:
+                if len(urls) > 1:
+                    print(f"[{filename}] 尝试源 {url_idx + 1}: {url}")
+                
+                need_download = True
+                
+                # 1. 检查是否需要下载
+                if target_path.exists():
+                    try:
+                        req = urllib.request.Request(url, method='HEAD')
+                        timeout = 5 if (len(urls) > 1 and url_idx < len(urls) - 1) else 15
                         
-                        # 比对大小
-                        if remote_size > 0 and remote_size == local_size:
-                            print(f"✅ 文件大小相同 ({remote_size:,} 字节)，跳过: {filename}")
-                            need_download = False
-                            success_count += 1
-                        else:
-                            print(f"📊 文件大小不同 - 本地: {local_size:,} 字节, 远程: {remote_size:,} 字节")
-                            need_download = True
+                        with urllib.request.urlopen(req, timeout=timeout) as response:
+                            remote_size = int(response.headers.get('Content-Length', 0))
+                            local_size = target_path.stat().st_size
+                            
+                            if remote_size > 0 and remote_size == local_size:
+                                print(f"[{filename}] 文件大小相同 ({remote_size:,} 字节)，跳过")
+                                need_download = False
+                                file_success = True
+                            else:
+                                print(f"[{filename}] 大小不同 - 本地: {local_size:,}, 远程: {remote_size:,}")
+                                need_download = True
+                    
+                    except Exception as e:
+                        print(f"[{filename}] 获取信息失败 (源 {url_idx + 1}): {e}")
+                        if url_idx < len(urls) - 1:
+                            continue
+                        need_download = True
                 
-                except Exception as e:
-                    print(f"⚠️ 无法获取远程文件信息: {e}，将继续下载")
-                    need_download = True
-            
-            # 如果需要下载
-            if need_download:
+                # 2. 执行下载
+                if need_download and not file_success:
+                    print(f"下载 {filename}...")
+                    temp_path = target_path.with_suffix(target_path.suffix + '.tmp')
+                    urllib.request.urlretrieve(url, temp_path)
+                    
+                    if temp_path.exists():
+                        if target_path.exists():
+                            target_path.unlink()
+                        temp_path.rename(target_path)
+                        file_success = True
+                        print(f"[{filename}] 下载成功")
+                
+                if file_success:
+                    break
+                    
+            except Exception as e:
+                print(f"[{filename}] 下载失败 (源 {url_idx + 1}): {e}")
                 temp_path = target_path.with_suffix(target_path.suffix + '.tmp')
-                
-                print(f"⬇️ 下载 {filename}...")
-                urllib.request.urlretrieve(url, temp_path)
-                
                 if temp_path.exists():
-                    if target_path.exists():
-                        target_path.unlink()
-                    temp_path.rename(target_path)
-                    success_count += 1
-                    print(f"✅ 下载成功: {filename}")
+                    try: temp_path.unlink()
+                    except: pass
         
-        except Exception as e:
-            print(f"❌ {filename}: {e}")
-            temp_path = target_path.with_suffix(target_path.suffix + '.tmp')
-            if temp_path.exists():
-                temp_path.unlink()
+        if file_success:
+            success_count += 1
+        else:
+            print(f"❌ {filename} 所有源均下载失败")
     
     print(f"更新完成: {success_count}/{len(files_to_download)}")
     return success_count == len(files_to_download)

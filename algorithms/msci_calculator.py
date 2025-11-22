@@ -14,7 +14,7 @@ MSCI算法 - 市场情绪综合指数 (Market Sentiment Composite Index)
 - 极端情绪检测
 - MSCI指数：0-100的市场情绪评分
 
-作者: 267278466@qq.com
+作者: ttfox@ttfox.com
 创建时间：2025-06-07
 """
 

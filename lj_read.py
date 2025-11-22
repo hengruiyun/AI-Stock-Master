@@ -325,6 +325,214 @@ class StockDataReaderV2:
         
         return df
     
+    def get_batch_latest_data(self, symbols: List[str], market: Optional[str] = None, 
+                             fields: Optional[List[str]] = None) -> Dict[str, Dict]:
+        """
+        批量获取多个股票的最新数据（性能优化版本）
+        
+        Args:
+            symbols: 股票代码列表
+            market: 市场代码 (可选，如果不指定会自动查找)
+            fields: 需要获取的字段列表，如 ['amount', 'volume', 'close']
+                   None 表示获取所有字段
+        
+        Returns:
+            字典: {stock_code: {field: value, ...}, ...}
+            
+        示例:
+            reader = StockDataReaderV2('cn-lj.dat.gz')
+            # 批量获取成交金额
+            result = reader.get_batch_latest_data(
+                ['000001', '600519', '600036'], 
+                market='CN',
+                fields=['amount', 'volume', 'close']
+            )
+            # 返回: {'000001': {'amount': 123456789, 'volume': 12345, 'close': 12.34}, ...}
+        """
+        if not symbols:
+            return {}
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 构建批量查询 - 使用 IN 子句
+        placeholders = ','.join('?' * len(symbols))
+        
+        # 构建字段选择
+        if fields:
+            field_list = ', '.join(fields)
+        else:
+            field_list = '*'
+        
+        # 查询条件
+        conditions = [f"symbol IN ({placeholders})"]
+        params = list(symbols)
+        
+        if market:
+            conditions.append("market = ?")
+            params.append(market)
+        
+        where_clause = " AND ".join(conditions)
+        
+        # 使用子查询获取每个股票的最新数据
+        query = f"""
+            SELECT symbol, {field_list}
+            FROM volume_price_data
+            WHERE {where_clause}
+            AND date = (
+                SELECT MAX(date) 
+                FROM volume_price_data AS vpd2 
+                WHERE vpd2.symbol = volume_price_data.symbol
+                {f'AND vpd2.market = ?' if market else ''}
+            )
+        """
+        
+        if market:
+            params.append(market)  # 为子查询添加market参数
+        
+        try:
+            cursor.execute(query, params)
+            columns = [description[0] for description in cursor.description]
+            rows = cursor.fetchall()
+            
+            # 构建结果字典
+            result = {}
+            for row in rows:
+                stock_code = row[0]  # symbol是第一列
+                stock_data = {}
+                for i, col_name in enumerate(columns):
+                    if col_name != 'symbol':  # 排除symbol字段
+                        value = row[i]
+                        # 自动计算成交金额（如果缺失）
+                        if col_name == 'amount' and (value is None or value == 0):
+                            # 尝试从 volume 和 close 计算
+                            volume_idx = columns.index('volume') if 'volume' in columns else -1
+                            close_idx = columns.index('close') if 'close' in columns else -1
+                            if volume_idx >= 0 and close_idx >= 0:
+                                volume = row[volume_idx]
+                                close = row[close_idx]
+                                if volume and close:
+                                    value = float(volume) * float(close)
+                        stock_data[col_name] = value
+                result[stock_code] = stock_data
+            
+            conn.close()
+            return result
+            
+        except Exception as e:
+            conn.close()
+            print(f"批量查询失败: {e}")
+            return {}
+    
+    def get_batch_historical_data(self, symbols: List[str], market: Optional[str] = None,
+                                  days: int = 38) -> Dict[str, List[Dict]]:
+        """
+        批量获取多个股票的历史数据（性能优化版本）
+        
+        Args:
+            symbols: 股票代码列表
+            market: 市场代码 (可选)
+            days: 获取最近N天的数据
+        
+        Returns:
+            字典: {
+                stock_code: [
+                    {'date': '2024-01-01', 'open': 10.0, 'close': 10.5, ...},
+                    {'date': '2024-01-02', 'open': 10.5, 'close': 11.0, ...},
+                    ...
+                ],
+                ...
+            }
+        
+        示例:
+            reader = StockDataReaderV2('cn-lj.dat.gz')
+            result = reader.get_batch_historical_data(
+                ['000001', '600519', '600036'],
+                market='CN',
+                days=38
+            )
+        """
+        if not symbols:
+            return {}
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 构建批量查询
+        placeholders = ','.join('?' * len(symbols))
+        
+        # 查询条件
+        conditions = [f"symbol IN ({placeholders})"]
+        params = list(symbols)
+        
+        if market:
+            conditions.append("market = ?")
+            params.append(market)
+        
+        where_clause = " AND ".join(conditions)
+        
+        # 查询最近N天的数据
+        # 使用更简单的方法：先获取每个股票的最新日期，然后获取最近N天
+        query = f"""
+            WITH latest_dates AS (
+                SELECT symbol, MAX(date) as max_date
+            FROM volume_price_data
+            WHERE {where_clause}
+                GROUP BY symbol
+            )
+            SELECT v.symbol, v.date, v.open, v.high, v.low, v.close, v.volume, v.amount
+            FROM volume_price_data v
+            INNER JOIN latest_dates l ON v.symbol = l.symbol
+            WHERE v.symbol IN ({placeholders})
+            AND v.date >= date(l.max_date, '-' || ? || ' days')
+            ORDER BY v.symbol, v.date DESC
+        """
+        
+        # 添加 days 参数 - 注意：params已经包含symbols和market，只需追加days
+        params_final = params + symbols + [days - 1]
+        
+        try:
+            cursor.execute(query, params_final)
+            rows = cursor.fetchall()
+            
+            # 按股票代码分组
+            result = {}
+            for row in rows:
+                symbol = row[0]
+                date = row[1]
+                
+                stock_data = {
+                    'date': date,
+                    'open': row[2] or 0,
+                    'high': row[3] or 0,
+                    'low': row[4] or 0,
+                    'close': row[5] or 0,
+                    'volume': row[6] or 0,
+                    'amount': row[7] or 0
+                }
+                
+                # 自动计算缺失的成交金额
+                if stock_data['amount'] == 0 and stock_data['volume'] > 0 and stock_data['close'] > 0:
+                    stock_data['amount'] = stock_data['volume'] * stock_data['close']
+                
+                if symbol not in result:
+                    result[symbol] = []
+                result[symbol].append(stock_data)
+            
+            # 按日期正序排列（最老的在前）
+            for symbol in result:
+                result[symbol].reverse()
+            
+            conn.close()
+            return result
+            
+        except Exception as e:
+            conn.close()
+            print(f"批量查询历史数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {}
+    
     def get_latest_data(self, symbol: Optional[str] = None, market: Optional[str] = None, 
                        data_type: Optional[str] = None, days: int = 1) -> pd.DataFrame:
         """

@@ -107,8 +107,8 @@
     "supports_streaming": true
   },
   {
-    "display_name": "[siliconflow] Qwen3-8B",
-    "model_name": "Qwen/Qwen3-8B",
+    "display_name": "[siliconflow] Qwen2.5-7B-Instruct",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
     "provider": "SiliconFlow",
     "supports_json_mode": true,
     "supports_streaming": true
@@ -121,15 +121,22 @@
     "supports_streaming": true
   },
   {
-    "display_name": "[siliconflow] 智谱 glm-4-9b-chat",
-    "model_name": "THUDM/glm-4-9b-chat",
+    "display_name": "[siliconflow] 智谱 GLM-Z1-9B-0414",
+    "model_name": "THUDM/GLM-Z1-9B-0414",
     "provider": "SiliconFlow",
     "supports_json_mode": true,
     "supports_streaming": true
   },
   {
-    "display_name": "[siliconflow] Tencent Hunyuan-MT-7B",
-    "model_name": "tencent/Hunyuan-MT-7B",
+    "display_name": "[siliconflow] internlm2_5-7b-chat",
+    "model_name": "internlm/internlm2_5-7b-chat",
+    "provider": "SiliconFlow",
+    "supports_json_mode": true,
+    "supports_streaming": true
+  },
+  {
+    "display_name": "[siliconflow] Qwen3-8B",
+    "model_name": "Qwen/Qwen3-8B",
     "provider": "SiliconFlow",
     "supports_json_mode": true,
     "supports_streaming": true

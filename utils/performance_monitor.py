@@ -5,7 +5,7 @@ from config.gui_i18n import t_gui as _
 提供全面的性能监控功能，包括函数执行时间监控、内存使用追踪、
 系统资源监控和性能报告生成。
 
-作者: 267278466@qq.com
+作者: ttfox@ttfox.com
 版本: 1.0.0
 """
 

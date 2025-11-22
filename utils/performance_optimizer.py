@@ -10,7 +10,7 @@ from config.gui_i18n import t_gui as _
 4. 缓存策略优化
 5. 算法性能分析
 
-作者：267278466@qq.com
+作者：ttfox@ttfox.com
 版本：1.0.0
 """
 

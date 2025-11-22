@@ -14,7 +14,7 @@ RTSI算法 - 评级趋势强度指数 (Rating Trend Strength Index)
 - 幅度：标准化变化幅度
 - RTSI指数：综合评分 (0-100)
 
-作者: 267278466@qq.com
+作者: ttfox@ttfox.com
 创建时间：2025-06-07
 """
 

@@ -10,7 +10,7 @@ from config.gui_i18n import t_gui as _
 4. 视觉效果优化
 5. 错误提示改进
 
-作者：267278466@qq.com
+作者：ttfox@ttfox.com
 版本：1.0.0
 """
 

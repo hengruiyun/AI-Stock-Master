@@ -127,6 +127,18 @@ class ModernSplashScreen(QSplashScreen):
         self.detail_label.setText(detail)
         QApplication.processEvents()
 
+    def mousePressEvent(self, event):
+        """重写鼠标点击事件，防止点击空白处关闭窗口"""
+        # 不调用父类的方法，这样点击时窗口不会关闭
+        # super().mousePressEvent(event)  # 注释掉这行，阻止默认的关闭行为
+        pass
+    
+    def mouseReleaseEvent(self, event):
+        """重写鼠标释放事件，防止点击空白处关闭窗口"""
+        # 不调用父类的方法，这样点击时窗口不会关闭
+        # super().mouseReleaseEvent(event)  # 注释掉这行，阻止默认的关闭行为
+        pass
+
 
 class SplashLogger(QObject):
     """将控制台输出重定向到启动画面状态标签并保留原始流"""

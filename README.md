@@ -193,11 +193,11 @@ AI-Stock-Master.bat
 ## Contact Information and Technical Support
 
 **Project Team**
-- **Project Creator**: 267278466@qq.com
+- **Project Creator**: ttfox@ttfox.com
 - **Technical Architecture**: Artificial Intelligence and Human Collaborative Development
 
 **Technical Support**
-- Email Consultation: 267278466@qq.com
+- Email Consultation: ttfox@ttfox.com
 
 ---
 
@@ -234,7 +234,7 @@ AI-Stock-Master.bat
 
 <div align="center">
 
-© 2025 AI Stock Trend Analysis System | Developed through collaboration between Artificial Intelligence and 267278466@qq.com
+© 2025 AI Stock Trend Analysis System | Developed through collaboration between Artificial Intelligence and TTFox.com
 
 Let AI Empower Your Investment Decisions
 
