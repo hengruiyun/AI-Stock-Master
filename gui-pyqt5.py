@@ -44,6 +44,9 @@ except ImportError as e:
 # 全局变量：跟踪本次运行的解压状态
 DECOMPRESSED_FILES_THIS_RUN = set()  # 记录本次运行已解压的文件
 
+# 全局配置开关
+ENABLE_LOGS_BY_DEFAULT = False # 如果为True，则默认启用文件日志（等同于 --logs）
+
 # 跨平台字体配置
 def get_cross_platform_font():
     """获取跨平台兼容的字体名称"""
@@ -60,6 +63,17 @@ def get_cross_platform_font():
 def get_cross_platform_font_family():
     """获取跨平台兼容的字体族"""
     return "Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif"
+
+# =====================================
+# QWebEngineView 崩溃预防措施
+# =====================================
+# 必须在 QApplication 创建之前设置这些环境变量和属性
+
+# 方法1：设置 Chromium 标志禁用 GPU（最有效）
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-gpu --disable-software-rasterizer"
+
+# 方法2：禁用 GPU 沙箱（某些系统需要）
+os.environ["QTWEBENGINE_DISABLE_SANDBOX"] = "1"
 
 # =====================================
 
@@ -173,6 +187,22 @@ try:
         UI_HELPERS_AVAILABLE = False
         AIAnalysisHelper = None
         ChartGenerator = None
+    
+    # 导入共享工具函数模块（用于替代重复定义的函数）
+    try:
+        from ui.shared_utils import (
+            get_search_params_by_market as shared_get_search_params_by_market,
+            is_large_cap_stock as shared_is_large_cap_stock,
+            search_single_industry_news as shared_search_single_industry_news,
+            ai_analysis_before as shared_ai_analysis_before,
+            ai_analysis_after as shared_ai_analysis_after,
+            get_cached_ai_config, is_trial_mode
+        )
+        SHARED_UTILS_AVAILABLE = True
+        print("✅ 共享工具函数模块导入成功")
+    except ImportError as shared_err:
+        print(f"⚠️ 共享工具函数模块导入失败: {shared_err}")
+        SHARED_UTILS_AVAILABLE = False
         
 except ImportError as e:
     print(f"模块导入失败 / Module import failed: {str(e)}")
@@ -771,49 +801,13 @@ class AnalysisWorker(QThread):
             return None
     
     def _is_large_cap_stock(self, stock_code: str) -> bool:
-        """判断是否为大盘股（与algorithms模块中的逻辑保持一致）"""
+        """判断是否为大盘股 - 代理方法，调用共享工具函数"""
+        if SHARED_UTILS_AVAILABLE:
+            return shared_is_large_cap_stock(stock_code)
+        # 回退：内联简化实现
         code = str(stock_code).strip()
-        
-        # A股大盘股判断
         if len(code) == 6 and code.isdigit():
-            # 主板大盘股
-            if code.startswith(('000', '001', '002', '003')):  # 深交所主板
-                return True
-            elif code.startswith(('600', '601', '603', '605')):  # 上交所主板
-                return True
-            # 科创板和创业板一般不算大盘股
-            elif code.startswith('688'):  # 科创板
-                return False
-            elif code.startswith('300'):  # 创业板
-                return False
-        
-        # 港股大盘股判断（恒生指数成分股）
-        elif len(code) == 5 and code.isdigit():
-            large_cap_hk = [
-                '00700', '00939', '00941', '01299', '02318', '00388', '01398', '03988',
-                '00883', '02628', '01109', '00005', '01177', '00011', '00016', '00017',
-                '00066', '00083', '00101', '00151', '00175', '00267', '00288', '00386',
-                '00669', '00688', '00762', '00823', '00857', '00868', '00914', '00968',
-                '01038', '01044', '01066', '01093', '01113', '01171', '01199', '01211',
-                '01339', '01359', '01378', '01988', '01997', '02007', '02018', '02020',
-                '02313', '02319', '02382', '02388', '02688', '03328', '03968', '06098'
-            ]
-            return code in large_cap_hk
-        
-        # 美股大盘股判断（简化版，基于常见大盘股）
-        elif isinstance(code, str) and not code.isdigit():
-            large_cap_us = [
-                'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK.A', 'BRK.B',
-                'UNH', 'JNJ', 'JPM', 'V', 'PG', 'HD', 'MA', 'PFE', 'BAC', 'ABBV', 'KO', 'AVGO',
-                'PEP', 'TMO', 'COST', 'MRK', 'WMT', 'ACN', 'DHR', 'VZ', 'ABT', 'ADBE', 'LIN',
-                'NKE', 'TXN', 'PM', 'NEE', 'RTX', 'CRM', 'WFC', 'DIS', 'BMY', 'ORCL', 'MDT',
-                'SCHW', 'QCOM', 'UPS', 'T', 'AMGN', 'LOW', 'HON', 'ELV', 'IBM', 'CVS', 'SPGI',
-                'GS', 'CAT', 'AXP', 'DE', 'GILD', 'BKNG', 'AMD', 'SYK', 'MU', 'TJX', 'BLK',
-                'BA', 'MDLZ', 'CI', 'C', 'ISRG', 'VRTX', 'SO', 'MMM', 'PLD', 'ADI', 'REGN',
-                'ZTS', 'MO', 'CVX', 'DUK', 'TGT', 'AON', 'PYPL', 'INTC', 'EQIX', 'KLAC'
-            ]
-            return code.upper() in large_cap_us
-        
+            return code.startswith(('000', '001', '002', '003', '600', '601', '603', '605'))
         return False
     
     def _check_llm_config(self) -> bool:
@@ -1194,117 +1188,18 @@ class AnalysisWorker(QThread):
             return {}
     
     def _get_search_params_by_market(self, market: str) -> dict:
-        """根据市场类型返回搜索参数"""
-        if market == 'cn':
-            return {
-                "category": "news",
-                "language": "zh",
-                "safe_search": 1,
-                "time_range": "month"  # 最近一个月
-            }
-        elif market == 'hk':
-            return {
-                "category": "news",
-                "language": "zh-TW",
-                "safe_search": 1,
-                "time_range": "month"
-            }
-        else:  # us
-            return {
-                "category": "news",
-                "language": "en",
-                "safe_search": 1,
-                "time_range": "month"
-            }
+        """根据市场类型返回搜索参数 - 代理方法，调用共享工具函数"""
+        if SHARED_UTILS_AVAILABLE:
+            return shared_get_search_params_by_market(market)
+        # 回退：简化实现
+        return {"category": "news", "language": "zh", "safe_search": 1, "time_range": "year"}
     
     def _search_single_industry_news(self, industry_name: str, market: str, limit: int = 5) -> list:
-        """
-        搜索单个行业的财经资讯（使用本地搜索API，支持真实浏览器）
-        
-        Args:
-            industry_name: 行业名称
-            market: 市场类型 (cn/hk/us)
-            limit: 返回新闻数量限制
-            
-        Returns:
-            [{"title": "...", "url": "..."}, ...]
-        """
-        import requests
-        
-        try:
-            # 根据市场设置搜索参数
-            search_params = self._get_search_params_by_market(market)
-            
-            # 行业同义词映射（针对专业术语优化）
-            industry_aliases = {
-                "指数": "股市指数",
-                "产业互联网": "工业互联网",
-                "能源金属": "锂矿 新能源",
-                "煤炭开采": "煤炭行业",
-                "军工": "军工行业",
-                "新能源": "新能源汽车",
-                "光伏": "太阳能 光伏",
-                "芯片": "半导体 芯片"
-            }
-            
-            # 智能降级策略（针对中国区财经新闻）
-            strategies = [
-                f"{industry_name} 财经 中国",
-                f"{industry_name} 股票 投资",
-                industry_aliases.get(industry_name, f"{industry_name} 行业")
-            ]
-            
-            print(f"[行业资讯] 搜索 [{industry_name}] 使用本地API")
-            
-            # 使用本地搜索API（localhost:16888）
-            api_url = "http://localhost:16888/api/search"
-            
-            # 根据市场确定地区
-            region = "zh-CN" if market == "cn" else "auto"
-            
-            for i, keyword in enumerate(strategies, 1):
-                try:
-                    params = {
-                        'keyword': keyword,
-                        'type': 'news',  # 固定为新闻搜索
-                        'region': region,  # 中文系统使用简体中文
-                        'count': limit     # 用户要求的数量（默认5）
-                    }
-                    
-                    print(f"[行业资讯] 策略{i}: 搜索 '{keyword}'")
-                    
-                    response = requests.get(api_url, params=params, timeout=60)
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    if data.get('success') and data.get('results'):
-                        news_items = []
-                        for result in data['results']:
-                            news_items.append({
-                                'title': result.get('title', ''),
-                                'url': result.get('url', ''),
-                                'description': result.get('description', '')
-                            })
-                        
-                        if news_items:
-                            print(f"✅ [行业资讯] 找到 {len(news_items)} 条新闻")
-                            return news_items[:limit]
-                    else:
-                        print(f"[行业资讯] 策略{i}返回空结果")
-                
-                except Exception as e:
-                    print(f"[行业资讯] 策略{i}失败: {e}")
-                    continue
-            
-            # 所有策略都失败
-            print(f"❌ [行业资讯] {industry_name}: 未找到相关新闻")
-            return []
-            
-        except Exception as e:
-            print(f"[行业资讯] {industry_name} 搜索失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
+        """搜索单个行业的财经资讯 - 代理方法，调用共享工具函数"""
+        if SHARED_UTILS_AVAILABLE:
+            return shared_search_single_industry_news(industry_name, market, limit)
+        # 回退：返回空列表
+        return []
     
     def _parse_search_results_json(self, json_result: str, limit: int = 3) -> list:
         """
@@ -2346,7 +2241,7 @@ Please use professional and systematic analysis methods, ensuring clear analysis
     <div class="header">
         <h1>{report_title}</h1>
         <p>{t_gui('generation_time')}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        <div class="author">{t_gui('author')}: ttfox@ttfox.com</div>
+        <div class="author">{t_gui('author')}: TTFox.com</div>
     </div>
     
     <div class="section">
@@ -2962,6 +2857,9 @@ class AnalysisPage(QWidget):
     """第二页 - 分析结果页面，移植原界面的窗口内容"""
     
     def __init__(self, parent=None):
+        from utils.logger import get_logger
+        logger = get_logger()
+        logger.info("DEBUG: AnalysisPage.__init__ start")
         super().__init__(parent)
         
         self.main_window = parent  # 保存主窗口引用，用于获取启动消息
@@ -2995,6 +2893,7 @@ class AnalysisPage(QWidget):
         self.main_window = None
         
         # 🆕 使用重构后的UI助手模块（可选）
+        logger.info("DEBUG: AnalysisPage initializing UI helpers")
         if UI_HELPERS_AVAILABLE:
             try:
                 self.ai_helper = AIAnalysisHelper(parent_widget=self)
@@ -3010,131 +2909,32 @@ class AnalysisPage(QWidget):
             print("ℹ️ [AnalysisPage] 使用原有的内联AI和图表实现")
         
         # 调用setup_ui创建界面
+        logger.info("DEBUG: AnalysisPage calling setup_ui")
         self.setup_ui()
+        logger.info("DEBUG: AnalysisPage.__init__ end")
     
     def _ai_analysis_before(self, analysis_type="AI分析"):
-        """AI分析执行前的统一处理（AnalysisPage版本）
+        """AI分析执行前的统一处理 - 代理方法，调用共享工具函数
         
-        Args:
-            analysis_type: 分析类型名称（用于日志）
-            
         Returns:
             tuple: (success: bool, config: dict)
-                success: True表示可以继续执行，False表示应该终止
-                config: 加载的配置字典
         """
-        try:
-            print(f"[{analysis_type}] 执行前检查...")
-            
-            # 1. 重新加载AI配置（确保使用最新配置）
-            config = {}
-            try:
-                import json
-                from pathlib import Path
-                from utils.path_helper import get_base_path
-                
-                base_path = get_base_path()
-                config_path = base_path / "llm-api" / "config" / "user_settings.json"
-                
-                if config_path.exists():
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                        print(f"[{analysis_type}] 已重新加载AI配置")
-                else:
-                    print(f"[{analysis_type}] 配置文件不存在")
-                    return False, {}
-            except Exception as e:
-                print(f"[{analysis_type}] 加载配置失败: {e}")
-                return False, {}
-            
-            # 2. 试用功能检查（必须在API Key检查之前）
-            is_trial_mode = False
-            try:
-                from utils.ai_usage_counter import get_ai_usage_count
-                
-                provider = config.get('default_provider', '').lower()
-                api_key = config.get('SILICONFLOW_API_KEY', '').strip()
-                current_count = get_ai_usage_count()
-                
-                # 检查是否符合试用条件：SiliconFlow + 无API Key + 计数<20
-                if provider == 'siliconflow' and not api_key and current_count < 20:
-                    print(f"[试用模式] 符合试用条件（{current_count}/20次）")
-                    print(f"[试用模式] 使用预设试用配置")
-                    
-                    # 使用硬编码的试用配置
-                    trial_config = {
-                        "default_provider": "SiliconFlow",
-                        "default_chat_model": "Qwen/Qwen2.5-7B-Instruct",
-                        "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
-                        "request_timeout": 600,
-                        "agent_role": "不使用",
-                        "SILICONFLOW_API_KEY": "",
-                        "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
-                        "dont_show_api_dialog": True
-                    }
-                    
-                    # 使用试用配置
-                    config = trial_config
-                    is_trial_mode = True
-                    
-                    print(f"[试用模式] 配置已切换为试用模式，剩余 {20 - current_count} 次试用机会")
-                else:
-                    if provider == 'siliconflow' and not api_key and current_count >= 20:
-                        print(f"[试用模式] 试用次数已用完（{current_count}/20），请配置API Key")
-                        
-            except Exception as e:
-                print(f"[{analysis_type}] 试用检查出错: {e}")
-            
-            # 3. 检查API Key（如果不是试用模式才检查）
-            if not is_trial_mode:
-                provider = config.get('default_provider', 'OpenAI')
-                from config.gui_i18n import get_system_language
-                use_english = get_system_language() == 'en'
-                
-                api_key_error = self._check_api_key_for_stock_analysis(config, provider, use_english, base_path)
-                if api_key_error:
-                    print(f"[{analysis_type}] API Key检查失败: {api_key_error}")
-                    return False, config
-            else:
-                print(f"[{analysis_type}] 试用模式，跳过API Key检查")
-            
-            print(f"[{analysis_type}] 执行前检查通过")
-            return True, config
-            
-        except Exception as e:
-            print(f"[{analysis_type}] 执行前检查出错: {e}")
-            import traceback
-            traceback.print_exc()
-            return False, {}
+        if SHARED_UTILS_AVAILABLE:
+            # 使用共享函数，传入 API Key 检查函数
+            return shared_ai_analysis_before(
+                analysis_type=analysis_type,
+                check_api_key_func=self._check_api_key_for_stock_analysis
+            )
+        # 回退：返回失败
+        print(f"[{analysis_type}] 共享工具模块不可用")
+        return False, {}
     
     def _ai_analysis_after(self, success=True, analysis_type="AI分析"):
-        """AI分析执行后的统一处理（AnalysisPage版本）
-        
-        Args:
-            success: 分析是否成功
-            analysis_type: 分析类型名称（用于日志）
-        """
-        try:
-            print(f"[{analysis_type}] 执行后处理...")
-            
-            if success:
-                # 1. 增加AI使用计数
-                try:
-                    from utils.ai_usage_counter import increment_ai_usage
-                    count = increment_ai_usage()
-                    print(f"[AI计数] {analysis_type}完成，累计使用: {count} 次")
-                except Exception as e:
-                    print(f"[AI计数] 计数失败: {e}")
-                
-                # 2. 可以添加其他成功后的处理
-                # 例如：记录分析日志、更新缓存等
-            else:
-                print(f"[{analysis_type}] 分析未成功，跳过后续处理")
-            
-        except Exception as e:
-            print(f"[{analysis_type}] 执行后处理出错: {e}")
-            import traceback
-            traceback.print_exc()
+        """AI分析执行后的统一处理 - 代理方法，调用共享工具函数"""
+        if SHARED_UTILS_AVAILABLE:
+            shared_ai_analysis_after(success=success, analysis_type=analysis_type)
+        else:
+            print(f"[{analysis_type}] 执行后处理（共享工具不可用）")
     
     def set_main_window(self, main_window):
         """设置主窗口引用，用于访问detected_market等属性"""
@@ -3332,26 +3132,41 @@ class AnalysisPage(QWidget):
         
     def setup_content_pages(self):
         """设置内容页面 - 移植原界面的实现"""
+        from utils.logger import get_logger
+        logger = get_logger()
+        logger.info("DEBUG: setup_content_pages start")
+        
         # 综合分析页面 - 显示综合HTML
+        logger.info("DEBUG: Creating comprehensive_page")
         self.comprehensive_page = self.create_comprehensive_analysis_page()
         self.content_area.addWidget(self.comprehensive_page)
+        logger.info("DEBUG: comprehensive_page created")
         
         # AI建议页面
+        logger.info("DEBUG: Creating ai_page")
         self.ai_page = self.create_ai_suggestions_page()
         self.content_area.addWidget(self.ai_page)
+        logger.info("DEBUG: ai_page created")
         
         # 大盘分析页面 - 移植MarketSentimentWindow的内容
+        logger.info("DEBUG: Creating market_page")
         self.market_page = self.create_market_analysis_page()
         self.content_area.addWidget(self.market_page)
+        logger.info("DEBUG: market_page created")
         
         # 行业分析页面 - 移植IndustryAnalysisWindow的内容
+        logger.info("DEBUG: Creating industry_page")
         self.industry_page = self.create_industry_analysis_page()
         self.content_area.addWidget(self.industry_page)
+        logger.info("DEBUG: industry_page created")
         
         # 个股分析页面 - 移植StockAnalysisWindow的内容
+        logger.info("DEBUG: Creating stock_page")
         self.stock_page = self.create_stock_analysis_page()
         self.content_area.addWidget(self.stock_page)
+        logger.info("DEBUG: stock_page created")
         
+        logger.info("DEBUG: setup_content_pages end")
         # 注意：不在这里设置默认页面，等数据加载后由update_comprehensive_visibility决定
     
     def create_comprehensive_analysis_page(self):
@@ -4906,8 +4721,7 @@ class AnalysisPage(QWidget):
         # 始终创建这些Tab，但可见性由市场类型决定
         extra_tabs = [
             ("html/智能个股分析.html", t_gui("个股洞察")),
-            ("html/多空博弈大师版.html", t_gui("多空博弈")),
-            ("html/逐笔分析.html", t_gui("逐笔分析"))
+            ("html/多空博弈大师版.html", t_gui("多空博弈"))
         ]
         for html_file, tab_title in extra_tabs:
             tab_widget, view, html_path = self.create_stock_html_tab(html_file)
@@ -5370,46 +5184,6 @@ class AnalysisPage(QWidget):
         
         widget.setLayout(layout)
         return widget
-    
-    def create_technical_analysis_widget(self):
-        """创建技术面分析师Widget"""
-        # 创建堆叠窗口实现页面切换
-        from PyQt5.QtWidgets import QStackedWidget
-        
-        self.technical_stacked_widget = QStackedWidget()
-        
-        # 第1页：分析按钮页面
-        self.technical_button_page = self.create_technical_button_page()
-        self.technical_stacked_widget.addWidget(self.technical_button_page)
-        
-        # 第2页：分析结果页面
-        self.technical_result_page = self.create_technical_result_page()
-        self.technical_stacked_widget.addWidget(self.technical_result_page)
-        
-        # 默认显示第1页
-        self.technical_stacked_widget.setCurrentIndex(0)
-        
-        return self.technical_stacked_widget
-    
-    def create_master_analysis_widget(self):
-        """创建投资大师分析Widget"""
-        # 创建堆叠窗口实现页面切换
-        from PyQt5.QtWidgets import QStackedWidget
-        
-        self.master_stacked_widget = QStackedWidget()
-        
-        # 第1页：分析按钮页面
-        self.master_button_page = self.create_master_button_page()
-        self.master_stacked_widget.addWidget(self.master_button_page)
-        
-        # 第2页：分析结果页面
-        self.master_result_page = self.create_master_result_page()
-        self.master_stacked_widget.addWidget(self.master_result_page)
-        
-        # 默认显示第1页
-        self.master_stacked_widget.setCurrentIndex(0)
-        
-        return self.master_stacked_widget
     
     def create_technical_button_page(self):
         """创建技术面分析师按钮页面"""
@@ -7996,14 +7770,15 @@ class AnalysisPage(QWidget):
                 if col not in ['code', 'name', 'industry']:
                     value = stock_ratings[col]
                     # 过滤掉'-'、空值、NaN等无效数据
-                    if value and value != '-':
-                        try:
-                            # 尝试访问值以确保不是NaN
-                            import pandas as pd
-                            if not pd.isna(value):
-                                date_columns.append(col)
-                        except:
-                            pass
+                    try:
+                        import pandas as pd
+                        # 使用 pd.isna() 优先检查，避免 if value 对 NA 报错
+                        # 同时也检查是否为字符串 '-'
+                        if not pd.isna(value) and str(value) != '-':
+                            date_columns.append(col)
+                    except Exception as e:
+                        # 如果出现任何异常，视为无效数据
+                        pass
             
             print(f"[RTSI历史] 过滤后有效数据: {len(date_columns)}天")
             if len(date_columns) < days:
@@ -8686,6 +8461,8 @@ class AnalysisPage(QWidget):
     def _get_batch_stock_volumes(self, stock_codes: list) -> dict:
         """批量获取多个股票的成交金额（性能优化）
         
+        使用 lj_read.py 网络版API获取数据，无需本地 .dat.gz 文件
+        
         Args:
             stock_codes: 股票代码列表
         
@@ -8704,38 +8481,29 @@ class AnalysisPage(QWidget):
         result = {}
         
         try:
-            # 使用 lj_read.py 的批量查询API
-            from utils.lj_data_reader import LJDataReader
+            # 使用 lj_read.py 网络版API（无需本地文件）
             from lj_read import StockDataReaderV2
             
             # 检测市场类型
             market = self._get_current_market_type()
+            print(f"  🌍 使用全局市场类型: {market.upper()}")
             
-            # 获取数据文件路径
-            market_data_files = {
-                'cn': 'cn-lj.dat.gz',
-                'hk': 'hk-lj.dat.gz',
-                'us': 'us-lj.dat.gz'
-            }
+            # 创建网络版读取器（传入市场类型作为路径参数以便推断市场）
+            reader = StockDataReaderV2(f"{market}-lj.dat.gz")
             
-            if market in market_data_files:
-                data_file_path = get_data_file_path(market_data_files[market])
-                
-                if data_file_path.exists():
-                    print(f"  ✓ 使用批量查询API，数据文件: {data_file_path}")
-                    
-                    # 创建读取器
-                    reader = StockDataReaderV2(str(data_file_path))
-                    
-                    # 批量查询（只获取需要的字段）
-                    batch_data = reader.get_batch_latest_data(
-                        symbols=stock_codes,
-                        market=market.upper(),
-                        fields=['amount', 'volume', 'close']
-                    )
-                    
-                    # 处理结果
-                    for stock_code, data in batch_data.items():
+            print(f"  ✓ 使用 lj_read.py 网络API批量查询...")
+            
+            # 批量查询（只获取需要的字段）
+            batch_data = reader.get_batch_latest_data(
+                symbols=stock_codes,
+                market=market.upper(),
+                fields=['amount', 'volume', 'close']
+            )
+            
+            # 处理结果
+            if batch_data:
+                for stock_code, data in batch_data.items():
+                    if isinstance(data, dict):
                         amount = data.get('amount', 0)
                         
                         # 如果没有成交金额，尝试计算
@@ -8747,14 +8515,14 @@ class AnalysisPage(QWidget):
                                 print(f"    🧮 计算 {stock_code}: {volume:,.0f} × {close:.2f} = {amount:,.0f}")
                         
                         result[stock_code] = float(amount) if amount else 0
-                    
-                    print(f"  ✅ 批量查询完成，成功获取 {len(result)} 只股票数据")
-                    return result
-                else:
-                    print(f"    ⚠️ 数据文件不存在: {data_file_path}")
+                
+                print(f"  ✅ 批量查询完成，成功获取 {len(result)} 只股票数据")
+                return result
+            else:
+                print(f"  ⚠️ 网络API返回空数据")
             
         except Exception as e:
-            print(f"    ⚠️ 批量查询失败: {e}")
+            print(f"  ⚠️ 批量查询失败: {e}")
             import traceback
             traceback.print_exc()
         
@@ -8832,7 +8600,10 @@ class AnalysisPage(QWidget):
         return selected_stocks
     
     def get_stock_current_volume(self, stock_code):
-        """获取股票的当天成交金额"""
+        """获取股票的当天成交金额
+        
+        使用 lj_read.py 网络版API获取数据，无需本地 .dat.gz 文件
+        """
         try:
             print(f"   开始获取 {stock_code} 的成交金额...")
             
@@ -8844,52 +8615,48 @@ class AnalysisPage(QWidget):
             
             # 尝试从多个数据源获取成交金额
             
-            # 方法1: 优先从LJ数据读取器获取交易数据（.dat.gz文件包含成交金额等交易数据）
+            # 方法1: 优先使用 lj_read.py 网络版API
             try:
-                from utils.lj_data_reader import LJDataReader
-                lj_reader = LJDataReader()
+                from lj_read import StockDataReaderV2
                 
                 # 检测市场类型
                 current_market = self._get_current_market_type()
                 market = self._detect_stock_market(stock_code)
                 print(f"  🌍 当前市场类型: {current_market.upper()}, 股票市场: {market.upper()}")
                 
-                # 检查对应市场的数据文件是否存在（使用智能路径查找）
-                market_data_files = {
-                    'cn': 'cn-lj.dat.gz',
-                    'hk': 'hk-lj.dat.gz', 
-                    'us': 'us-lj.dat.gz'
-                }
+                # 创建网络版读取器
+                reader = StockDataReaderV2(f"{market}-lj.dat.gz")
                 
-                # 使用智能路径查找（优先EXE目录）
-                if market in market_data_files:
-                    data_file_path = get_data_file_path(market_data_files[market])
-                    if data_file_path.exists():
-                        print(f"✓ 使用lj_read.py数据读取器，数据文件: {data_file_path}")
-                        
-                        # 获取最近1天的数据（移除data_type参数）
-                        volume_data = lj_reader.get_volume_price_data(stock_code, days=1, market=market)
-                        if volume_data and 'data' in volume_data and volume_data['data']:
-                            latest_data = volume_data['data'][-1]  # 最新一天的数据
-                            amount = latest_data.get('amount', 0)  # 成交金额
-                            if amount > 0:
-                                print(f"   从LJ数据获取 {stock_code} 成交金额: {amount:,.0f}")
-                                return float(amount)
-                            else:
-                                # 如果没有成交金额，尝试计算：成交金额 = 成交量 × 收盘价
-                                volume = latest_data.get('volume', 0)  # 成交量
-                                close_price = latest_data.get('close_price', 0)  # 收盘价
-                                if volume > 0 and close_price > 0:
-                                    calculated_amount = volume * close_price
-                                    print(f"  🧮 计算 {stock_code} 成交金额: {volume:,.0f} × {close_price} = {calculated_amount:,.0f}")
-                                    return float(calculated_amount)
-                    else:
-                        print(f"    {market.upper()}市场数据文件不存在: {data_file_path}")
+                print(f"  ✓ 使用 lj_read.py 网络API查询...")
+                
+                # 获取最新数据
+                latest_data = reader.get_latest_data(
+                    symbol=stock_code,
+                    market=market.upper(),
+                    days=1
+                )
+                
+                if latest_data is not None and not latest_data.empty:
+                    # 从DataFrame中提取数据
+                    row = latest_data.iloc[-1] if len(latest_data) > 0 else None
+                    if row is not None:
+                        amount = row.get('amount', 0) if hasattr(row, 'get') else (row['amount'] if 'amount' in latest_data.columns else 0)
+                        if amount and amount > 0:
+                            print(f"   从网络API获取 {stock_code} 成交金额: {amount:,.0f}")
+                            return float(amount)
+                        else:
+                            # 尝试计算：成交金额 = 成交量 × 收盘价
+                            volume = row.get('volume', 0) if hasattr(row, 'get') else (row['volume'] if 'volume' in latest_data.columns else 0)
+                            close = row.get('close', 0) if hasattr(row, 'get') else (row['close'] if 'close' in latest_data.columns else 0)
+                            if volume and close and volume > 0 and close > 0:
+                                calculated_amount = float(volume) * float(close)
+                                print(f"  🧮 计算 {stock_code} 成交金额: {volume:,.0f} × {close} = {calculated_amount:,.0f}")
+                                return float(calculated_amount)
                     
             except Exception as e:
-                print(f"    LJ数据获取失败 {stock_code}: {e}")
+                print(f"    网络API获取失败 {stock_code}: {e}")
             
-            # 方法2: 备用 - 尝试从主数据文件获取成交金额（.json.gz只有评级数据，通常没有交易数据）
+            # 方法2: 备用 - 尝试从主数据文件获取成交金额
             try:
                 current_market = self._get_current_market_type()
                 
@@ -9912,7 +9679,10 @@ class AnalysisPage(QWidget):
             return {}
     
     def _calculate_weighted_volume_price_data(self, stock_weights):
-        """计算加权平均量价数据（批量优化版本）"""
+        """计算加权平均量价数据（批量优化版本）
+        
+        使用 lj_read.py 网络版API获取数据
+        """
         try:
             print(" 🚀 开始批量计算加权平均量价数据...")
             
@@ -9928,76 +9698,61 @@ class AnalysisPage(QWidget):
                 market = self._get_current_market_type()
                 print(f"  🌍 使用全局市场类型: {market.upper()}")
                 
-                # 获取数据文件路径
-                market_data_files = {
-                    'cn': 'cn-lj.dat.gz',
-                    'hk': 'hk-lj.dat.gz',
-                    'us': 'us-lj.dat.gz'
-                }
+                # 创建网络版读取器（传入市场类型以便推断）
+                reader = StockDataReaderV2(f"{market}-lj.dat.gz")
                 
-                if market in market_data_files:
-                    data_file_path = get_data_file_path(market_data_files[market])
-                    
-                    if data_file_path.exists():
-                        print(f"  ✓ 使用批量历史数据查询，数据文件: {data_file_path}")
+                # 收集所有股票代码
+                stock_codes = [s['code'] for s in stock_weights]
+                print(f"  📊 使用网络API批量获取 {len(stock_codes)} 只股票的38天历史数据...")
+                
+                # 批量查询38天历史数据（一次性获取所有股票）
+                batch_historical_data = reader.get_batch_historical_data(
+                    symbols=stock_codes,
+                    market=market.upper(),
+                    days=38
+                )
+                
+                print(f"  ✅ 批量查询完成，获取到 {len(batch_historical_data) if batch_historical_data else 0} 只股票的数据")
+                
+                # 处理批量查询结果
+                if batch_historical_data:
+                    for stock_info in stock_weights:
+                        stock_code = stock_info['code']
+                        weight = stock_info['weight']
                         
-                        # 创建读取器
-                        reader = StockDataReaderV2(str(data_file_path))
-                        
-                        # 收集所有股票代码
-                        stock_codes = [s['code'] for s in stock_weights]
-                        print(f"  📊 批量获取 {len(stock_codes)} 只股票的38天历史数据...")
-                        
-                        # 批量查询38天历史数据（一次性获取所有股票）
-                        batch_historical_data = reader.get_batch_historical_data(
-                            symbols=stock_codes,
-                            market=market.upper(),
-                            days=38
-                        )
-                        
-                        print(f"  ✅ 批量查询完成，获取到 {len(batch_historical_data)} 只股票的数据")
-                        
-                        # 处理批量查询结果
-                        for stock_info in stock_weights:
-                            stock_code = stock_info['code']
-                            weight = stock_info['weight']
+                        if stock_code in batch_historical_data:
+                            history_list = batch_historical_data[stock_code]
+                            stock_history = {}
                             
-                            if stock_code in batch_historical_data:
-                                history_list = batch_historical_data[stock_code]
-                                stock_history = {}
-                                
-                                for day_data in history_list:
-                                    date = day_data.get('date', '')
-                                    if date:
-                                        stock_history[date] = {
-                                            'close': day_data.get('close', 0),
-                                            'open': day_data.get('open', 0),
-                                            'high': day_data.get('high', 0),
-                                            'low': day_data.get('low', 0),
-                                            'volume': day_data.get('volume', 0),
-                                            'amount': day_data.get('amount', 0),
-                                            'weight': weight
-                                        }
-                                        date_set.add(date)
-                                
-                                if stock_history:
-                                    all_stock_data[stock_code] = stock_history
-                                    print(f"    {stock_code}: {len(stock_history)} 天数据 ✓")
-                                else:
-                                    print(f"    {stock_code}: 无数据 ✗")
+                            for day_data in history_list:
+                                date = day_data.get('date', '')
+                                if date:
+                                    stock_history[date] = {
+                                        'close': day_data.get('close', 0),
+                                        'open': day_data.get('open', 0),
+                                        'high': day_data.get('high', 0),
+                                        'low': day_data.get('low', 0),
+                                        'volume': day_data.get('volume', 0),
+                                        'amount': day_data.get('amount', 0),
+                                        'weight': weight
+                                    }
+                                    date_set.add(date)
+                            
+                            if stock_history:
+                                all_stock_data[stock_code] = stock_history
+                                print(f"    {stock_code}: {len(stock_history)} 天数据 ✓")
                             else:
-                                print(f"    {stock_code}: 批量查询未返回数据 ✗")
-                        
-                        # 如果批量查询成功，直接跳到后续处理
-                        if all_stock_data:
-                            print(f"  🎉 批量查询成功！共获取 {len(all_stock_data)} 只股票数据")
+                                print(f"    {stock_code}: 无数据 ✗")
                         else:
-                            raise Exception("批量查询未返回任何数据，降级为逐个查询")
-                            
+                            print(f"    {stock_code}: 批量查询未返回数据 ✗")
+                    
+                    # 如果批量查询成功，直接跳到后续处理
+                    if all_stock_data:
+                        print(f"  🎉 批量查询成功！共获取 {len(all_stock_data)} 只股票数据")
                     else:
-                        raise Exception(f"数据文件不存在: {data_file_path}")
+                        raise Exception("批量查询未返回任何数据，降级为逐个查询")
                 else:
-                    raise Exception(f"不支持的市场类型: {market}")
+                    raise Exception("网络API返回空数据，降级为逐个查询")
                     
             except Exception as batch_error:
                 # 【降级方案】批量查询失败，使用逐个查询
@@ -12353,7 +12108,7 @@ class AnalysisPage(QWidget):
                         "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
                         "request_timeout": 600,
                         "agent_role": "不使用",
-                        "SILICONFLOW_API_KEY": "",
+                        "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
                         "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
                         "dont_show_api_dialog": True
                     }
@@ -12572,7 +12327,7 @@ class AnalysisPage(QWidget):
                     <h1>🔧 技术面分析报告</h1>
                     <div class="subtitle">{stock_name} ({stock_code})</div>
                     <div class="subtitle">Analysis Time: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
-                    <div class="subtitle" style="font-size: 14px; margin-top: 10px; opacity: 0.8;">作者：ttfox@ttfox.com</div>
+                    <div class="subtitle" style="font-size: 14px; margin-top: 10px; opacity: 0.8;">TTFox.com</div>
                 </div>
                 <div class="content">
                     <div class="analyst-badge">🔧 技术面分析师 (本地数据)</div>
@@ -12689,7 +12444,7 @@ class AnalysisPage(QWidget):
                     <h1> 投资大师分析报告</h1>
                     <div class="subtitle">{stock_name} ({stock_code})</div>
                     <div class="subtitle">Analysis Time: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
-                    <div class="subtitle" style="font-size: 14px; margin-top: 10px; opacity: 0.8;">作者：ttfox@ttfox.com</div>
+                    <div class="subtitle" style="font-size: 14px; margin-top: 10px; opacity: 0.8;">TTFox.com</div>
                 </div>
                 <div class="content">
                     <div class="analyst-badge"> 投资大师分析</div>
@@ -14558,7 +14313,7 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                     <h1> AI股票分析报告</h1>
                         <div class="subtitle">{stock_info} - 智能投资建议</div>
                         <div class="timestamp">Analysis Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-                        <div class="timestamp" style="font-size: 14px; margin-top: 8px; opacity: 0.8;">作者：ttfox@ttfox.com</div>
+                        <div class="timestamp" style="font-size: 14px; margin-top: 8px; opacity: 0.8;">TTFox.com</div>
                 </div>
                 
                 {data_source_badge}
@@ -15037,21 +14792,7 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             current_market = self._get_current_market_type()
             print(f"🌍 当前市场: {current_market}")
             
-            # 检查数据文件可用性
-            market_data_files = {
-                'cn': 'cn-lj.dat.gz',
-                'hk': 'hk-lj.dat.gz', 
-                'us': 'us-lj.dat.gz'
-            }
-            
-            target_file = market_data_files.get(current_market)
-            if not target_file or not os.path.exists(target_file):
-                print(f"  市场数据文件不存在: {target_file}")
-                print(f"  将跳过预加载，使用运行时获取模式")
-                # 设置空缓存，让运行时方法处理
-                for stock_code in stock_codes:
-                    self._stock_amount_cache[stock_code] = None
-                return
+            # 使用网络API，不需要检查本地文件
             
             # 批量加载成交金额数据（使用全局配置）
             total_stocks = len(stock_codes)
@@ -15100,21 +14841,10 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             traceback.print_exc()
     
     def _batch_load_stock_amounts(self, stock_codes, market):
-        """批量加载一批股票的成交金额（优化版）"""
-        market_data_files = {
-            'cn': 'cn-lj.dat.gz',
-            'hk': 'hk-lj.dat.gz', 
-            'us': 'us-lj.dat.gz'
-        }
+        """批量加载一批股票的成交金额（优化版）
         
-        target_file = market_data_files.get(market)
-        if not target_file or not os.path.exists(target_file):
-            print(f"      [ERROR] 市场数据文件不存在: {target_file}")
-            # 为所有股票设置默认值
-            for stock_code in stock_codes:
-                self._stock_amount_cache[stock_code] = 0.0
-            return
-        
+        使用网络API，不需要检查本地文件
+        """
         try:
             success_count = 0
             failed_count = 0
@@ -15359,56 +15089,35 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                 current_market = self._get_current_market_type()
                 print(f"      🌍 当前市场: {current_market}")
                 
-                # 检查对应市场的数据文件是否存在
-                market_data_files = {
-                    'cn': 'cn-lj.dat.gz',
-                    'hk': 'hk-lj.dat.gz', 
-                    'us': 'us-lj.dat.gz'
-                }
-                
-                target_file = market_data_files[current_market]
-                file_exists = os.path.exists(target_file)
-                print(f"      📁 目标文件: {target_file}, 存在: {file_exists}")
-                
-                if current_market in market_data_files and file_exists:
-                    # 获取最近1天的数据
-                    print(f"       正在从LJDataReader获取 {stock_code} 数据...")
-                    volume_data = lj_reader.get_volume_price_data(stock_code, days=1, market=current_market)
-                    if volume_data and 'data' in volume_data and volume_data['data']:
-                        latest_data = volume_data['data'][-1]  # 最新一天的数据
-                        raw_amount = latest_data.get('amount', 0)  # 原始成交金额
-                        # LJDataReader返回的成交额单位需要修正（约为实际值的1/10）
-                        amount = raw_amount * 10  # 修正单位为元
-                        print(f"       获取到原始成交金额: {raw_amount} -> 修正后: {amount}")
-                        if amount > 0:
+                # 使用网络API获取数据，不需要检查本地文件
+                print(f"       正在从LJDataReader（网络API）获取 {stock_code} 数据...")
+                volume_data = lj_reader.get_volume_price_data(stock_code, days=1, market=current_market)
+                if volume_data and 'data' in volume_data and volume_data['data']:
+                    latest_data = volume_data['data'][-1]  # 最新一天的数据
+                    raw_amount = latest_data.get('amount', 0)  # 原始成交金额
+                    # LJDataReader返回的成交额单位需要修正（约为实际值的1/10）
+                    amount = raw_amount * 10  # 修正单位为元
+                    print(f"       获取到原始成交金额: {raw_amount} -> 修正后: {amount}")
+                    if amount > 0:
+                        # 缓存结果供后续使用
+                        if hasattr(self, '_stock_amount_cache'):
+                            self._stock_amount_cache[stock_code] = float(amount)
+                        return float(amount)
+                    else:
+                        # 如果没有成交金额，尝试计算：成交金额 = 成交量 × 收盘价
+                        volume = latest_data.get('volume', 0)  # 成交量
+                        close_price = latest_data.get('close_price', latest_data.get('收盘价', 0))  # 收盘价
+                        if volume > 0 and close_price > 0:
+                            calculated_amount = volume * close_price
+                            print(f"      🧮 计算成交金额: {volume} × {close_price} = {calculated_amount}")
                             # 缓存结果供后续使用
                             if hasattr(self, '_stock_amount_cache'):
-                                self._stock_amount_cache[stock_code] = float(amount)
-                            return float(amount)
-                        else:
-                            # 如果没有成交金额，尝试计算：成交金额 = 成交量 × 收盘价
-                            volume = latest_data.get('volume', 0)  # 成交量
-                            close_price = latest_data.get('close_price', latest_data.get('收盘价', 0))  # 收盘价
-                            if volume > 0 and close_price > 0:
-                                calculated_amount = volume * close_price
-                                print(f"      🧮 计算成交金额: {volume} × {close_price} = {calculated_amount}")
-                                # 缓存结果供后续使用
-                                if hasattr(self, '_stock_amount_cache'):
-                                    self._stock_amount_cache[stock_code] = float(calculated_amount)
-                                return float(calculated_amount)
-                    else:
-                        print(f"      [ERROR] LJDataReader返回空数据: {volume_data}")
+                                self._stock_amount_cache[stock_code] = float(calculated_amount)
+                            return float(calculated_amount)
                 else:
-                    print(f"      [ERROR] 市场文件检查失败: market={current_market}, file={market_data_files.get(current_market, 'unknown')}, exists={file_exists}")
+                    print(f"      [ERROR] LJDataReader返回空数据: {volume_data}")
             except Exception as e:
                 print(f"      [ERROR] LJDataReader获取 {stock_code} 成交金额失败: {e}")
-                # 检查具体错误原因
-                if "lj_read模块不可用" in str(e):
-                    print(f"        lj_read模块问题，检查 {current_market}-lj.dat.gz 文件")
-                elif "文件不存在" in str(e):
-                    print(f"        数据文件不存在: {market_data_files.get(current_market, 'unknown')}")
-                else:
-                    print(f"       具体错误: {str(e)[:100]}")  # 只显示前100字符避免日志过长
             
             # 如果.dat.gz文件中没有数据，返回0（不使用模拟数据）
             return 0.0
@@ -15993,6 +15702,7 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             print(f"[Tab切换] 处理Tab切换失败: {e}")
     
     def ensure_stock_server_running(self):
+        return
         """确保本地股票服务器正在运行（仅中文+CN市场）"""
         if self.server_started:
             print(f"[服务器管理] 服务器已标记为启动，跳过检查 (server_started_by_us={self.server_started_by_us})")
@@ -16240,50 +15950,13 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
         return industry_stocks[:count]
     
     def _is_large_cap_stock(self, stock_code: str) -> bool:
-        """判断是否为大盘股（与algorithms模块中的逻辑保持一致）"""
+        """判断是否为大盘股 - 代理方法，调用共享工具函数"""
+        if SHARED_UTILS_AVAILABLE:
+            return shared_is_large_cap_stock(stock_code)
+        # 回退：内联简化实现
         code = str(stock_code).strip()
-        
-        # A股大盘股判断
         if len(code) == 6 and code.isdigit():
-            # 主板股票通常是大盘股
-            if code.startswith('00') or code.startswith('60'):
-                return True
-            # 部分深市主板大盘股（001、002开头的部分股票）
-            if code.startswith('001') or code.startswith('002'):
-                return True
-        
-        # 港股大盘股判断（5位数字）
-        elif len(code) == 5 and code.isdigit():
-            # 知名港股大盘股代码
-            large_cap_hk_codes = {
-                '00700', '00939', '00388', '00005', '00001', '00002', '00003', '00004',
-                '00011', '00012', '00016', '00017', '00019', '00023', '00027', '00066',
-                '00083', '00101', '00135', '00144', '00151', '00175', '00267', '00288',
-                '00386', '00688', '00762', '00823', '00857', '00883', '00941', '00992',
-                '01038', '01044', '01088', '01093', '01109', '01113', '01171', '01177',
-                '01299', '01398', '01818', '01928', '01997', '02007', '02018', '02020',
-                '02202', '02318', '02319', '02382', '02388', '02628', '03328', '03988'
-            }
-            return code in large_cap_hk_codes
-        
-        # 美股大盘股判断（字母代码）
-        elif code.isalpha():
-            # 知名美股大盘股代码
-            large_cap_us_codes = {
-                'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA',
-                'BRK.A', 'BRK.B', 'UNH', 'JNJ', 'JPM', 'V', 'PG', 'HD', 'MA', 'PFE',
-                'ABBV', 'BAC', 'KO', 'AVGO', 'PEP', 'TMO', 'COST', 'DIS', 'ABT',
-                'MRK', 'ACN', 'VZ', 'CRM', 'DHR', 'ADBE', 'NKE', 'TXN', 'LIN',
-                'WMT', 'NEE', 'AMD', 'BMY', 'PM', 'RTX', 'QCOM', 'HON', 'T',
-                'UPS', 'ORCL', 'COP', 'MS', 'SCHW', 'LOW', 'CAT', 'GS', 'IBM',
-                'AXP', 'BLK', 'DE', 'ELV', 'LMT', 'SYK', 'TJX', 'MDT', 'ADP',
-                'GE', 'C', 'MDLZ', 'ISRG', 'REGN', 'CB', 'MMC', 'SO', 'PLD',
-                'NOW', 'ZTS', 'ICE', 'DUK', 'SHW', 'CMG', 'WM', 'GD', 'TGT',
-                'BDX', 'ITW', 'EOG', 'FIS', 'NSC', 'SRE', 'MU', 'BSX', 'FCX'
-            }
-            return code.upper() in large_cap_us_codes
-        
-        # 默认不是大盘股
+            return code.startswith(('000', '001', '002', '003', '600', '601', '603', '605'))
         return False
     
     def get_industry_trend_status(self, tma_value):
@@ -16456,93 +16129,12 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
     # ==================== 行业AI分析功能 ====================
     
     def _search_single_industry_news(self, industry_name: str, market: str, limit: int = 5) -> list:
-        """
-        搜索单个行业的财经资讯（使用本地搜索API：localhost:16888）
-        
-        Args:
-            industry_name: 行业名称
-            market: 市场类型 (cn/hk/us)
-            limit: 返回新闻数量限制（默认5）
-            
-        Returns:
-            [{"title": "...", "url": "..."}, ...]
-        """
-        import requests
-        
-        try:
-            # 根据市场设置搜索参数
-            search_params = self._get_search_params_by_market(market)
-            
-            # 行业同义词映射（针对专业术语优化）
-            industry_aliases = {
-                "指数": "股市指数",
-                "产业互联网": "工业互联网",
-                "能源金属": "锂矿 新能源",
-                "煤炭开采": "煤炭行业",
-                "军工": "军工行业",
-                "新能源": "新能源汽车",
-                "光伏": "太阳能 光伏",
-                "芯片": "半导体 芯片"
-            }
-            
-            # 智能降级策略（针对中国区财经新闻）
-            strategies = [
-                f"{industry_name} 财经 中国",
-                f"{industry_name} 股票 投资",
-                industry_aliases.get(industry_name, f"{industry_name} 行业")
-            ]
-            
-            print(f"[行业资讯] 搜索 [{industry_name}] 使用本地API")
-            
-            # 使用本地搜索API（localhost:16888）
-            api_url = "http://localhost:16888/api/search"
-            
-            # 根据市场确定地区
-            region = "zh-CN" if market == "cn" else "auto"
-            
-            for i, keyword in enumerate(strategies, 1):
-                try:
-                    params = {
-                        'keyword': keyword,
-                        'type': 'news',  # 固定为新闻搜索
-                        'region': region,  # 中文系统使用简体中文
-                        'count': limit     # 用户要求的数量（默认5）
-                    }
-                    
-                    print(f"[行业资讯] 策略{i}: 搜索 '{keyword}'")
-                    
-                    response = requests.get(api_url, params=params, timeout=60)
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    if data.get('success') and data.get('results'):
-                        news_items = []
-                        for result in data['results']:
-                            news_items.append({
-                                'title': result.get('title', ''),
-                                'url': result.get('url', ''),
-                                'description': result.get('description', '')
-                            })
-                        
-                        if news_items:
-                            print(f"✅ [行业资讯] 找到 {len(news_items)} 条新闻")
-                            return news_items[:limit]
-                    else:
-                        print(f"[行业资讯] 策略{i}返回空结果")
-                
-                except Exception as e:
-                    print(f"[行业资讯] 策略{i}失败: {e}")
-                    continue
-            
-            # 所有策略都失败
-            print(f"❌ [行业资讯] {industry_name}: 未找到相关新闻")
-            return []
-            
-        except Exception as e:
-            print(f"[行业资讯] {industry_name} 搜索失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
+        """搜索单个行业的财经资讯 - 代理方法，调用共享工具函数"""
+        if SHARED_UTILS_AVAILABLE:
+            return shared_search_single_industry_news(industry_name, market, limit)
+        # 回退：返回空列表
+        return []
+    
     def _search_news_by_leading_stocks(self, top_stocks: list, year: int, market: str, limit: int = 5) -> list:
         """
         ✅ 用户要求：将5个龙头股票拼在一起搜索（不使用行业名称，不使用"财经"）
@@ -16690,28 +16282,11 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
             return []
     
     def _get_search_params_by_market(self, market: str) -> dict:
-        """根据市场类型返回搜索参数"""
-        if market == 'cn':
-            return {
-                "category": "news",
-                "language": "zh",
-                "safe_search": 1,
-                "time_range": "year"
-            }
-        elif market == 'hk':
-            return {
-                "category": "news",
-                "language": "zh",
-                "safe_search": 1,
-                "time_range": "year"
-            }
-        else:  # us
-            return {
-                "category": "news",
-                "language": "en",
-                "safe_search": 1,
-                "time_range": "month"
-            }
+        """根据市场类型返回搜索参数 - 代理方法，调用共享工具函数"""
+        if SHARED_UTILS_AVAILABLE:
+            return shared_get_search_params_by_market(market)
+        # 回退：简化实现
+        return {"category": "news", "language": "zh", "safe_search": 1, "time_range": "year"}
     
     def perform_industry_ai_analysis(self):
         """执行行业AI分析 - 单线程避免崩溃"""
@@ -16843,7 +16418,7 @@ Note: Provide specific values and prices, avoid theoretical explanations. For Ch
                         "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
                         "request_timeout": 600,
                         "agent_role": "不使用",
-                        "SILICONFLOW_API_KEY": "",
+                        "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
                         "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
                         "dont_show_api_dialog": True
                     }
@@ -17316,7 +16891,7 @@ TMA指数为{tma_index:.2f}，属于[强势上涨/中性/弱势下跌]，表明�
                         "default_structured_model": "Qwen/Qwen2.5-7B-Instruct",
                         "request_timeout": 600,
                         "agent_role": "不使用",
-                        "SILICONFLOW_API_KEY": "",
+                        "SILICONFLOW_API_KEY": "sk-zbzzqzrcjyemnxlgcwiznrkuxrpdkrnpbneurezszujaqfjg",
                         "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
                         "dont_show_api_dialog": True
                     }
@@ -18464,7 +18039,7 @@ Please provide professional analysis based on index technical patterns and relat
                 <div class="header">
                         <h1> {industry_name} 行业AI智能分析报告</h1>
                         <div class="subtitle">分析时间：{current_time}</div>
-                        <div class="subtitle" style="font-size: 0.9em; margin-top: 10px; opacity: 0.8;">作者：ttfox@ttfox.com</div>
+                        <div class="subtitle" style="font-size: 0.9em; margin-top: 10px; opacity: 0.8;">TTFox.com</div>
                 </div>
                 
                     <div class="section">
@@ -18652,6 +18227,9 @@ class NewPyQt5Interface(QMainWindow):
     """新的PyQt5股票分析界面主窗口"""
     
     def __init__(self, no_update=False, async_preprocess=False, no_upgrade_check=False, no_data_update=False):
+        from utils.logger import get_logger
+        logger = get_logger()
+        logger.info("DEBUG: NewPyQt5Interface.__init__ start")
         super().__init__()
         
         self.analysis_worker = None
@@ -18661,10 +18239,11 @@ class NewPyQt5Interface(QMainWindow):
         self.no_data_update = no_data_update
         
         # ===== 异步计算线程 =====
+        logger.info("DEBUG: Initializing worker variables")
         self.msci_worker = None
         self.industry_worker = None
         self.stock_worker = None
-        self.preprocess_worker = None  # 新增：异步预处理线程
+        self.preprocess_worker = None  # 新增:异步预处理线程
         
         # ===== 计算结果缓存（防止未完成时被访问） =====
         self.current_dataset = None  # 保存数据集引用
@@ -18676,7 +18255,7 @@ class NewPyQt5Interface(QMainWindow):
         self.msci_ready = False
         self.industry_ready = False
         self.stock_ready = False
-        self.preprocess_ready = False  # 新增：预处理完成标记
+        self.preprocess_ready = False  # 新增:预处理完成标记
         
         # ===== 启动消息收集（用于HTML页面显示） =====
         global _GLOBAL_STARTUP_MESSAGES
@@ -18684,6 +18263,7 @@ class NewPyQt5Interface(QMainWindow):
         self.latest_startup_message = self.startup_messages[-1] if self.startup_messages else "初始化中..."
         
         # ===== 初始化AI使用计数器 =====
+        logger.info("DEBUG: Initializing AI counter")
         try:
             from utils.ai_usage_counter import get_ai_counter
             self.ai_counter = get_ai_counter()
@@ -18700,6 +18280,7 @@ class NewPyQt5Interface(QMainWindow):
         
         # 根据参数决定是否执行开机启动更新数据文件（同步模式，已废弃）
         if not self.no_update and not self.async_preprocess:
+            logger.info("DEBUG: startup_update_data_files")
             self.startup_update_data_files()
         else:
             if self.async_preprocess:
@@ -18707,17 +18288,9 @@ class NewPyQt5Interface(QMainWindow):
             elif self.no_data_update:
                 print("🚫 跳过数据文件检查（--NoUpdate参数已启用）")
         
+        logger.info("DEBUG: Calling setup_ui")
         self.setup_ui()
-        
-        # 在setup_ui之后，启动服务器检查（此时所有界面组件已准备好）
-        # 注意：服务器启动将在数据加载后执行，此处不再提前启动
-        # print("⏰ [服务器] UI初始化完成，准备启动服务器...")
-        # QTimer.singleShot(200, self.startup_stock_server)
-        
-        # 不再需要异步预处理，已在Splash阶段完成
-        # if self.async_preprocess:
-        #     print("⏰ [预处理] 准备启动异步预处理...")
-        #     QTimer.singleShot(500, self.start_async_preprocess)
+        logger.info("DEBUG: NewPyQt5Interface.__init__ end")
     
     def center_on_screen(self):
         """将窗口居中显示在屏幕上"""
@@ -18820,9 +18393,121 @@ class NewPyQt5Interface(QMainWindow):
         except Exception as e:
             print(f"启动数据更新功能失败: {e}")
             print("将跳过数据更新，直接启动程序")
+
+    def run_startup_tasks(self, args):
+        """运行启动任务（替代Splash） - 安全模式"""
+        try:
+            # 显示加载界面
+            self.file_page.show_loading_progress("startup")
+            self.file_page.update_loading_message("正在初始化系统...")
+            QApplication.processEvents()
+
+            # 1. 检查并启动服务器
+            self.file_page.update_loading_progress(10, "正在检查股票服务器...")
+            QApplication.processEvents()
+            
+            try:
+                print("DEBUG: Calling ensure_server_running...")
+                from utils.server_manager import ensure_server_running
+                # 使用线程启动服务器检查，避免阻塞UI
+                import threading
+                def start_server_safe():
+                    try:
+                        ensure_server_running()
+                    except Exception as e:
+                        print(f"Server start failed: {e}")
+                
+                t = threading.Thread(target=start_server_safe)
+                t.daemon = True
+                t.start()
+                # 我们不等待服务器完全启动，让它在后台运行
+            except Exception as e:
+                print(f"服务器启动检查异常: {e}")
+            
+            # 2. 版本检查 (手动实现，避免updater模块直接sys.exit)
+            if not args.no_upgrade_check:
+                self.file_page.update_loading_progress(20, "正在检查软件更新...")
+                QApplication.processEvents()
+                try:
+                    print("DEBUG: Checking for updates manually...")
+                    from updater import load_upgrade_config, get_current_version, SoftwareUpdater
+                    
+                    config = load_upgrade_config()
+                    if config['enable_auto_check'] and config['version_url']:
+                        current_ver = get_current_version()
+                        updater = SoftwareUpdater(current_ver, config['version_url'])
+                        
+                        # 设置较短超时，避免阻塞太久
+                        updater.timeout = 3
+                        
+                        # 只读取版本文件，不自动执行升级
+                        print(f"DEBUG: Reading version file from {config['version_url']}")
+                        version_info = updater.read_version_file()
+                        
+                        if version_info:
+                            comparison = updater.compare_versions(current_ver, version_info['version'])
+                            if comparison < 0:
+                                # 发现新版本
+                                msg = f"发现新版本: {version_info['version']} (当前: {current_ver})"
+                                print(f"✅ {msg}")
+                                self.file_page.update_loading_message(msg)
+                                # 这里我们不自动升级，因为那会导致进程退出
+                                # 只是提示用户，或者在界面上显示升级按钮（未来实现）
+                            else:
+                                print("✅ 软件已是最新版本")
+                                self.file_page.update_loading_message("软件已是最新版本")
+                        else:
+                            print("⚠️ 无法获取版本信息")
+                    else:
+                        print("ℹ️ 自动更新已禁用或未配置URL")
+                        
+                except Exception as e:
+                    print(f"版本检查异常: {e}")
+                    self.file_page.update_loading_message("版本检查跳过")
+            
+            # 3. 数据更新
+            if not args.NoUpdate:
+                self.file_page.update_loading_progress(40, "正在检查数据文件...")
+                QApplication.processEvents()
+                try:
+                    print("DEBUG: Starting silent_update...")
+                    from utils.data_updater_pyqt5 import silent_update
+                    from utils.path_helper import get_base_path
+                    
+                    # 在主线程执行，但要有异常保护
+                    update_success = silent_update(target_dir=get_base_path())
+                    
+                    if update_success:
+                        self.file_page.update_loading_progress(80, "数据文件更新成功")
+                    else:
+                        self.file_page.update_loading_progress(80, "部分数据更新失败")
+                        
+                    # 关键修改：更新完成后，重新加载卡片上的日期信息和状态
+                    print("DEBUG: Reloading data dates after update...")
+                    self.file_page.load_data_dates()
+                    
+                except Exception as e:
+                    print(f"数据更新异常: {e}")
+                    self.file_page.update_loading_progress(80, "数据更新跳过")
+            
+            self.file_page.update_loading_progress(100, "启动完成！")
+            QApplication.processEvents()
+            
+            # 延迟隐藏卡片
+            QTimer.singleShot(500, self.file_page.hide_loading_progress)
+            
+        except Exception as outside_e:
+            print(f"run_startup_tasks 发生未捕获异常: {outside_e}")
+            import traceback
+            traceback.print_exc()
+            # 确保即使出错也隐藏加载层，让用户能看到主界面
+            self.file_page.hide_loading_progress()
     
     def setup_ui(self):
         """设置UI"""
+        from utils.logger import get_logger
+        logger = get_logger()
+        logger.info("DEBUG: setup_ui start")
         # 获取版本号并设置窗口标题
         try:
             from config.constants import VERSION
@@ -18838,6 +18523,7 @@ class NewPyQt5Interface(QMainWindow):
         # 移除最大高度限制，允许窗口最大化和自由调整大小
         
         # 居中显示窗口
+        logger.info("DEBUG: center_on_screen")
         self.center_on_screen()
         
         # 设置窗口字体 - 与行业分析标题一致
@@ -18849,19 +18535,24 @@ class NewPyQt5Interface(QMainWindow):
             self.setWindowIcon(QIcon(str(icon_path)))
         
         # 创建中心部件
+        logger.info("DEBUG: Creating central widget")
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
         # 创建堆叠部件管理两个页面
+        logger.info("DEBUG: Creating QStackedWidget")
         self.stacked_widget = QStackedWidget()
         
         # 创建首页（文件选择页面）
+        logger.info("DEBUG: Creating FileSelectionPage")
         self.file_page = FileSelectionPage()
         self.file_page.file_selected.connect(self.on_file_selected)
         
-        # 创建分析页面（传入self作为parent）
+        # 创建分析页面（与旧版本一致，直接创建）
+        logger.info("DEBUG: Creating AnalysisPage")
         self.analysis_page = AnalysisPage(parent=self)
         self.analysis_page.set_main_window(self)
+        logger.info("DEBUG: AnalysisPage created")
         
         # 添加到堆叠部件
         self.stacked_widget.addWidget(self.file_page)
@@ -18872,6 +18563,7 @@ class NewPyQt5Interface(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.stacked_widget)
         central_widget.setLayout(layout)
+        logger.info("DEBUG: setup_ui end")
         
         # 设置商务风格主窗口样式
         self.setStyleSheet("""
@@ -19010,16 +18702,34 @@ class NewPyQt5Interface(QMainWindow):
         
         if should_show_html:
             print("✅ [新流程] 中文+A股环境，先显示HTML面板，再加载数据")
-            # 切换到分析页面
-            self.stacked_widget.setCurrentWidget(self.analysis_page)
-            self.file_page.hide_loading_progress()
             
-            # 更新综合分析节点可见性并切换到HTML页面
-            self.analysis_page.update_comprehensive_visibility()
-            try:
-                self.analysis_page.content_area.setCurrentWidget(self.analysis_page.comprehensive_page)
-            except Exception as switch_error:
-                print(f"⚠️ [新流程] 切换到综合分析页面失败: {switch_error}")
+            # 确保 analysis_page 已初始化
+            if self.analysis_page is None:
+                print("⏰ [新流程] AnalysisPage未初始化，等待初始化完成...")
+                # 等待最多3秒
+                for i in range(30):
+                    QApplication.processEvents()
+                    if self.analysis_page is not None:
+                        print("✅ [新流程] AnalysisPage初始化完成")
+                        break
+                    QTimer.singleShot(100, lambda: None)
+                    time.sleep(0.1)
+                
+                if self.analysis_page is None:
+                    print("❌ [新流程] AnalysisPage初始化超时，跳过HTML显示")
+                    should_show_html = False
+            
+            if should_show_html and self.analysis_page is not None:
+                # 切换到分析页面
+                self.stacked_widget.setCurrentWidget(self.analysis_page)
+                self.file_page.hide_loading_progress()
+                
+                # 更新综合分析节点可见性并切换到HTML页面
+                self.analysis_page.update_comprehensive_visibility()
+                try:
+                    self.analysis_page.content_area.setCurrentWidget(self.analysis_page.comprehensive_page)
+                except Exception as switch_error:
+                    print(f"⚠️ [新流程] 切换到综合分析页面失败: {switch_error}")
         
         # 创建纯数据加载线程（DataLoadWorker）
         self.data_load_worker = DataLoadWorker(file_path)
@@ -19048,6 +18758,21 @@ class NewPyQt5Interface(QMainWindow):
         # 调试：检查dataset的市场类型
         dataset_market = getattr(dataset, 'market', 'UNKNOWN')
         print(f"📊 [调试] dataset.market = {dataset_market}")
+
+        # 确保 analysis_page 已初始化
+        if self.analysis_page is None:
+            print("⏰ [异步] AnalysisPage未初始化，等待初始化完成...")
+            # 等待最多3秒
+            for i in range(30):
+                QApplication.processEvents()
+                if self.analysis_page is not None:
+                    print("✅ [异步] AnalysisPage初始化完成")
+                    break
+                time.sleep(0.1)
+            
+            if self.analysis_page is None:
+                print("❌ [异步] AnalysisPage初始化超时，无法继续")
+                return
 
         # 预先创建空的AnalysisResults对象（供后续填充）
         from algorithms.realtime_engine import AnalysisResults
@@ -19708,6 +19433,13 @@ def main():
         args, unknown_args = parser.parse_known_args()
         early_log(f"参数解析成功: {args}")
         
+        # 应用全局日志开关
+        if ENABLE_LOGS_BY_DEFAULT:
+            if not args.logs:
+                args.logs = True
+                print("ℹ️ 全局日志开关(ENABLE_LOGS_BY_DEFAULT)已启用，自动开启文件日志")
+                early_log("ℹ️ 全局日志开关已启用，自动开启文件日志")
+        
         # 快速启动模式：自动启用 NoUpdate 和 no_upgrade_check
         if args.fast:
             args.NoUpdate = True
@@ -19788,6 +19520,13 @@ def main():
         if logger:
             logger.info("正在创建QApplication...")
         
+        # ========== QWebEngineView 崩溃预防 ==========
+        # 必须在 QApplication 创建之前设置
+        from PyQt5.QtCore import Qt
+        QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)  # 共享 OpenGL 上下文
+        # QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL, True)  # 备选：使用软件渲染
+        early_log("已设置 Qt.AA_ShareOpenGLContexts 属性")
+        
         app = QApplication(sys.argv)
         
         early_log("QApplication创建成功")
@@ -19827,115 +19566,42 @@ def main():
             pass
         sys.exit(1)
     
-    # ========== 阶段1：Splash启动画面，执行预处理 ==========
+    
+    # ========== 阶段1：直接创建主窗口 ==========
+    # 初始化变量以防finally块报错
     splash = None
     splash_logger = None
     
-    if not args.no_splash:
-        print("🚀 显示Splash启动画面，执行版本检查和数据更新...")
-        if logger:
-            logger.info("创建Splash启动画面")
-        
-        from utils.splash_screen import create_splash_screen, SplashLogger
-        splash = create_splash_screen(app)
-        
-        # 将控制台输出重定向到splash
-        splash_logger = SplashLogger(splash)
-        splash_logger.install()
-        
-        # ========== 最早启动：检查并启动stockhost.exe服务器 ==========
-        splash.showProgress(5, "正在启动股票服务器...")
-        QApplication.processEvents()
-        try:
-            from utils.server_manager import ensure_server_running
-            print("⏰ [服务器] 程序启动时检查服务器...")
-            ensure_server_running()
-            print("✅ [服务器] 服务器启动检查完成")
-        except Exception as e:
-            print(f"⚠️ [服务器] 启动失败: {e}")
-        
-        # 执行第一阶段预处理
-        splash.showProgress(10, "正在检查软件更新...")
-        QApplication.processEvents()
-        
-        # 版本检查
-        if not args.no_upgrade_check:
-            try:
-                from updater import check_for_updates
-                splash.showProgress(20, "正在检查软件更新...")
-                result = check_for_updates()
-                # result可能是dict（有更新）或bool（无更新或失败）
-                if result and isinstance(result, dict):
-                    latest_version = result.get('latest_version', 'unknown')
-                    splash.showProgress(30, f"发现新版本: {latest_version}")
-                    print(f"✅ 发现新版本: {latest_version}")
-                elif result is True or result is None:
-                    splash.showProgress(30, "软件已是最新版本")
-                    print("✅ 软件已是最新版本")
-                else:
-                    splash.showProgress(30, "版本检查完成")
-                    print("✅ 版本检查完成")
-            except SystemExit:
-                # 升级程序调用了sys.exit()，正常退出
-                raise
-            except Exception as e:
-                print(f"版本检查失败: {e}")
-                splash.showProgress(30, "版本检查失败，继续启动...")
-        else:
-            splash.showProgress(30, "跳过版本检查")
-        
-        QApplication.processEvents()
-        
-        # 数据更新
-        if not args.NoUpdate:
-            try:
-                from utils.data_updater_pyqt5 import silent_update
-                from utils.path_helper import get_base_path
-                splash.showProgress(40, "正在检查数据文件...")
-                target_dir = get_base_path()
-                print(f"数据文件将更新到: {target_dir}")
-                update_success = silent_update(target_dir=target_dir)
-                if update_success:
-                    print("✅ 数据文件更新成功")
-                    splash.showProgress(80, "数据文件检查完成")
-                else:
-                    print("⚠️ 部分数据文件更新失败，将使用现有数据")
-                    splash.showProgress(80, "部分数据更新失败")
-            except Exception as e:
-                print(f"数据更新失败: {e}")
-                splash.showProgress(80, "数据更新失败，继续启动...")
-        else:
-            splash.showProgress(80, "跳过数据更新")
-        
-        QApplication.processEvents()
-        splash.showProgress(90, "正在启动主界面...")
-        
-        # 恢复控制台输出
-        if splash_logger:
-            splash_logger.restore()
-    else:
-        print("🚀 快速启动模式，跳过Splash画面")
-    
-    # ========== 阶段2：显示市场选择页面 ==========
+    early_log("创建主窗口...")
     if logger:
         logger.info(f"正在创建主窗口... (no_upgrade_check={args.no_upgrade_check}, NoUpdate={args.NoUpdate})")
     
+    # 实例化主窗口 (不再执行内部的同步更新，由run_startup_tasks处理)
+    # 传递 no_update=True 以跳过 __init__ 中的旧更新逻辑
     window = NewPyQt5Interface(
-        no_update=True,  # 第一阶段已处理
-        async_preprocess=False,  # 第一阶段已处理，不需要异步预处理
+        no_update=True,
+        async_preprocess=False, 
         no_upgrade_check=args.no_upgrade_check,
         no_data_update=args.NoUpdate
     )
     
-    # 关闭Splash，显示市场选择页面
-    if splash:
-        splash.showProgress(100, "启动完成！")
-        QApplication.processEvents()
-        QTimer.singleShot(300, lambda: splash.finish(window))
-    
+    # 显示主窗口（此时会显示 "正在加载..." 的初始状态或FileSelectionPage）
     if logger:
-        logger.info("显示市场选择页面")
+        logger.info("显示主窗口")
     window.show()
+    
+    # 强制处理一次事件，确保主窗口开始渲染
+    QApplication.processEvents()
+    
+    # ========== 阶段2：执行启动任务（替代Splash） ==========
+    # 只有在非快速启动模式下才执行任务
+    if not args.fast:
+        if logger:
+            logger.info("执行启动任务...")
+        window.run_startup_tasks(args)
+    else:
+        if logger:
+            logger.info("快速启动模式，跳过启动任务")
     
     # 运行应用程序
     try:
@@ -19957,8 +19623,20 @@ def main():
     finally:
         if logger:
             logger.info("开始清理资源...")
+        
+        # 确保SplashLogger已恢复（如果之前没有执行到hide_splash）
         if splash_logger:
             splash_logger.restore()
+        
+        # 关闭Splash（如果存在且未关闭）
+        if splash:
+            try:
+                splash.close()
+                if logger:
+                    logger.info("Splash画面已关闭")
+            except:
+                pass
+        
         # 确保应用程序完全退出
         app.quit()
         QApplication.processEvents()

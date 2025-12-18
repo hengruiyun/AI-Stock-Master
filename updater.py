@@ -45,7 +45,7 @@ class SoftwareUpdater:
         解析版本号字符串为可比较的元组
         
         Args:
-            version_str: 版本号字符串，如 "3.3" 或 "3.3.1"
+            version_str: 版本号字符串，如 "3.6" 或 "3.8.5"
             
         Returns:
             版本号元组，如 (3, 3) 或 (3, 3, 1)
@@ -540,11 +540,11 @@ def get_current_version() -> str:
                 return version_match.group(1)
         
         # 如果无法从文件读取，返回默认版本号
-        return "3.5.0"
+        return "3.8.5"
         
     except Exception as e:
         print(f"获取版本号时发生错误: {e}")
-        return "3.5.0"
+        return "3.8.5"
 
 
 def load_upgrade_config() -> Dict[str, Any]:
@@ -636,7 +636,7 @@ import time
 if __name__ == "__main__":
     # 测试升级功能
     current_version = get_current_version()
-    version_url = "https://github.com/hengruiyun/AI-Stock-Master/raw/refs/heads/main/version.ini"
+    version_url = "http://update.ttfox.com/update/version.ini"
     
     updater = SoftwareUpdater(current_version, version_url)
     result = updater.check_and_update()
