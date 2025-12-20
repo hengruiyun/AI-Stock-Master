@@ -1,4 +1,8 @@
 # AI股票大师使用教程
+
+演示: [TTfox.com](https://master.ttfox.com)
+
+
 <img width="1298" height="973" alt="aismc-10" src="https://github.com/user-attachments/assets/3b4a2147-1f58-4fad-af7e-29dcd6e21981" />
 
 ---
@@ -209,6 +213,7 @@ ollama rm gemma3:1b
 ### 联系方式
 - **邮箱**：267278466@qq.com
 - **项目地址**：https://github.com/hengruiyun/AI-Stock-Master
+
 
 
 
