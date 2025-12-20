@@ -2,6 +2,9 @@
 
 这是一个基于AI 的股票趋势分析平台，经过AI 大模型解读中国、香港、美国股票市场，融合多种核心算法：**RTSI个股趋势强度指数**、**MSCI市场情绪指数**和**核心强势分析器**，为投资者提供全方位的投资决策支持。
 
+演示: [TTfox.com](https://master.ttfox.com)
+
+
 <img width="1272" height="908" alt="aismc-31" src="https://github.com/user-attachments/assets/7461d3b5-54ae-486f-b0b9-e1341f76e5d2" />
 
 
