@@ -4,6 +4,8 @@ This is an AI-based stock trend analysis platform that leverages large language 
 
 Demo(演示): [TTfox.com](https://master.ttfox.com)
 
+For OpenClaw: [Master OpenClaw](https://github.com/hengruiyun/ai-stock-master-openclaw)
+
 
 <img width="1590" height="844" alt="aisme-31" src="https://github.com/user-attachments/assets/ff0df875-24f4-4180-9f34-d97429887b35" />
 
