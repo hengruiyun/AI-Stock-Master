@@ -1,5 +1,15 @@
 # AI股票大师Readme    [附加内容：使用手册](https://github.com/hengruiyun/AI-Stock-Master/blob/main/usage.md)
 
+<p align="center">
+  <a href="https://refineaidocs.com">
+    <img src="static/sponsors/refine-ai-publisher.png" width="100%" alt="赞助商 Refine AI Publisher - 让文档更适合分享">
+  </a>
+</p>
+
+<p align="center">
+  <sub><strong>赞助商：Refine AI Publisher</strong> - 面向 macOS 的 AI 文档增强，帮助生成更清晰的文档、更智能的报告和专业 PDF。<a href="https://refineaidocs.com">了解更多</a></sub>
+</p>
+
 这是一个基于AI 的股票趋势分析平台，经过AI 大模型解读中国、香港、美国股票市场，融合多种核心算法：**RTSI个股趋势强度指数**、**MSCI市场情绪指数**和**核心强势分析器**，为投资者提供全方位的投资决策支持。
 
 演示: [TTfox.com](https://master.ttfox.com)

@@ -1,5 +1,15 @@
 # AI Stock Master [中文](https://github.com/hengruiyun/AI-Stock-Master/blob/main/README_CN.md) 
 
+<p align="center">
+  <a href="https://refineaidocs.com">
+    <img src="static/sponsors/refine-ai-publisher.png" width="100%" alt="Sponsored by Refine AI Publisher - Make documents ready to share">
+  </a>
+</p>
+
+<p align="center">
+  <sub><strong>Sponsored by Refine AI Publisher</strong> - AI enhancement for clearer documents, smarter reports, and professional PDF export on macOS. <a href="https://refineaidocs.com">Learn more</a></sub>
+</p>
+
 This is an AI-based stock trend analysis platform that leverages large language models to interpret Chinese, Hong Kong, and US stock markets. It integrates multiple core algorithms: **RTSI Individual Stock Trend Strength Index**, **MSCI Market Sentiment Index**, and **Core Strength Analyzer**, providing comprehensive investment decision support for investors.
 
 Demo(演示): [TTfox.com](https://master.ttfox.com)
