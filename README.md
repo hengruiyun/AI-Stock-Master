@@ -1,4 +1,4 @@
-# AI Stock Master [中文](https://github.com/hengruiyun/AI-Stock-Master/blob/main/README_CN.md) 
+# AI Stock Master [中文](https://github.com/hengruiyun/AI-Stock-Master/blob/main/README_CN.md)
 
 <p align="center">
   <a href="https://refineaidocs.com">
@@ -10,6 +10,13 @@
   <sub><strong>Sponsored by Refine AI Publisher</strong> - AI enhancement for clearer documents, smarter reports, and professional PDF export on macOS. <a href="https://refineaidocs.com">Learn more</a></sub>
 </p>
 
+<p align="center">
+  <a href="https://github.com/hengruiyun/AI-Stock-Master/stargazers"><img src="https://img.shields.io/github/stars/hengruiyun/AI-Stock-Master?style=flat-square" alt="GitHub stars"></a>
+  <a href="https://github.com/hengruiyun/AI-Stock-Master/network/members"><img src="https://img.shields.io/github/forks/hengruiyun/AI-Stock-Master?style=flat-square" alt="GitHub forks"></a>
+  <a href="https://github.com/hengruiyun/AI-Stock-Master/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hengruiyun/AI-Stock-Master?style=flat-square" alt="License"></a>
+  <a href="https://github.com/hengruiyun/AI-Stock-Master"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-2f6f8f?style=flat-square" alt="Windows and macOS"></a>
+</p>
+
 This is an AI-based stock trend analysis platform that leverages large language models to interpret Chinese, Hong Kong, and US stock markets. It integrates multiple core algorithms: **RTSI Individual Stock Trend Strength Index**, **MSCI Market Sentiment Index**, and **Core Strength Analyzer**, providing comprehensive investment decision support for investors.
 
 Demo(演示): [TTfox.com](https://master.ttfox.com)
@@ -18,6 +25,20 @@ For OpenClaw: [Master OpenClaw](https://github.com/hengruiyun/ai-stock-master-op
 
 
 <img width="1590" height="844" alt="aisme-31" src="https://github.com/user-attachments/assets/ff0df875-24f4-4180-9f34-d97429887b35" />
+
+> **Important:** This project is for learning and research. It is not financial advice, and historical results do not guarantee future performance.
+
+<details>
+<summary>Quick navigation</summary>
+
+- [Core Features](#core-features)
+- [Analysis Workflow](#analysis-workflow)
+- [AI and Large Language Model Technology Architecture](#ai-and-large-language-model-technology-architecture)
+- [Core Algorithm Details](#core-algorithm-details)
+- [Usage Instructions](#usage-instructions)
+- [Risk Warnings and Disclaimers](#risk-warnings-and-disclaimers)
+
+</details>
 
 
 ---
@@ -28,6 +49,30 @@ For OpenClaw: [Master OpenClaw](https://github.com/hengruiyun/ai-stock-master-op
 - **Multiple Algorithms**: AI-enhanced RTSI/MSCI/Core Strength Analysis algorithms
 - **Strength Identification**: Core strength analyzer based on TMA technical momentum analysis
 - **AI Interpretation**: Integrated large language models for intelligent interpretation and recommendation generation
+
+---
+
+## Analysis Workflow
+
+```mermaid
+flowchart LR
+    A[Market data] --> B[Data validation and caching]
+    B --> C[RTSI stock trend]
+    B --> D[TMA industry momentum]
+    B --> E[MSCI market sentiment]
+    C --> F[Multi-dimensional analysis]
+    D --> F
+    E --> F
+    F --> G[Local LLM interpretation]
+    G --> H[Charts, signals, and reports]
+```
+
+| Module | Main input | Main output |
+| --- | --- | --- |
+| Individual stock analysis | Price, volume, and technical data | Trend score, signal, and risk assessment |
+| Industry comparison | Sector constituents and momentum data | Industry ranking and rotation view |
+| Market sentiment | Flow, volatility, position, and news signals | Sentiment index and market status |
+| LLM interpretation | Structured algorithm results | Natural-language analysis and recommendations |
 
 ---
 
@@ -254,8 +299,6 @@ AI-Stock-Master.bat
 Let AI Empower Your Investment Decisions
 
 </div>
-
-
 
 
 

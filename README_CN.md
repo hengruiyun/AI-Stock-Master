@@ -10,12 +10,33 @@
   <sub><strong>赞助商：Refine AI Docs</strong> - 无广告、多格式浏览、编辑、打印的飘页文档工具，适用于 macOS 和 Windows。<a href="https://docs.acn.cn/">了解更多</a></sub>
 </p>
 
+<p align="center">
+  <a href="https://github.com/hengruiyun/AI-Stock-Master/stargazers"><img src="https://img.shields.io/github/stars/hengruiyun/AI-Stock-Master?style=flat-square" alt="GitHub Stars"></a>
+  <a href="https://github.com/hengruiyun/AI-Stock-Master/network/members"><img src="https://img.shields.io/github/forks/hengruiyun/AI-Stock-Master?style=flat-square" alt="GitHub Forks"></a>
+  <a href="https://github.com/hengruiyun/AI-Stock-Master/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hengruiyun/AI-Stock-Master?style=flat-square" alt="许可证"></a>
+  <a href="https://github.com/hengruiyun/AI-Stock-Master"><img src="https://img.shields.io/badge/平台-Windows%20%7C%20macOS-2f6f8f?style=flat-square" alt="Windows 与 macOS"></a>
+</p>
+
 这是一个基于AI 的股票趋势分析平台，经过AI 大模型解读中国、香港、美国股票市场，融合多种核心算法：**RTSI个股趋势强度指数**、**MSCI市场情绪指数**和**核心强势分析器**，为投资者提供全方位的投资决策支持。
 
 演示: [TTfox.com](https://master.ttfox.com)
 
 
 <img width="1272" height="908" alt="aismc-31" src="https://github.com/user-attachments/assets/7461d3b5-54ae-486f-b0b9-e1341f76e5d2" />
+
+> **重要提示：** 本项目仅用于学习和研究，不构成投资建议；历史结果不代表未来表现。
+
+<details>
+<summary>快速导航</summary>
+
+- [核心特色](#核心特色)
+- [分析流程](#分析流程)
+- [AI和大语言模型技术架构](#ai和大语言模型技术架构)
+- [核心算法详解](#核心算法详解)
+- [使用方法](#使用方法)
+- [风险提示与免责声明](#风险提示与免责声明)
+
+</details>
 
 
 ---
@@ -26,6 +47,30 @@
 - **多种算法**：AI 加持的 RTSI/MSCI/核心强势分析等算法
 - **强势识别**：基于TMA技术动量分析的核心强势分析器
 - **AI 解读**：集成大语言模型进行智能解读和建议生成
+
+---
+
+## 分析流程
+
+```mermaid
+flowchart LR
+    A[市场数据] --> B[数据校验与缓存]
+    B --> C[RTSI 个股趋势]
+    B --> D[TMA 行业动量]
+    B --> E[MSCI 市场情绪]
+    C --> F[多维度分析]
+    D --> F
+    E --> F
+    F --> G[本地大模型解读]
+    G --> H[图表、信号与报告]
+```
+
+| 模块 | 主要输入 | 主要输出 |
+| --- | --- | --- |
+| 个股分析 | 价格、成交量和技术数据 | 趋势评分、信号和风险评估 |
+| 行业比较 | 行业成分股和动量数据 | 行业排名和轮动视图 |
+| 市场情绪 | 资金流、波动率、持仓和新闻信号 | 情绪指数和市场状态 |
+| AI 解读 | 结构化算法结果 | 自然语言分析和建议 |
 
 ---
 
